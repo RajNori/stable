@@ -34,6 +34,41 @@ export type Database = {
   };
   public: {
     Tables: {
+      audit_events: {
+        Row: {
+          action: string;
+          actor_user_id: string;
+          club_id: string;
+          created_at: string;
+          id: string;
+          target_id: string;
+        };
+        Insert: {
+          action: string;
+          actor_user_id: string;
+          club_id: string;
+          created_at?: string;
+          id?: string;
+          target_id: string;
+        };
+        Update: {
+          action?: string;
+          actor_user_id?: string;
+          club_id?: string;
+          created_at?: string;
+          id?: string;
+          target_id?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "audit_events_club_id_fkey";
+            columns: ["club_id"];
+            isOneToOne: false;
+            referencedRelation: "clubs";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
       club_memberships: {
         Row: {
           active: boolean;
@@ -105,6 +140,51 @@ export type Database = {
         };
         Relationships: [];
       };
+      competitions: {
+        Row: {
+          active: boolean;
+          club_id: string;
+          created_at: string;
+          id: string;
+          name: string;
+          season_id: string;
+          updated_at: string;
+        };
+        Insert: {
+          active?: boolean;
+          club_id: string;
+          created_at?: string;
+          id?: string;
+          name: string;
+          season_id: string;
+          updated_at?: string;
+        };
+        Update: {
+          active?: boolean;
+          club_id?: string;
+          created_at?: string;
+          id?: string;
+          name?: string;
+          season_id?: string;
+          updated_at?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "competitions_club_id_fkey";
+            columns: ["club_id"];
+            isOneToOne: false;
+            referencedRelation: "clubs";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "competitions_season_same_club";
+            columns: ["season_id", "club_id"];
+            isOneToOne: false;
+            referencedRelation: "seasons";
+            referencedColumns: ["id", "club_id"];
+          },
+        ];
+      };
       profiles: {
         Row: {
           created_at: string;
@@ -141,12 +221,308 @@ export type Database = {
         };
         Relationships: [];
       };
+      seasons: {
+        Row: {
+          active: boolean;
+          club_id: string;
+          created_at: string;
+          id: string;
+          name: string;
+          updated_at: string;
+        };
+        Insert: {
+          active?: boolean;
+          club_id: string;
+          created_at?: string;
+          id?: string;
+          name: string;
+          updated_at?: string;
+        };
+        Update: {
+          active?: boolean;
+          club_id?: string;
+          created_at?: string;
+          id?: string;
+          name?: string;
+          updated_at?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "seasons_club_id_fkey";
+            columns: ["club_id"];
+            isOneToOne: false;
+            referencedRelation: "clubs";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
+      teams: {
+        Row: {
+          active: boolean;
+          club_id: string;
+          competition_id: string | null;
+          created_at: string;
+          id: string;
+          name: string;
+          season_id: string;
+          updated_at: string;
+          venue_id: string | null;
+        };
+        Insert: {
+          active?: boolean;
+          club_id: string;
+          competition_id?: string | null;
+          created_at?: string;
+          id?: string;
+          name: string;
+          season_id: string;
+          updated_at?: string;
+          venue_id?: string | null;
+        };
+        Update: {
+          active?: boolean;
+          club_id?: string;
+          competition_id?: string | null;
+          created_at?: string;
+          id?: string;
+          name?: string;
+          season_id?: string;
+          updated_at?: string;
+          venue_id?: string | null;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "teams_club_id_fkey";
+            columns: ["club_id"];
+            isOneToOne: false;
+            referencedRelation: "clubs";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "teams_competition_same_club";
+            columns: ["competition_id", "club_id"];
+            isOneToOne: false;
+            referencedRelation: "competitions";
+            referencedColumns: ["id", "club_id"];
+          },
+          {
+            foreignKeyName: "teams_season_same_club";
+            columns: ["season_id", "club_id"];
+            isOneToOne: false;
+            referencedRelation: "seasons";
+            referencedColumns: ["id", "club_id"];
+          },
+          {
+            foreignKeyName: "teams_venue_same_club";
+            columns: ["venue_id", "club_id"];
+            isOneToOne: false;
+            referencedRelation: "venues";
+            referencedColumns: ["id", "club_id"];
+          },
+        ];
+      };
+      venues: {
+        Row: {
+          active: boolean;
+          club_id: string;
+          created_at: string;
+          id: string;
+          name: string;
+          updated_at: string;
+        };
+        Insert: {
+          active?: boolean;
+          club_id: string;
+          created_at?: string;
+          id?: string;
+          name: string;
+          updated_at?: string;
+        };
+        Update: {
+          active?: boolean;
+          club_id?: string;
+          created_at?: string;
+          id?: string;
+          name?: string;
+          updated_at?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "venues_club_id_fkey";
+            columns: ["club_id"];
+            isOneToOne: false;
+            referencedRelation: "clubs";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
     };
     Views: {
       [_ in never]: never;
     };
     Functions: {
-      [_ in never]: never;
+      assert_club_structure_admin: {
+        Args: { p_club_id: string };
+        Returns: string;
+      };
+      create_club_competition: {
+        Args: { p_club_id: string; p_name: string; p_season_id: string };
+        Returns: {
+          active: boolean;
+          club_id: string;
+          created_at: string;
+          id: string;
+          name: string;
+          season_id: string;
+          updated_at: string;
+        };
+        SetofOptions: {
+          from: "*";
+          to: "competitions";
+          isOneToOne: true;
+          isSetofReturn: false;
+        };
+      };
+      create_club_season: {
+        Args: { p_club_id: string; p_name: string };
+        Returns: {
+          active: boolean;
+          club_id: string;
+          created_at: string;
+          id: string;
+          name: string;
+          updated_at: string;
+        };
+        SetofOptions: {
+          from: "*";
+          to: "seasons";
+          isOneToOne: true;
+          isSetofReturn: false;
+        };
+      };
+      create_club_season_and_team: {
+        Args: { p_club_id: string; p_season_name: string; p_team_name: string };
+        Returns: {
+          season_id: string;
+          team_id: string;
+        }[];
+      };
+      create_club_team: {
+        Args: {
+          p_club_id: string;
+          p_competition_id: string;
+          p_name: string;
+          p_season_id: string;
+          p_venue_id: string;
+        };
+        Returns: {
+          active: boolean;
+          club_id: string;
+          competition_id: string | null;
+          created_at: string;
+          id: string;
+          name: string;
+          season_id: string;
+          updated_at: string;
+          venue_id: string | null;
+        };
+        SetofOptions: {
+          from: "*";
+          to: "teams";
+          isOneToOne: true;
+          isSetofReturn: false;
+        };
+      };
+      create_club_venue: {
+        Args: { p_club_id: string; p_name: string };
+        Returns: {
+          active: boolean;
+          club_id: string;
+          created_at: string;
+          id: string;
+          name: string;
+          updated_at: string;
+        };
+        SetofOptions: {
+          from: "*";
+          to: "venues";
+          isOneToOne: true;
+          isSetofReturn: false;
+        };
+      };
+      structure_name: { Args: { p_name: string }; Returns: string };
+      update_club_competition: {
+        Args: { p_active: boolean; p_competition_id: string; p_name: string };
+        Returns: {
+          active: boolean;
+          club_id: string;
+          created_at: string;
+          id: string;
+          name: string;
+          season_id: string;
+          updated_at: string;
+        };
+        SetofOptions: {
+          from: "*";
+          to: "competitions";
+          isOneToOne: true;
+          isSetofReturn: false;
+        };
+      };
+      update_club_season: {
+        Args: { p_active: boolean; p_name: string; p_season_id: string };
+        Returns: {
+          active: boolean;
+          club_id: string;
+          created_at: string;
+          id: string;
+          name: string;
+          updated_at: string;
+        };
+        SetofOptions: {
+          from: "*";
+          to: "seasons";
+          isOneToOne: true;
+          isSetofReturn: false;
+        };
+      };
+      update_club_team: {
+        Args: { p_active: boolean; p_name: string; p_team_id: string };
+        Returns: {
+          active: boolean;
+          club_id: string;
+          competition_id: string | null;
+          created_at: string;
+          id: string;
+          name: string;
+          season_id: string;
+          updated_at: string;
+          venue_id: string | null;
+        };
+        SetofOptions: {
+          from: "*";
+          to: "teams";
+          isOneToOne: true;
+          isSetofReturn: false;
+        };
+      };
+      update_club_venue: {
+        Args: { p_active: boolean; p_name: string; p_venue_id: string };
+        Returns: {
+          active: boolean;
+          club_id: string;
+          created_at: string;
+          id: string;
+          name: string;
+          updated_at: string;
+        };
+        SetofOptions: {
+          from: "*";
+          to: "venues";
+          isOneToOne: true;
+          isSetofReturn: false;
+        };
+      };
     };
     Enums: {
       [_ in never]: never;

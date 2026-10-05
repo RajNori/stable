@@ -1,4 +1,4 @@
-import type { CSSProperties } from "react";
+import type { CSSProperties, ReactNode } from "react";
 import { themeFor } from "@stable/design-tokens";
 
 import type { ClubContextPresentation } from "../lib/club-context-presentation";
@@ -6,9 +6,14 @@ import type { ClubContextPresentation } from "../lib/club-context-presentation";
 type ClubAdminShellProps = {
   presentation: ClubContextPresentation;
   onRetry?: () => void;
+  children?: ReactNode;
 };
 
-export function ClubAdminShell({ presentation, onRetry }: ClubAdminShellProps) {
+export function ClubAdminShell({
+  presentation,
+  onRetry,
+  children,
+}: ClubAdminShellProps) {
   const theme = themeFor("mustangs");
   const frameStyle: CSSProperties & { "--admin-gap": string } = {
     background: theme.color.background.canvas,
@@ -95,6 +100,11 @@ export function ClubAdminShell({ presentation, onRetry }: ClubAdminShellProps) {
           >
             <li>Overview</li>
             <li>Needs attention</li>
+            {presentation.status === "member" ? (
+              <li>
+                <a href="/club-structure">Club structure</a>
+              </li>
+            ) : null}
             <li>
               <a href="/club-settings" hidden data-testid="admin-chrome-link">
                 Club settings
@@ -109,6 +119,9 @@ export function ClubAdminShell({ presentation, onRetry }: ClubAdminShellProps) {
           cardStyle={cardStyle}
           onRetry={onRetry}
         />
+        {presentation.status === "member" && children !== undefined ? (
+          <div style={{ marginTop: theme.space[6] }}>{children}</div>
+        ) : null}
       </main>
     </div>
   );

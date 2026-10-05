@@ -29,6 +29,7 @@ describe("current club context shell", () => {
     expect(hiddenChrome.hidden).toBe(true);
     expect(hiddenChrome.textContent).toBe("Club settings");
     expect(screen.queryByRole("link", { name: "Club settings" })).toBeNull();
+    expect(screen.queryByRole("link", { name: "Club structure" })).toBeNull();
     expect(presentation.status).toBe("no-membership");
     expect(
       screen.getByLabelText("Club context").getAttribute("data-state"),
@@ -55,6 +56,9 @@ describe("current club context shell", () => {
     ).toBeTruthy();
     expect(screen.getByText("Jordan P")).toBeTruthy();
     expect(screen.getByText("club.read")).toBeTruthy();
+    expect(
+      screen.getByRole("link", { name: "Club structure" }).getAttribute("href"),
+    ).toBe("/club-structure");
     expect(
       screen.getByLabelText("Club context").getAttribute("data-state"),
     ).toBe("member");

@@ -5,6 +5,7 @@
   "dependencies": {
     "@sentry/nextjs": "^11.4.0",
     "@stable/auth": "workspace:*",
+    "@stable/club-structure": "workspace:*",
     "@stable/config": "workspace:*",
     "@stable/contracts": "workspace:*",
     "@stable/current-club-context": "workspace:*",

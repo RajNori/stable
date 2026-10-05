@@ -40,6 +40,26 @@ export type {
 export { APP_ENV_VALUES, ENV } from "./env.js";
 export type { AppEnv } from "./env.js";
 
+export {
+  CLUB_STRUCTURE_ACTIONS,
+  auditEventSchema,
+  clubStructureNameSchema,
+  clubStructureSnapshotSchema,
+  competitionSchema,
+  seasonSchema,
+  teamSchema,
+  venueSchema,
+} from "./club-structure.js";
+export type {
+  AuditEvent,
+  ClubStructureAction,
+  ClubStructureSnapshot,
+  Competition,
+  Season,
+  Team,
+  Venue,
+} from "./club-structure.js";
+
 export { SENSITIVE_METADATA_FIELDS } from "./observability.js";
 export type {
   ProductEventMetadata,

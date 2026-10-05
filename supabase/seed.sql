@@ -17,3 +17,31 @@ values (
   'mustangs',
   true
 );
+
+insert into public.seasons (
+  id,
+  club_id,
+  name,
+  active
+)
+values (
+  '88888888-8888-4888-8888-888888888888',
+  '11111111-1111-4111-8111-111111111111',
+  '2026 Winter',
+  true
+);
+
+insert into public.teams (
+  id,
+  club_id,
+  season_id,
+  name,
+  active
+)
+values (
+  '99999999-9999-4999-8999-999999999999',
+  '11111111-1111-4111-8111-111111111111',
+  '88888888-8888-4888-8888-888888888888',
+  'U14 Boys',
+  true
+);
