@@ -2,6 +2,9 @@ import { principalSchema, type Principal } from "@stable/contracts";
 
 export type { Principal } from "@stable/contracts";
 
+export { normalizeAustralianMobile } from "./australian-mobile.js";
+export { mapAuthError } from "./map-auth-error.js";
+
 /** Provider-neutral session identity. Extra role and token fields are ignored. */
 export type SessionIdentity = {
   readonly id?: string;
