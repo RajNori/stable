@@ -1,0 +1,27 @@
+packages:
+  - "apps/*"
+  - "packages/*"
+  - "packages/features/*"
+
+catalog:
+  typescript: 6.0.3
+  vitest: 5.0.3
+  "@vitest/coverage-v8": 5.0.3
+  zod: 4.6.5
+  eslint: 10.12.0
+  prettier: 3.9.9
+  turbo: 2.11.7
+  typescript-eslint: 8.71.0
+  "@eslint/js": 10.0.1
+
+# @sentry/cli compiles native upload binaries. Milestone 0 does not upload source maps.
+# core-js postinstall is a banner, not a build we need.
+allowBuilds:
+  "@sentry/cli": false
+  core-js: false
+
+# These current releases are younger than pnpm's release-age window. The lockfile still pins them.
+minimumReleaseAgeExclude:
+  - lucide-react-native@1.52.0
+  - lucide-react@1.52.0
+  - posthog-js@1.435.9

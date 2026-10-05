@@ -1,0 +1,12 @@
+# Planning and agent docs keep their authored formatting.
+**/*.md
+
+pnpm-lock.yaml
+coverage
+.turbo
+.next
+.expo
+dist
+node_modules
+supabase/.temp
+design/stable-v1-final.png

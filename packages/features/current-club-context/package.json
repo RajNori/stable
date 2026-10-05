@@ -1,0 +1,23 @@
+{
+  "name": "@stable/current-club-context",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc -p tsconfig.json --noEmit"
+  },
+  "dependencies": {
+    "@stable/contracts": "workspace:*",
+    "@stable/database-types": "workspace:*",
+    "@stable/permissions": "workspace:*",
+    "@supabase/supabase-js": "^2.117.2"
+  },
+  "devDependencies": {
+    "@vitest/coverage-v8": "catalog:",
+    "typescript": "catalog:",
+    "vitest": "catalog:"
+  }
+}
