@@ -1,0 +1,223 @@
+# Pull request gates only. No deploy, no EAS build, and no production promotion.
+name: ci
+
+on:
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  quality:
+    name: format, lint, typecheck, test, audit
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 12.9.1
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "24.21.0"
+          cache: pnpm
+
+      - name: Install
+        run: pnpm install --frozen-lockfile
+
+      - name: Format
+        run: pnpm format:check
+
+      - name: Lint
+        run: pnpm lint
+
+      - name: Typecheck
+        run: pnpm typecheck
+
+      - name: Test
+        run: pnpm test
+
+      - name: Audit
+        run: pnpm audit --audit-level=high
+
+  supabase:
+    name: supabase db tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 12.9.1
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "24.21.0"
+          cache: pnpm
+
+      - name: Install
+        run: pnpm install --frozen-lockfile
+
+      - name: Require Docker
+        run: docker info
+
+      - name: Start local Supabase
+        run: pnpm exec supabase start
+
+      - name: Reset local database
+        run: pnpm exec supabase db reset --local
+
+      - name: Bootstrap local auth
+        run: node --experimental-strip-types scripts/bootstrap-local-auth.ts
+
+      - name: Run database tests
+        run: pnpm exec supabase test db
+
+  web:
+    name: web build
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 12.9.1
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "24.21.0"
+          cache: pnpm
+
+      - name: Install
+        run: pnpm install --frozen-lockfile
+
+      - name: Build web
+        run: pnpm --filter @stable/web build
+
+  expo:
+    name: expo config
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 12.9.1
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "24.21.0"
+          cache: pnpm
+
+      - name: Install
+        run: pnpm install --frozen-lockfile
+
+      # expo-doctor is not installed in Milestone 0. Public config is the check.
+      - name: Check Expo config
+        run: pnpm --filter @stable/mobile exec expo config --type public
+
+  playwright:
+    name: playwright
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 12.9.1
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "24.21.0"
+          cache: pnpm
+
+      - name: Install
+        run: pnpm install --frozen-lockfile
+
+      - name: Install Google Chrome
+        run: |
+          wget -q -O /tmp/google-chrome.deb https://dl.google.com/linux/direct/google-chrome-stable_current_amd64.deb
+          sudo apt-get update
+          sudo apt-get install -y /tmp/google-chrome.deb
+
+      - name: Run Playwright
+        run: pnpm --filter @stable/web exec playwright test
+
+  maestro:
+    name: maestro flow parse
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "24.21.0"
+
+      # Device-farm Maestro is not installed. This only parses the committed flow.
+      - name: Parse Maestro flow
+        run: |
+          node --input-type=module <<'EOF'
+          import { readFileSync } from "node:fs";
+
+          const file = "apps/mobile/maestro/current-club-context.yaml";
+          const text = readFileSync(file, "utf8");
+          if (text.trim().length === 0) {
+            throw new Error(`${file} is empty`);
+          }
+
+          let appId = "";
+          let sawSeparator = false;
+          const commands = [];
+          for (const line of text.split(/\r?\n/)) {
+            if (line.startsWith("appId:")) {
+              appId = line.slice("appId:".length).trim();
+            }
+            if (line.trim() === "---") {
+              sawSeparator = true;
+            }
+            const command = /^- (\w+)/.exec(line);
+            if (command?.[1] !== undefined) {
+              commands.push(command[1]);
+            }
+          }
+
+          if (appId !== "app.stable.mobile") {
+            throw new Error(`${file} must declare appId app.stable.mobile`);
+          }
+          if (!sawSeparator) {
+            throw new Error(`${file} must contain a YAML document separator`);
+          }
+          if (!commands.includes("launchApp")) {
+            throw new Error(`${file} must launch the app`);
+          }
+
+          console.log(`parsed ${file}: appId=${appId} commands=${commands.join(",")}`);
+          EOF
