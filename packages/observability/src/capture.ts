@@ -124,6 +124,10 @@ function collectSensitive(
     }
     collectSensitive(nested, found, seen, depth + 1);
   }
+
+  if ("cause" in value) {
+    collectSensitive(value.cause, found, seen, depth + 1);
+  }
 }
 
 function classificationOf(error: unknown): string {

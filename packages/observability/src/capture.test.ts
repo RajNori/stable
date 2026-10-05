@@ -168,6 +168,25 @@ describe("captureException", () => {
     expect(() => captureException(deep)).not.toThrow();
   });
 
+  it("redacts a sensitive value that lives only on a non-enumerable cause", () => {
+    const note = "coach-only note";
+    const error = new Error(`failed ${note}`, {
+      cause: { privateNote: note, playerName: "Alex Player" },
+    });
+    const sink = vi.fn();
+    configureObservability({
+      sentryDsn: "https://example.invalid/1",
+      exceptionSink: sink,
+    });
+
+    captureException(error);
+
+    const encoded = JSON.stringify(sink.mock.calls[0]?.[0]);
+    expect(encoded).not.toContain(note);
+    expect(encoded).not.toContain("Alex Player");
+    expect(sink.mock.calls[0]?.[0]).not.toBe(error);
+  });
+
   it("does not follow a circular cause", () => {
     const error = new Error("loop");
     error.cause = error;
