@@ -134,6 +134,7 @@ describe("fixture mode", () => {
 describe("public supabase configuration", () => {
   it("returns only the publishable browser credentials", () => {
     const config = readPublicSupabaseConfig({
+      [ENV.nextAppEnv]: "local",
       [ENV.nextSupabaseUrl]: "http://127.0.0.1:54321",
       [ENV.nextSupabasePublishableKey]: "publishable-key",
       [ENV.supabaseSecretKey]: "super-secret",
@@ -163,6 +164,11 @@ describe("page boundary", () => {
     const shell = readSource("components/club-admin-shell.tsx");
     const browser = readSource("lib/supabase/browser.ts");
     const publicEnv = readSource("lib/public-supabase-env.ts");
+    const boot = readSource("lib/boot-env.server.ts");
+    const layout = readSource("app/layout.tsx");
+    const instrumentation = readSource("instrumentation.ts");
+    const validate = readSource("scripts/validate-boot-env.ts");
+    const buildScript = readSource("package.json");
     const server = readSource("lib/supabase/server.ts");
 
     expect(page).not.toContain("@stable/database-types");
@@ -173,9 +179,16 @@ describe("page boundary", () => {
     expect(shell).not.toMatch(/#[0-9a-fA-F]{3,8}/);
     expect(browser).toContain("createBrowserClient");
     expect(browser).not.toContain("supabaseSecretKey");
+    expect(publicEnv).toContain("readWebBootEnv");
     expect(publicEnv).toContain("ENV.nextSupabaseUrl");
     expect(publicEnv).toContain("ENV.nextSupabasePublishableKey");
     expect(publicEnv).not.toContain("supabaseSecretKey");
+    expect(publicEnv).not.toContain("process.env.SUPABASE_SECRET_KEY");
+    expect(boot).toContain("readWebBootEnv");
+    expect(layout).toContain("loadWebBootEnv");
+    expect(instrumentation).toContain("loadWebBootEnv");
+    expect(validate).toContain("loadWebBootEnv");
+    expect(buildScript).toContain("validate-boot-env.ts");
     expect(server).toContain("createServerClient");
     expect(server).not.toContain("supabaseSecretKey");
   });

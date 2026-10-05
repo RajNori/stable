@@ -5,6 +5,8 @@ import {
   mobileClientEnvSchema,
   parseMobileClientEnv,
   parseWebClientEnv,
+  readMobileBootEnv,
+  readWebBootEnv,
   webClientEnvSchema,
 } from "./index.js";
 
@@ -357,5 +359,68 @@ describe("mobile client environment", () => {
     expect(present.sentryDsn).toBe("https://example.invalid/2");
     expect(present.posthogKey).toBe("phc_mobile");
     expect(present.posthogHost).toBe("https://us.i.posthog.com");
+  });
+});
+
+describe("boot environment", () => {
+  it("accepts a valid local web config and omits a server secret", () => {
+    const parsed = readWebBootEnv({
+      ...webEnv("http://127.0.0.1:54321"),
+      [ENV.supabaseSecretKey]: "server-only-secret",
+      UNRELATED: "ignored",
+    });
+
+    expect(parsed).toEqual({
+      appEnv: "local",
+      supabaseUrl: "http://127.0.0.1:54321",
+      supabasePublishableKey: publishableKey,
+    });
+    expect(JSON.stringify(parsed)).not.toContain("server-only-secret");
+  });
+
+  it("accepts a valid local mobile config and omits a server secret", () => {
+    const parsed = readMobileBootEnv({
+      ...mobileEnv("http://10.0.2.2:54321"),
+      [ENV.supabaseSecretKey]: "server-only-secret",
+    });
+
+    expect(parsed.supabaseUrl).toBe("http://10.0.2.2:54321");
+    expect(JSON.stringify(parsed)).not.toContain("server-only-secret");
+  });
+
+  it("fails closed when a public value is the secret or a secret key", () => {
+    const secret = "sb_secret_boot";
+
+    expectValidationFailure(
+      () =>
+        readWebBootEnv({
+          ...webEnv("http://127.0.0.1:54321"),
+          [ENV.nextSupabasePublishableKey]: secret,
+          [ENV.supabaseSecretKey]: secret,
+        }),
+      /public client value/,
+    );
+    expectValidationFailure(
+      () =>
+        readMobileBootEnv({
+          ...mobileEnv("http://127.0.0.1:54321"),
+          [ENV.expoSupabasePublishableKey]: "sb_secret_mobile",
+        }),
+      /publishable key/,
+    );
+  });
+
+  it("keeps staging and production host rules at boot", () => {
+    expectValidationFailure(
+      () => readWebBootEnv(webEnv("http://192.168.1.20:54321", "staging")),
+      /loopback|private/i,
+    );
+    expectValidationFailure(
+      () => readMobileBootEnv(mobileEnv("https://abcd.supabase.co")),
+      /supabase\.co/,
+    );
+    expect(
+      readWebBootEnv(webEnv("https://staging.invalid", "production")).appEnv,
+    ).toBe("production");
   });
 });

@@ -1,0 +1,30 @@
+{
+  "reviewedBy": "Integrator",
+  "reviewedOn": "2026-10-05",
+  "productionStatus": "BLOCKED",
+  "reviewTrigger": "An upstream patch is published, Expo or Metro is upgraded, or a production Supabase, Vercel, or EAS release is proposed.",
+  "advisories": [
+    {
+      "package": "node-forge",
+      "advisory": "GHSA-86w9-cpqp-85rv",
+      "severity": "high",
+      "patchedVersions": null,
+      "transitivePath": "apps/mobile > expo > @expo/cli > node-forge, and @expo/cli > @expo/code-signing-certificates > node-forge",
+      "affectedPath": "Expo CLI and code-signing toolchain",
+      "exploitability": "RSA PKCS#1 v1.5 signature verification accepts extra nested DigestAlgorithm elements. The package is not on the club, profile, or child-data request path.",
+      "whyNoPatch": "The npm advisory lists no patched version.",
+      "compensatingControls": "Milestone 0 does not run EAS build or code signing. This exception does not mark the advisory fixed. Production release stays blocked."
+    },
+    {
+      "package": "braces",
+      "advisory": "GHSA-vfj7-8cjw-p6xm",
+      "severity": "high",
+      "patchedVersions": null,
+      "transitivePath": "apps/mobile > react-native > Metro > metro-file-map > micromatch > braces",
+      "affectedPath": "Metro bundler and Jest file-map glob compilation",
+      "exploitability": "Deeply nested brace patterns can exhaust the stack while compiling a glob. That is a build and test-runner input, not a request path.",
+      "whyNoPatch": "The npm advisory lists no patched version.",
+      "compensatingControls": "Application code does not pass user input to micromatch. This exception does not mark the advisory fixed. Production release stays blocked."
+    }
+  ]
+}

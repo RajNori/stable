@@ -1,6 +1,10 @@
 import type { ReactNode } from "react";
 import { themeFor } from "@stable/design-tokens";
 
+import { loadWebBootEnv } from "../lib/boot-env.server";
+
+loadWebBootEnv();
+
 export const metadata = {
   title: "The Stable",
   description: "Club administration",

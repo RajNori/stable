@@ -1,3 +1,3 @@
 declare const process: {
-  readonly env: Readonly<Record<string, string | undefined>>;
+  readonly env: Record<string, string | undefined>;
 };

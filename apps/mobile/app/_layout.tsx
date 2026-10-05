@@ -4,6 +4,10 @@ import { StatusBar } from "expo-status-bar";
 import React, { useState } from "react";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 
+import { loadMobileBootEnv } from "../src/boot-env";
+
+loadMobileBootEnv();
+
 export default function RootLayout() {
   const [queryClient] = useState(
     () =>

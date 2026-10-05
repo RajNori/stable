@@ -123,6 +123,23 @@ function httpHostname(url: string): string {
   return hostname;
 }
 
+/**
+ * Local auth bootstrap is development tooling. It accepts the mobile local
+ * allowlist and rejects hosted Supabase projects before any Admin API call.
+ */
+export function assertLocalDevelopmentSupabaseUrl(url: string): void {
+  try {
+    assertSupabaseUrl(url, "local", "mobile");
+  } catch (error: unknown) {
+    const reason =
+      error instanceof Error ? error.message : "The URL is invalid.";
+    throw new Error(
+      `Refusing to bootstrap auth because this script is local-development tooling only. ${reason}`,
+      { cause: error },
+    );
+  }
+}
+
 export function assertSupabaseUrl(
   url: string,
   appEnv: AppEnv,

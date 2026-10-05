@@ -13,7 +13,7 @@ concurrency:
 
 jobs:
   quality:
-    name: format, lint, typecheck, test, audit
+    name: format, lint, typecheck, test
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
@@ -46,13 +46,39 @@ jobs:
       - name: Test
         run: pnpm test
 
-      - name: Audit
-        run: pnpm audit --audit-level=high
+  dependency-audit:
+    name: dependency audit exception
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 12.9.1
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "24.21.0"
+          cache: pnpm
+
+      - name: Install
+        run: pnpm install --frozen-lockfile
+
+      # Accepted upstream highs warn and exit 0. Any other high or critical fails.
+      # Production release stays blocked while the exception file says BLOCKED.
+      - name: Compare audit with the residual-risk exception
+        run: |
+          pnpm audit --json > /tmp/pnpm-audit.json || true
+          node --experimental-strip-types --import ./scripts/register-workspace-ts.mjs scripts/check-dependency-exceptions.ts /tmp/pnpm-audit.json
 
   supabase:
     name: supabase db tests
     runs-on: ubuntu-latest
-    timeout-minutes: 40
+    timeout-minutes: 50
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -80,14 +106,13 @@ jobs:
       - name: Reset local database
         run: pnpm exec supabase db reset --local
 
-      # pgTAP inserts the frozen user ids as non-login placeholders inside a
-      # transaction. Bootstrap creates those same ids through Auth Admin, so
-      # the database tests run on the clean reset and bootstrap follows.
+      # Policy placeholders and login users use different ids. Tests still run
+      # on a clean reset, then bootstrap creates the login users.
       - name: Run database tests
         run: pnpm exec supabase test db
 
       - name: Bootstrap local auth
-        run: node --experimental-strip-types scripts/bootstrap-local-auth.ts
+        run: node --experimental-strip-types --import ./scripts/register-workspace-ts.mjs scripts/bootstrap-local-auth.ts
 
       - name: Run club context integration test
         run: |
@@ -137,10 +162,75 @@ jobs:
           process.exit(test.status ?? 1);
           EOF
 
+      - name: Install Google Chrome
+        run: |
+          wget -q -O /tmp/google-chrome.deb https://dl.google.com/linux/direct/google-chrome-stable_current_amd64.deb
+          sudo apt-get update
+          sudo apt-get install -y /tmp/google-chrome.deb
+
+      - name: Run local auth Playwright
+        run: |
+          node --input-type=module <<'EOF'
+          import { spawnSync } from "node:child_process";
+
+          const status = spawnSync(
+            "pnpm",
+            ["exec", "supabase", "status", "-o", "env"],
+            { encoding: "utf8" },
+          );
+          if (status.status !== 0) {
+            process.stderr.write("supabase status failed\n");
+            process.exit(status.status ?? 1);
+          }
+
+          const statusEnv = {};
+          for (const line of status.stdout.split("\n")) {
+            const index = line.indexOf("=");
+            if (index < 1) {
+              continue;
+            }
+            const key = line.slice(0, index);
+            let value = line.slice(index + 1);
+            if (value.startsWith('"') && value.endsWith('"')) {
+              value = value.slice(1, -1);
+            }
+            statusEnv[key] = value;
+          }
+
+          const env = { ...process.env };
+          env.SUPABASE_URL = statusEnv.API_URL ?? "";
+          env.SUPABASE_PUBLISHABLE_KEY = statusEnv.PUBLISHABLE_KEY ?? "";
+          env.NEXT_PUBLIC_APP_ENV = "local";
+          env.NEXT_PUBLIC_SUPABASE_URL = env.SUPABASE_URL;
+          env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY = env.SUPABASE_PUBLISHABLE_KEY;
+          delete env.SUPABASE_SECRET_KEY;
+          delete env.SECRET_KEY;
+          delete env.SERVICE_ROLE_KEY;
+
+          const test = spawnSync(
+            "pnpm",
+            [
+              "--filter",
+              "@stable/web",
+              "exec",
+              "playwright",
+              "test",
+              "--config",
+              "playwright.auth.config.ts",
+            ],
+            { env, stdio: "inherit" },
+          );
+          process.exit(test.status ?? 1);
+          EOF
+
   web:
     name: web build
     runs-on: ubuntu-latest
     timeout-minutes: 20
+    env:
+      NEXT_PUBLIC_APP_ENV: local
+      NEXT_PUBLIC_SUPABASE_URL: http://127.0.0.1:54321
+      NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: sb_publishable_ci
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -184,9 +274,11 @@ jobs:
       - name: Install
         run: pnpm install --frozen-lockfile
 
-      # expo-doctor is not installed in Milestone 0. Public config is the check.
       - name: Check Expo config
         run: pnpm --filter @stable/mobile exec expo config --type public
+
+      - name: Expo Doctor
+        run: pnpm --filter @stable/mobile exec expo-doctor
 
   playwright:
     name: playwright

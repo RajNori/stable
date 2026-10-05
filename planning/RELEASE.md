@@ -48,6 +48,8 @@ Required before:
 - Vercel production;
 - EAS production/store submission.
 
+Production Supabase, Vercel production, and EAS production stay blocked while `planning/security-exceptions/2026-10-05-expo-metro-high-advisories.json` says `productionStatus` is `BLOCKED`. A development audit warning for those two unpatched advisories is not acceptance for a production release. Re-review the exception when an upstream patch is published, when Expo or Metro is upgraded, or before any of those production actions.
+
 ## Evidence
 Every release candidate produces:
 - commit SHA;

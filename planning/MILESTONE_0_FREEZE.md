@@ -63,8 +63,16 @@ Seed club only in `supabase/seed.sql`:
 
 Login users, created by the Auth Admin bootstrap script, not SQL:
 
-- `member@local.stable.test` active `CLUB_ADMIN`
-- `outsider@local.stable.test` no membership
+- id `22222222-2222-4222-8222-222222222222`, `member@local.stable.test`, active `CLUB_ADMIN`
+- id `33333333-3333-4333-8333-333333333333`, `outsider@local.stable.test`, no membership
+
+pgTAP policy placeholders are not login users and must not reuse those ids or emails:
+
+- id `55555555-5555-4555-8555-555555555555`, `policy-member@local.stable.test`
+- id `66666666-6666-4666-8666-666666666666`, `policy-outsider@local.stable.test`
+- membership id `77777777-7777-4777-8777-777777777777` (the login membership id `44444444-4444-4444-8444-444444444444` belongs to bootstrap only)
+
+Intentional local order: `supabase db reset`, pgTAP, Auth bootstrap, reader integration. The distinct ids make that order and the reverse order both valid. Do not ignore duplicate-key errors.
 
 ## Workstream paths
 

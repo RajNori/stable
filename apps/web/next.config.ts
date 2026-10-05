@@ -1,5 +1,9 @@
 import type { NextConfig } from "next";
 
+// Boot validation is not called from this file. Next compiles next.config
+// with a loader that cannot resolve workspace `.js` specifiers. The web
+// build script and instrumentation.ts call loadWebBootEnv instead.
+
 const nextConfig: NextConfig = {
   allowedDevOrigins: ["127.0.0.1"],
   transpilePackages: [

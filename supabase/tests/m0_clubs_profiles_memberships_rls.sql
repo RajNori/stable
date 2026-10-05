@@ -5,8 +5,13 @@
 -- Milestone 1 must add that deny test when teams exist.
 --
 -- Rows inserted into auth.users below are foreign-key placeholders for this
--- pgTAP file only. They are not a sign-in path. Login users are created by
--- scripts/bootstrap-local-auth.ts through the local Auth Admin API.
+-- pgTAP file only. They are not a sign-in path.
+-- Policy member: 55555555-5555-4555-8555-555555555555 policy-member@local.stable.test
+-- Policy outsider: 66666666-6666-4666-8666-666666666666 policy-outsider@local.stable.test
+-- Policy membership: 77777777-7777-4777-8777-777777777777
+-- Login users 22222222-2222-4222-8222-222222222222 and
+-- 33333333-3333-4333-8333-333333333333 are created later by
+-- scripts/bootstrap-local-auth.ts. These files must not share ids or emails.
 
 begin;
 
@@ -66,10 +71,10 @@ insert into auth.users (
 values
   (
     '00000000-0000-0000-0000-000000000000',
-    '22222222-2222-4222-8222-222222222222',
+    '55555555-5555-4555-8555-555555555555',
     'authenticated',
     'authenticated',
-    'member@local.stable.test',
+    'policy-member@local.stable.test',
     '',
     now(),
     '{"provider":"email","providers":["email"]}'::jsonb,
@@ -83,10 +88,10 @@ values
   ),
   (
     '00000000-0000-0000-0000-000000000000',
-    '33333333-3333-4333-8333-333333333333',
+    '66666666-6666-4666-8666-666666666666',
     'authenticated',
     'authenticated',
-    'outsider@local.stable.test',
+    'policy-outsider@local.stable.test',
     '',
     now(),
     '{"provider":"email","providers":["email"]}'::jsonb,
@@ -144,19 +149,19 @@ insert into public.profiles (
 )
 values
   (
-    '22222222-2222-4222-8222-222222222222',
+    '55555555-5555-4555-8555-555555555555',
     'Local Member',
     'Local',
     'Member',
-    'member@local.stable.test',
+    'policy-member@local.stable.test',
     'en-AU'
   ),
   (
-    '33333333-3333-4333-8333-333333333333',
+    '66666666-6666-4666-8666-666666666666',
     'Local Outsider',
     'Local',
     'Outsider',
-    'outsider@local.stable.test',
+    'policy-outsider@local.stable.test',
     'en-AU'
   );
 
@@ -168,9 +173,9 @@ insert into public.club_memberships (
   active
 )
 values (
-  '44444444-4444-4444-8444-444444444444',
+  '77777777-7777-4777-8777-777777777777',
   '11111111-1111-4111-8111-111111111111',
-  '22222222-2222-4222-8222-222222222222',
+  '55555555-5555-4555-8555-555555555555',
   'CLUB_ADMIN',
   true
 );
@@ -260,7 +265,7 @@ select is(
       insert into public.club_memberships (club_id, user_id, role, active)
       values (
         '11111111-1111-4111-8111-111111111111',
-        '22222222-2222-4222-8222-222222222222',
+        '55555555-5555-4555-8555-555555555555',
         'CLUB_ADMIN',
         true
       )
@@ -276,7 +281,7 @@ select is(
       insert into public.club_memberships (club_id, user_id, role, active)
       values (
         '11111111-1111-4111-8111-111111111111',
-        '33333333-3333-4333-8333-333333333333',
+        '66666666-6666-4666-8666-666666666666',
         'COACH',
         true
       )
@@ -288,14 +293,14 @@ select is(
 
 do $$
 begin
-  perform pg_temp.assume_user('22222222-2222-4222-8222-222222222222');
+  perform pg_temp.assume_user('55555555-5555-4555-8555-555555555555');
 end $$;
 
 set local role authenticated;
 
 select is(
   auth.uid(),
-  '22222222-2222-4222-8222-222222222222'::uuid,
+  '55555555-5555-4555-8555-555555555555'::uuid,
   'member request subject is the active member'
 );
 select results_eq(
@@ -305,7 +310,7 @@ select results_eq(
 );
 select results_eq(
   $$select user_id::text from public.profiles order by user_id$$,
-  $$values ('22222222-2222-4222-8222-222222222222')$$,
+  $$values ('55555555-5555-4555-8555-555555555555')$$,
   'active member can select their own profile'
 );
 select results_eq(
@@ -317,7 +322,7 @@ select results_eq(
   $$
     values (
       '11111111-1111-4111-8111-111111111111',
-      '22222222-2222-4222-8222-222222222222',
+      '55555555-5555-4555-8555-555555555555',
       'CLUB_ADMIN',
       'true'
     )
@@ -365,7 +370,7 @@ select is(
     $$
       insert into public.profiles (user_id, display_name, first_name, last_name)
       values (
-        '22222222-2222-4222-8222-222222222222',
+        '55555555-5555-4555-8555-555555555555',
         'Denied',
         'Denied',
         'Denied'
@@ -380,7 +385,7 @@ select is(
     $$
       update public.profiles
       set display_name = 'Denied'
-      where user_id = '22222222-2222-4222-8222-222222222222'
+      where user_id = '55555555-5555-4555-8555-555555555555'
     $$
   ),
   '42501',
@@ -390,7 +395,7 @@ select is(
   pg_temp.sqlstate_of(
     $$
       delete from public.profiles
-      where user_id = '22222222-2222-4222-8222-222222222222'
+      where user_id = '55555555-5555-4555-8555-555555555555'
     $$
   ),
   '42501',
@@ -402,7 +407,7 @@ select is(
       insert into public.club_memberships (club_id, user_id, role)
       values (
         '11111111-1111-4111-8111-111111111111',
-        '33333333-3333-4333-8333-333333333333',
+        '66666666-6666-4666-8666-666666666666',
         'CLUB_ADMIN'
       )
     $$
@@ -415,7 +420,7 @@ select is(
     $$
       update public.club_memberships
       set active = false
-      where user_id = '22222222-2222-4222-8222-222222222222'
+      where user_id = '55555555-5555-4555-8555-555555555555'
     $$
   ),
   '42501',
@@ -425,7 +430,7 @@ select is(
   pg_temp.sqlstate_of(
     $$
       delete from public.club_memberships
-      where user_id = '22222222-2222-4222-8222-222222222222'
+      where user_id = '55555555-5555-4555-8555-555555555555'
     $$
   ),
   '42501',
@@ -436,7 +441,7 @@ reset role;
 
 do $$
 begin
-  perform pg_temp.assume_user('33333333-3333-4333-8333-333333333333');
+  perform pg_temp.assume_user('66666666-6666-4666-8666-666666666666');
 end $$;
 
 set local role authenticated;
@@ -458,11 +463,11 @@ reset role;
 
 update public.club_memberships
 set active = false
-where user_id = '22222222-2222-4222-8222-222222222222';
+where user_id = '55555555-5555-4555-8555-555555555555';
 
 do $$
 begin
-  perform pg_temp.assume_user('22222222-2222-4222-8222-222222222222');
+  perform pg_temp.assume_user('55555555-5555-4555-8555-555555555555');
 end $$;
 
 set local role authenticated;

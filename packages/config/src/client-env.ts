@@ -168,6 +168,60 @@ export function parseWebClientEnv(env: EnvRecord): ClientEnvConfig {
   );
 }
 
+function assertPublishableIsNotSecret(publishableKey: string): void {
+  if (publishableKey.startsWith("sb_secret_")) {
+    throw new ApplicationError(
+      "VALIDATION_FAILED",
+      "The publishable key must not be a secret key.",
+    );
+  }
+}
+
+function assertPublicValuesDifferFromSecret(
+  env: EnvRecord,
+  publicValues: readonly string[],
+): void {
+  const secret = readValue(env, ENV.supabaseSecretKey);
+  if (secret === undefined) {
+    return;
+  }
+
+  if (publicValues.some((value) => value === secret)) {
+    throw new ApplicationError(
+      "VALIDATION_FAILED",
+      "A public client value must not be the Supabase secret key.",
+    );
+  }
+}
+
+function readBootEnv(
+  env: EnvRecord,
+  keys: readonly string[],
+  parse: (env: EnvRecord) => ClientEnvConfig,
+): ClientEnvConfig {
+  const picked = pickFields(env, keys);
+  assertPublicValuesDifferFromSecret(env, Object.values(picked));
+  const parsed = parse(picked);
+  assertPublishableIsNotSecret(parsed.supabasePublishableKey);
+  return parsed;
+}
+
+/**
+ * Selects the public Next.js keys from a server environment and validates them.
+ * `SUPABASE_SECRET_KEY` is never copied into the result.
+ */
+export function readWebBootEnv(env: EnvRecord): ClientEnvConfig {
+  return readBootEnv(env, webKeys, parseWebClientEnv);
+}
+
+/**
+ * Selects the public Expo keys from an environment and validates them.
+ * `SUPABASE_SECRET_KEY` is never copied into the result.
+ */
+export function readMobileBootEnv(env: EnvRecord): ClientEnvConfig {
+  return readBootEnv(env, mobileKeys, parseMobileClientEnv);
+}
+
 export function parseMobileClientEnv(env: EnvRecord): ClientEnvConfig {
   assertNoClientSecret(env);
 

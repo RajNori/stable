@@ -6,11 +6,13 @@
  * from that status output only and is never written to app env files.
  *
  * Run from the repo root:
- *   node --experimental-strip-types scripts/bootstrap-local-auth.ts
- *   node --experimental-strip-types scripts/bootstrap-local-auth.ts --verify-member
+ *   node --experimental-strip-types --import ./scripts/register-workspace-ts.mjs scripts/bootstrap-local-auth.ts
+ *   node --experimental-strip-types --import ./scripts/register-workspace-ts.mjs scripts/bootstrap-local-auth.ts --verify-member
  */
 
 import { execFileSync } from "node:child_process";
+
+import { assertLocalDevelopmentSupabaseUrl } from "../packages/config/src/supabase-url.ts";
 
 const CLUB_ID = "11111111-1111-4111-8111-111111111111";
 const MEMBER_ID = "22222222-2222-4222-8222-222222222222";
@@ -107,7 +109,9 @@ function resolveConnection(): { url: string; secret: string } {
       "Missing local Supabase URL or secret. Set SUPABASE_URL and SUPABASE_SECRET_KEY, or start the local stack so supabase status can provide them.",
     );
   }
-  return { url: url.replace(/\/$/, ""), secret };
+  const localUrl = url.replace(/\/$/, "");
+  assertLocalDevelopmentSupabaseUrl(localUrl);
+  return { url: localUrl, secret };
 }
 
 function isRecord(value: unknown): value is JsonRecord {

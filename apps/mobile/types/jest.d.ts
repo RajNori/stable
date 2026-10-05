@@ -4,6 +4,7 @@ interface MobileExpect {
   toBeTruthy(): void;
   toEqual(expected: unknown): void;
   toBeGreaterThanOrEqual(expected: number): void;
+  toThrow(expected?: RegExp | string): void;
 }
 
 declare function describe(name: string, fn: () => void): void;

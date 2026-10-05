@@ -21,7 +21,7 @@
   },
   "scripts": {
     "typecheck": "next typegen && tsc -p tsconfig.json --noEmit",
-    "build": "next build --webpack",
+    "build": "node --experimental-strip-types --import ../../scripts/register-workspace-ts.mjs ./scripts/validate-boot-env.ts && next build --webpack",
     "test": "../../node_modules/.bin/vitest run --config vitest.config.ts"
   },
   "devDependencies": {
