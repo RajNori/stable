@@ -1,0 +1,9 @@
+---
+description: Test-first implementation and quality gates
+alwaysApply: true
+---
+Before implementing a behaviour, identify acceptance scenarios and tests.
+Tests ship with the feature.
+Critical RBAC/RLS behaviour requires exhaustive allow/deny coverage.
+Do not weaken tests or thresholds to make CI pass.
+Return test evidence with every implementation task.

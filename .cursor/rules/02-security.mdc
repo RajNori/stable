@@ -1,0 +1,9 @@
+---
+description: Junior-sport security and privacy guardrails
+alwaysApply: true
+---
+Deny by default. Treat child data as private.
+Never expose service-role keys, OTPs, auth tokens, full push tokens or private player notes.
+Never treat UI hiding as authorization.
+Default guardian-visible child name to first name + surname initial.
+No public child media or unrestricted adult-child private messaging.

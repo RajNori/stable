@@ -1,0 +1,9 @@
+---
+description: Multi-agent coordination rules
+alwaysApply: true
+---
+Use isolated worktrees/branches for concurrent editing agents.
+Assign owned paths and forbidden paths.
+Freeze shared contracts before parallel UI/backend implementation.
+Integrator merges; implementers do not opportunistically edit another active agent's area.
+QA/security reviewers must be independent of the implementer.

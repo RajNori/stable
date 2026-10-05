@@ -1,0 +1,8 @@
+---
+description: Production and infrastructure safety
+alwaysApply: true
+---
+Do not perform production Supabase, Vercel or EAS actions without explicit human approval.
+Do not create materially costly infrastructure.
+Do not run destructive migrations remotely.
+Staging/preview must not silently point to production.

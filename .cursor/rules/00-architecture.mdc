@@ -1,0 +1,8 @@
+---
+description: Core architecture guardrails for The Stable
+alwaysApply: true
+---
+Read and obey `AGENTS.md`, `planning/ATRD.md` and accepted ADRs.
+Use Vertical Slice Architecture.
+Do not introduce horizontal god-services or direct privileged CRUD from UI.
+Do not change architecture/tenancy/auth semantics without an ADR and human approval.
