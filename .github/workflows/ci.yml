@@ -80,11 +80,64 @@ jobs:
       - name: Reset local database
         run: pnpm exec supabase db reset --local
 
+      # pgTAP inserts the frozen user ids as non-login placeholders inside a
+      # transaction. Bootstrap creates those same ids through Auth Admin, so
+      # the database tests run on the clean reset and bootstrap follows.
+      - name: Run database tests
+        run: pnpm exec supabase test db
+
       - name: Bootstrap local auth
         run: node --experimental-strip-types scripts/bootstrap-local-auth.ts
 
-      - name: Run database tests
-        run: pnpm exec supabase test db
+      - name: Run club context integration test
+        run: |
+          node --input-type=module <<'EOF'
+          import { spawnSync } from "node:child_process";
+
+          const status = spawnSync(
+            "pnpm",
+            ["exec", "supabase", "status", "-o", "env"],
+            { encoding: "utf8" },
+          );
+          if (status.status !== 0) {
+            process.stderr.write(status.stderr);
+            process.exit(status.status ?? 1);
+          }
+
+          const env = { ...process.env };
+          for (const line of status.stdout.split("\n")) {
+            const index = line.indexOf("=");
+            if (index < 1) {
+              continue;
+            }
+            const key = line.slice(0, index);
+            let value = line.slice(index + 1);
+            if (value.startsWith('"') && value.endsWith('"')) {
+              value = value.slice(1, -1);
+            }
+            env[key] = value;
+          }
+
+          env.SUPABASE_URL = env.API_URL ?? "";
+          env.SUPABASE_PUBLISHABLE_KEY = env.PUBLISHABLE_KEY ?? "";
+          delete env.SUPABASE_SECRET_KEY;
+          delete env.SECRET_KEY;
+          delete env.SERVICE_ROLE_KEY;
+
+          const test = spawnSync(
+            "pnpm",
+            [
+              "--filter",
+              "@stable/current-club-context",
+              "exec",
+              "vitest",
+              "run",
+              "src/infrastructure/supabase-club-context-reader.integration.test.ts",
+            ],
+            { env, stdio: "inherit" },
+          );
+          process.exit(test.status ?? 1);
+          EOF
 
   web:
     name: web build
