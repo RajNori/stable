@@ -350,3 +350,18 @@ None.
 - M0-LOW-03 remains closed. A `privateNote` or `playerName` that exists only on that cause is removed from the parent message. The extra walk only adds strings to the redaction list. An already-seen cause is not walked twice, and a circular cause still stops. The capture suite passed: 16 tests. There is still no `Sentry.init`.
 - No Critical or High finding.
 - Recommendation: **PASS**
+
+## QA — 2026-10-06 / Slice 1.1 remediation / 35a8be9
+
+- Scope: remediation on `8f4550d`. Update lookups and the expanded pgTAP matrix. This reviewer did not implement the change.
+- Reviewer: independent QA.
+- Recommendation: **PASS**. No Critical, High, Medium, Low, or Uncertain findings.
+- M1-MED-01 and M1-LOW-01 are closed. Same-club wrong-team denial stays deferred to Slice 1.4.
+- Host evidence reviewed, not re-run: `supabase test db` 209 tests PASS, current-club-context integration 2 passed, fixture Playwright 3 passed, real-auth Playwright 4 passed.
+
+## Security — 2026-10-06 / Slice 1.1 remediation / 35a8be9
+
+- Scope: all Slice 1.1 security-definer functions, including the replacement update lookups.
+- Reviewer: independent security.
+- Recommendation: **PASS**. No Critical, High, Medium, or Low findings.
+- M1-LOW-01 is closed: a missing id and another club's id both return `NOT_FOUND`. M1-MED-01 is closed, including the test-only audit rollback. Production Supabase, Vercel production, and EAS production stay blocked.
