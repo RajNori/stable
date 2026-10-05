@@ -1,6 +1,13 @@
 # Milestone 0 freeze
 
-Integrator serial phase. Breaking changes to this list return to the Integrator.
+Milestone 0 is frozen. Do not reopen its architecture, identity, or tenancy semantics. Milestone 1 starts from this baseline.
+
+- Behaviour SHA: `f7b417bbb41aa751ff63e90273c3884a135ea238`
+- Codex review: `planning/CODEX_M0_REVIEW.md` (PASS WITH CONDITIONS; the four lows were closed after that review)
+- Cursor QA and security: `planning/REVIEW.md` (PASS, no Critical or High)
+- Production Supabase, Vercel production, and EAS production stay blocked while `planning/security-exceptions/2026-10-05-expo-metro-high-advisories.json` says `productionStatus` is `BLOCKED`
+
+The sections below are the frozen Milestone 0 contract. Breaking changes return to the Integrator.
 Do not edit single-writer files from a workstream branch.
 
 ## Single-writer files
