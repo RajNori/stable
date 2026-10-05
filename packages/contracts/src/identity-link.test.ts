@@ -6,6 +6,8 @@ const unchanged = {
   createsProfile: false,
   transfersMembership: false,
   createsDuplicateIdentity: false,
+  mechanism: "none",
+  credentialEstablished: false,
 } as const;
 
 describe("identity link decision contract", () => {

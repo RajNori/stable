@@ -16,7 +16,7 @@ GoTrue can attach a new OAuth identity during sign-in when its own rules say the
 
 On this image, an OAuth email is eligible for automatic linking when the provider marks it verified, or when mailer autoconfirm is on. If exactly one non-SSO user already has that email, GoTrue links the new identity to that user. If the email is not eligible, GoTrue creates a separate account and does not copy a duplicate email onto it.
 
-`enable_manual_linking = false` does not turn this off. It only blocks the authenticated manual routes under `/user/identities`.
+`enable_manual_linking = false` does not turn this off. It only blocks `linkIdentity` and `unlinkIdentity`. It does not govern email or phone `updateUser` flows.
 
 ## Application-inferred merge
 
@@ -32,18 +32,23 @@ The application never merges two adults because:
 
 Those cases stay separate users. There is no merge-users action.
 
-## Manual linking decision
+## Manual linking mechanisms
 
-V1 does need an explicit linking flow later, for a signed-in adult who wants a second credential that automatic linking will not attach:
+A signed-out sign-in is not a link. If the candidate credential already belongs to another adult, the result is `CONFLICT` and the catalog sentence `This sign-in method can't be added.` The application does not infer a merge. Removing the last remaining sign-in identity is refused. Cancelling a link leaves the current session in place. Replaying a completed OAuth link does not create a second identity or a second profile.
 
-- email OTP added to a phone adult
-- Australian phone OTP added to an email adult
-- Apple, including a private-relay address
-- Google, when its email is absent or differs
+### OAuth
 
-That flow requires an existing authenticated session. A signed-out sign-in is not a link. A new email or phone must be verified with its own OTP before it attaches. An OAuth link must return to an allowlisted callback. If the candidate identity already belongs to another adult, the result is `CONFLICT` and the catalog sentence `This sign-in method can't be added.` Removing the last remaining sign-in identity is refused so the adult is not locked out. Cancelling the flow leaves the current session in place. Replaying a completed link does not create a second identity or a second profile; a replay of another adult's identity is `CONFLICT`.
+Google and Apple use `linkIdentity()` for an authenticated adult. That call requires `enable_manual_linking`. The flag stays false until that OAuth flow is implemented. Turning it on is a deliberate local Auth change. An identity already owned by another adult is `CONFLICT`. The callback must be an allowlisted URL. The credential is established only when that callback completes.
 
-`enable_manual_linking` stays false. Turning it on is a deliberate local Auth change that belongs with the implementation of that flow, not with the existence of `linkIdentity`. Until then, the application does not call `updateUser` or `linkIdentity` to attach a credential. The same email or phone signs in as the same adult. A different email or phone stays a different adult.
+### Email
+
+Adding or changing an email uses authenticated `updateUser()`. `enable_manual_linking` does not govern that call. The credential stays unestablished until verification completes. Each environment sets its own email-change mode explicitly: `double_confirm` or `new_address_only`. An unset mode is refused. Local config sets `double_confirm_changes = true`.
+
+### Phone
+
+Adding or changing a phone would use authenticated `updateUser()`, after `normalizeAustralianMobile`. `enable_manual_linking` does not govern that call.
+
+`auth.users.phone_change` is not unique. GoTrue can confirm a stale or duplicate pending number onto a different adult than the signed-in session. A stale or ambiguous `phone_change` is refused. Production phone credential linking stays unimplemented until a cleanup and uniqueness strategy for that column is defined and tested. `PHONE_CREDENTIAL_LINKING_IS_IMPLEMENTED` stays false.
 
 ## Local email confirmation
 

@@ -119,6 +119,7 @@ describe("local identity stability", () => {
     expect(membershipCount(emailUserId)).toBe(0);
     expect(membershipCount(phoneUserId)).toBe(0);
 
+    // Collision probe only. This is not phone credential linking.
     const collision = await email.supabase.auth.updateUser({
       phone: phoneOtp.phone,
     });

@@ -14,6 +14,7 @@ export {
 } from "./auth-redirect.js";
 export {
   MANUAL_LINKING_IS_ENABLED,
+  PHONE_CREDENTIAL_LINKING_IS_IMPLEMENTED,
   decideIdentityLink,
 } from "./identity-link-policy.js";
 export type { IdentityLinkInput } from "./identity-link-policy.js";
