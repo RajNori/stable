@@ -20,7 +20,9 @@ const CONFLICT_CODES = new Set([
   "email_exists",
   "phone_exists",
   "identity_already_exists",
+  "email_conflict_identity_not_deletable",
   "user_already_exists",
+  "manual_linking_disabled",
   "conflict",
 ]);
 
@@ -43,6 +45,7 @@ const VALIDATION_CODES = new Set([
   "bad_code_verifier",
   "user_cancelled",
   "access_denied",
+  "single_identity_not_deletable",
 ]);
 
 const UPSTREAM_CODES = new Set([

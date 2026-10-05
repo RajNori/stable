@@ -12,6 +12,11 @@ export {
   assertSafeReturnPath,
   authCodeFromCallback,
 } from "./auth-redirect.js";
+export {
+  MANUAL_LINKING_IS_ENABLED,
+  decideIdentityLink,
+} from "./identity-link-policy.js";
+export type { IdentityLinkInput } from "./identity-link-policy.js";
 export { createSupabaseOtpAuthClient } from "./otp-auth-client.js";
 export type { OtpAuthClient, OtpProviderUser } from "./otp-auth-client.js";
 export {

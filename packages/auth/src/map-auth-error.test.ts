@@ -7,6 +7,7 @@ const leakedEmail = "person@example.com";
 const leakedOtp = "918273";
 const leakedPhone = "+61400111222";
 const leakedToken = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.payload.sig";
+const leakedIdentityId = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
 
 function expectSafe(
   error: unknown,
@@ -25,6 +26,7 @@ function expectSafe(
   expect(mapped.message).not.toContain("Bearer");
   expect(mapped.message).not.toContain("Apple");
   expect(mapped.message).not.toContain("Google");
+  expect(mapped.message).not.toContain(leakedIdentityId);
 }
 
 describe("mapAuthError", () => {
@@ -107,6 +109,32 @@ describe("mapAuthError", () => {
       { status: 409, message: `phone already exists ${leakedPhone}` },
       "CONFLICT",
       "This sign-in method can't be added.",
+    );
+    expectSafe(
+      {
+        code: "manual_linking_disabled",
+        status: 404,
+        message: "Manual linking is disabled",
+      },
+      "CONFLICT",
+      "This sign-in method can't be added.",
+    );
+    expectSafe(
+      {
+        code: "email_conflict_identity_not_deletable",
+        message: `Unable to unlink ${leakedEmail}`,
+      },
+      "CONFLICT",
+      "This sign-in method can't be added.",
+    );
+    expectSafe(
+      {
+        code: "single_identity_not_deletable",
+        status: 422,
+        message: `User must have at least 1 identity after unlinking ${leakedIdentityId}`,
+      },
+      "VALIDATION_FAILED",
+      "The sign-in details could not be checked.",
     );
   });
 

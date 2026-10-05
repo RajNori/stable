@@ -84,6 +84,9 @@ export type {
   SignInChallenge,
 } from "./auth-session.js";
 
+export { identityLinkDecisionSchema } from "./identity-link.js";
+export type { IdentityLinkDecision } from "./identity-link.js";
+
 export { SENSITIVE_METADATA_FIELDS } from "./observability.js";
 export type {
   ProductEventMetadata,
