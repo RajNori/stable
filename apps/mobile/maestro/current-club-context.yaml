@@ -1,0 +1,9 @@
+appId: app.stable.mobile
+---
+- launchApp
+- extendedWaitUntil:
+    visible:
+      text: "Mentone Mustangs|No club membership"
+    timeout: 20000
+- assertVisible:
+    text: "Mentone Mustangs|No club membership"

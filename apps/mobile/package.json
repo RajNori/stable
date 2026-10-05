@@ -2,6 +2,23 @@
   "name": "@stable/mobile",
   "version": "0.0.0",
   "private": true,
+  "main": "expo-router/entry",
+  "scripts": {
+    "test": "jest --watchAll=false",
+    "typecheck": "tsc -p tsconfig.json --noEmit"
+  },
+  "jest": {
+    "preset": "jest-expo",
+    "transformIgnorePatterns": [
+      "/node_modules/(?!(.pnpm|react-native|@react-native|@react-native-community|expo|@expo|@expo-google-fonts|react-navigation|@react-navigation|@sentry/react-native|native-base|standard-navigation|@stable))",
+      "/node_modules/react-native-reanimated/plugin/",
+      "/node_modules/@react-native/babel-preset/"
+    ],
+    "moduleNameMapper": {
+      "^react$": "<rootDir>/node_modules/react/index.js",
+      "^(\\.{1,2}/.*)\\.js$": "$1"
+    }
+  },
   "devDependencies": {
     "@testing-library/react-native": "^14.0.1",
     "jest-expo": "~57.0.5",
