@@ -10,6 +10,7 @@ describe("normalizeAustralianMobile", () => {
     ["04 1234 5678", "+61412345678"],
     ["0412  345  678", "+61412345678"],
     ["(04) 1234-5678", "+61412345678"],
+    ["0412-345-678", "+61412345678"],
     ["+61412345678", "+61412345678"],
     ["+61 412 345 678", "+61412345678"],
     ["+61 4 1234 5678", "+61412345678"],
@@ -37,6 +38,12 @@ describe("normalizeAustralianMobile", () => {
     "+447911123456",
     "0412abc678",
     "not-a-number",
+    "+61234567890",
+    "+61387654321",
+    "0412345678 x12",
+    "0412 345 678 ext 9",
+    "()-",
+    "+--",
   ])("rejects %j before any network call", (input) => {
     expect(() => normalizeAustralianMobile(input)).toThrow(ApplicationError);
     try {

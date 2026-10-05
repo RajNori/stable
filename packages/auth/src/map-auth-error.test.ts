@@ -216,4 +216,49 @@ describe("mapAuthError", () => {
       "This sign-in method can't be added.",
     );
   });
+
+  it("prefers provider code and status over a contradictory message", () => {
+    expectSafe(
+      {
+        code: "otp_expired",
+        message: `too many requests for ${leakedEmail}`,
+      },
+      "VALIDATION_FAILED",
+      "The sign-in details could not be checked.",
+    );
+    expectSafe(
+      {
+        status: 429,
+        message: "The user canceled the Apple authorization",
+      },
+      "RATE_LIMITED",
+      "Too many sign-in attempts. Wait and try again.",
+    );
+    expectSafe(
+      {
+        code: "session_expired",
+        status: 500,
+        message: `expired session ${leakedToken}`,
+      },
+      "UNAUTHENTICATED",
+      "Authentication is required.",
+    );
+  });
+
+  it("hides malformed provider errors", () => {
+    expectSafe(
+      {
+        code: 12,
+        status: "nope",
+        message: { email: leakedEmail, phone: leakedPhone, token: leakedToken },
+      },
+      "INTERNAL",
+      "Sign-in could not be completed.",
+    );
+    expectSafe(
+      { message: ["otp", leakedEmail, leakedToken] },
+      "INTERNAL",
+      "Sign-in could not be completed.",
+    );
+  });
 });

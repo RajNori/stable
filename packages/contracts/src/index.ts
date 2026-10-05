@@ -60,6 +60,27 @@ export type {
   Venue,
 } from "./club-structure.js";
 
+export {
+  AUTH_ERROR_CODES,
+  AUTH_ERROR_MESSAGES,
+  AUTH_METHODS,
+  AUTH_STATES,
+  INITIAL_AUTH_SESSION,
+  LOGOUT_SCOPES,
+  authErrorCodeSchema,
+  authMethodSchema,
+  authSessionSnapshotSchema,
+  authStateSchema,
+  logoutScopeSchema,
+} from "./auth-session.js";
+export type {
+  AuthErrorCode,
+  AuthMethod,
+  AuthSessionSnapshot,
+  AuthState,
+  LogoutScope,
+} from "./auth-session.js";
+
 export { SENSITIVE_METADATA_FIELDS } from "./observability.js";
 export type {
   ProductEventMetadata,

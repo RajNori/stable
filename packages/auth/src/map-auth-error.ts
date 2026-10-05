@@ -1,15 +1,13 @@
-import { ApplicationError, type ApplicationErrorCode } from "@stable/contracts";
+import {
+  ApplicationError,
+  AUTH_ERROR_MESSAGES,
+  type ApplicationErrorCode,
+  type AuthErrorCode,
+} from "@stable/contracts";
 
-const SAFE_MESSAGES = {
-  VALIDATION_FAILED: "The sign-in details could not be checked.",
-  RATE_LIMITED: "Too many sign-in attempts. Wait and try again.",
-  CONFLICT: "This sign-in method can't be added.",
-  UPSTREAM_UNAVAILABLE: "Sign-in is unavailable right now.",
-  UNAUTHENTICATED: "Authentication is required.",
-  INTERNAL: "Sign-in could not be completed.",
-} as const;
+const SAFE_MESSAGES = AUTH_ERROR_MESSAGES;
 
-type AuthFailureCode = keyof typeof SAFE_MESSAGES;
+type AuthFailureCode = AuthErrorCode;
 
 const RATE_CODES = new Set([
   "over_request_rate_limit",
