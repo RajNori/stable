@@ -38,6 +38,18 @@ export {
 export type { OAuthLinkGateway } from "./oauth-link.js";
 export { createSupabaseOAuthLinkGateway } from "./oauth-link-gateway.js";
 export type { OAuthLinkApi } from "./oauth-link-gateway.js";
+export {
+  MOBILE_OAUTH_SIGN_IN,
+  appleRequestNonce,
+  cancelOAuthSignIn,
+  completeOAuthIdTokenSignIn,
+  completeOAuthSignIn,
+  issueOAuthNonce,
+  requestOAuthSignIn,
+} from "./oauth-sign-in.js";
+export type { OAuthSignInGateway } from "./oauth-sign-in.js";
+export { createSupabaseOAuthSignInGateway } from "./oauth-sign-in-gateway.js";
+export type { OAuthSignInApi } from "./oauth-sign-in-gateway.js";
 export { createSupabaseOtpAuthClient } from "./otp-auth-client.js";
 export type { OtpAuthClient, OtpProviderUser } from "./otp-auth-client.js";
 export {

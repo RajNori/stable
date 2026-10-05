@@ -90,14 +90,19 @@ export type { IdentityLinkDecision } from "./identity-link.js";
 export {
   EMAIL_CREDENTIAL_CHANGE_STATUSES,
   OAUTH_LINK_PROVIDERS,
+  LOCAL_SUPABASE_AUTH_ORIGIN,
   emailCredentialChangeSchema,
+  isExpectedSupabaseAuthOrigin,
+  isSafeOAuthAuthorizationUrl,
   oauthLinkReceiptSchema,
   oauthProviderSettingsSchema,
+  oauthSignInNavigationSchema,
 } from "./credential.js";
 export type {
   EmailCredentialChange,
   OAuthLinkReceipt,
   OAuthProviderSettings,
+  OAuthSignInNavigation,
 } from "./credential.js";
 
 export { SENSITIVE_METADATA_FIELDS } from "./observability.js";

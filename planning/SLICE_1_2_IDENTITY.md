@@ -58,6 +58,20 @@ An authenticated adult changes email through `requestEmailCredentialChange` and 
 
 Google and Apple explicit links go through `requestOAuthIdentityLink`, which calls `linkIdentity` only from the adapter. Both providers ship disabled, with no client id and no placeholder credential. `enable_manual_linking` stays false, so the operation returns `CONFLICT` before the provider. A cancelled or completed callback keeps the current adult. Live provider verification is a later human-gated step. The application still does not merge adults from email, name, or metadata.
 
+## OAuth sign-in
+
+A signed-out Google or Apple sign-in is not an identity link. `requestOAuthSignIn` calls `signInWithOAuth`. `requestOAuthIdentityLink` calls `linkIdentity`. Sign-in does not require `enable_manual_linking`. Linking still does.
+
+Web Google and Web Apple use the browser authorize URL. That URL is only for navigation, and it must be the expected Supabase `/auth/v1/authorize` origin. Local is `http://127.0.0.1:54321`. A hosted origin is `https://<project>.supabase.co`. `javascript:`, `data:`, any other origin, a malformed URL, a token, or a raw email is rejected. The callback exchange returns an `AuthSessionSnapshot` and drops access tokens, refresh tokens, and the raw provider user. While both providers are disabled, the exchange is not called.
+
+Mobile Apple is native Sign in with Apple. The native request receives the SHA-256 hex of a raw nonce from `appleRequestNonce`. `completeOAuthIdTokenSignIn` sends that same raw nonce to `signInWithIdToken`, which is what Supabase hashes and compares. The Expo app does not yet include the Apple authentication package.
+
+Mobile Google uses the same browser OAuth path as web, with `stable://auth/callback`. This Expo app has no Google native SDK. A later native Google ID token can use `completeOAuthIdTokenSignIn` without changing the session result.
+
+GoTrue may still attach an OAuth sign-in to an existing adult when its verified-email rules say so. The application does not merge on that email, on an Apple private-relay address, or when Google and Apple return different emails.
+
+Live Google and Apple credentials, hosted provider configuration, and a real browser or iOS proof stay deferred. Disabled configuration has no client id, and a placeholder client id is not treated as enabled.
+
 ## Local email confirmation
 
 Local `enable_confirmations` is false, so GoTrue mailer autoconfirm is on. A verified local email OTP sets `email_confirmed_at`. The same switch also makes GoTrue treat an unverified provider email as verified for automatic linking.
