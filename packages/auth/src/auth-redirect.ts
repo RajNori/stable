@@ -83,6 +83,10 @@ export function authCodeFromCallback(
   return code;
 }
 
+export function callbackTargetFromUrl(callbackUrl: string): string | null {
+  return callbackIdentity(callbackUrl);
+}
+
 function callbackIdentity(callbackUrl: string): string | null {
   const web = "http://127.0.0.1:3000/auth/callback";
   const mobile = "stable://auth/callback";

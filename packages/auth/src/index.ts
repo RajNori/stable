@@ -18,6 +18,26 @@ export {
   decideIdentityLink,
 } from "./identity-link-policy.js";
 export type { IdentityLinkInput } from "./identity-link-policy.js";
+export {
+  EMAIL_CHANGE_MODE_BY_ENV,
+  cancelEmailCredentialChange,
+  requestEmailCredentialChange,
+  verifyEmailCredentialChange,
+} from "./email-credential.js";
+export type { EmailCredentialGateway } from "./email-credential.js";
+export { createSupabaseEmailCredentialGateway } from "./email-credential-gateway.js";
+export type { EmailCredentialApi } from "./email-credential-gateway.js";
+export { requestPhoneCredentialChange } from "./phone-credential.js";
+export {
+  OAUTH_PROVIDER_SETTINGS,
+  cancelOAuthIdentityLink,
+  oauthProviderReady,
+  preserveOAuthCallback,
+  requestOAuthIdentityLink,
+} from "./oauth-link.js";
+export type { OAuthLinkGateway } from "./oauth-link.js";
+export { createSupabaseOAuthLinkGateway } from "./oauth-link-gateway.js";
+export type { OAuthLinkApi } from "./oauth-link-gateway.js";
 export { createSupabaseOtpAuthClient } from "./otp-auth-client.js";
 export type { OtpAuthClient, OtpProviderUser } from "./otp-auth-client.js";
 export {

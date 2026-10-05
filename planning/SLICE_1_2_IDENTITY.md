@@ -50,6 +50,14 @@ Adding or changing a phone would use authenticated `updateUser()`, after `normal
 
 `auth.users.phone_change` is not unique. GoTrue can confirm a stale or duplicate pending number onto a different adult than the signed-in session. A stale or ambiguous `phone_change` is refused. Production phone credential linking stays unimplemented until a cleanup and uniqueness strategy for that column is defined and tested. `PHONE_CREDENTIAL_LINKING_IS_IMPLEMENTED` stays false.
 
+`requestPhoneCredentialChange` is the account-management entry. It fails closed and has no provider gateway. Phone OTP sign-in is a separate operation and stays available.
+
+## Credential operations
+
+An authenticated adult changes email through `requestEmailCredentialChange` and `verifyEmailCredentialChange`. `updateUser({ email })` stays inside the Supabase adapter. The result is `pending` until verification reports the mailbox committed, and `auth.users.id` stays the same. Cancelling the flow does not switch the adult. Local mode is `double_confirm`. Staging and production stay `unset`, so those environments refuse the operation until a mode is set. Local mailer autoconfirm can still let GoTrue commit a secure email change on the first confirmed code. The application follows the committed mailbox, and it does not treat the request itself as verification.
+
+Google and Apple explicit links go through `requestOAuthIdentityLink`, which calls `linkIdentity` only from the adapter. Both providers ship disabled, with no client id and no placeholder credential. `enable_manual_linking` stays false, so the operation returns `CONFLICT` before the provider. A cancelled or completed callback keeps the current adult. Live provider verification is a later human-gated step. The application still does not merge adults from email, name, or metadata.
+
 ## Local email confirmation
 
 Local `enable_confirmations` is false, so GoTrue mailer autoconfirm is on. A verified local email OTP sets `email_confirmed_at`. The same switch also makes GoTrue treat an unverified provider email as verified for automatic linking.

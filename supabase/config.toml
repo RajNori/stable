@@ -257,6 +257,12 @@ otp_expiry = 3600
 subject = "Your sign-in code"
 content_path = "./supabase/templates/magic_link.html"
 
+# Local Inbucket only. The code confirms an authenticated email change.
+# Do not copy this template to a hosted project.
+[auth.email.template.email_change]
+subject = "Confirm your email change"
+content_path = "./supabase/templates/email_change.html"
+
 # Uncomment to customize notification email template
 # [auth.email.notification.password_changed]
 # enabled = true

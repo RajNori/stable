@@ -87,6 +87,19 @@ export type {
 export { identityLinkDecisionSchema } from "./identity-link.js";
 export type { IdentityLinkDecision } from "./identity-link.js";
 
+export {
+  EMAIL_CREDENTIAL_CHANGE_STATUSES,
+  OAUTH_LINK_PROVIDERS,
+  emailCredentialChangeSchema,
+  oauthLinkReceiptSchema,
+  oauthProviderSettingsSchema,
+} from "./credential.js";
+export type {
+  EmailCredentialChange,
+  OAuthLinkReceipt,
+  OAuthProviderSettings,
+} from "./credential.js";
+
 export { SENSITIVE_METADATA_FIELDS } from "./observability.js";
 export type {
   ProductEventMetadata,
