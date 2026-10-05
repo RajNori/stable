@@ -42,6 +42,15 @@ export const AUTH_ERROR_MESSAGES = {
   INTERNAL: "Sign-in could not be completed.",
 } as const satisfies Record<AuthErrorCode, string>;
 
+export const SIGN_IN_CHALLENGE_METHODS = ["email_otp", "phone_otp"] as const;
+
+export const signInChallengeSchema = z.strictObject({
+  status: z.literal("accepted"),
+  method: z.enum(SIGN_IN_CHALLENGE_METHODS),
+});
+
+export type SignInChallenge = z.infer<typeof signInChallengeSchema>;
+
 export const AUTH_METHODS = [
   "phone_otp",
   "email_otp",

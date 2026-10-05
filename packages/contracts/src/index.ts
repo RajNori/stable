@@ -67,11 +67,13 @@ export {
   AUTH_STATES,
   INITIAL_AUTH_SESSION,
   LOGOUT_SCOPES,
+  SIGN_IN_CHALLENGE_METHODS,
   authErrorCodeSchema,
   authMethodSchema,
   authSessionSnapshotSchema,
   authStateSchema,
   logoutScopeSchema,
+  signInChallengeSchema,
 } from "./auth-session.js";
 export type {
   AuthErrorCode,
@@ -79,6 +81,7 @@ export type {
   AuthSessionSnapshot,
   AuthState,
   LogoutScope,
+  SignInChallenge,
 } from "./auth-session.js";
 
 export { SENSITIVE_METADATA_FIELDS } from "./observability.js";

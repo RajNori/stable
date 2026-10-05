@@ -10,6 +10,7 @@ import {
   authErrorCodeSchema,
   authMethodSchema,
   authSessionSnapshotSchema,
+  signInChallengeSchema,
   authStateSchema,
   logoutScopeSchema,
 } from "./index.js";
@@ -32,6 +33,17 @@ describe("auth session contract", () => {
     expect(logoutScopeSchema.parse("global")).toBe("global");
     expect(authMethodSchema.parse("phone_otp")).toBe("phone_otp");
     expect(authMethodSchema.safeParse("password").success).toBe(false);
+    expect(
+      signInChallengeSchema.parse({ status: "accepted", method: "email_otp" }),
+    ).toEqual({ status: "accepted", method: "email_otp" });
+    expect(
+      signInChallengeSchema.safeParse({
+        status: "accepted",
+        method: "phone_otp",
+        email: "person@example.com",
+        accessToken: "secret-access-token",
+      }).success,
+    ).toBe(false);
 
     for (const code of AUTH_ERROR_CODES) {
       expect(authErrorCodeSchema.parse(code)).toBe(code);
