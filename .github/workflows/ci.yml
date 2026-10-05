@@ -100,11 +100,11 @@ jobs:
             { encoding: "utf8" },
           );
           if (status.status !== 0) {
-            process.stderr.write(status.stderr);
+            process.stderr.write("supabase status failed\n");
             process.exit(status.status ?? 1);
           }
 
-          const env = { ...process.env };
+          const statusEnv = {};
           for (const line of status.stdout.split("\n")) {
             const index = line.indexOf("=");
             if (index < 1) {
@@ -115,14 +115,12 @@ jobs:
             if (value.startsWith('"') && value.endsWith('"')) {
               value = value.slice(1, -1);
             }
-            env[key] = value;
+            statusEnv[key] = value;
           }
 
-          env.SUPABASE_URL = env.API_URL ?? "";
-          env.SUPABASE_PUBLISHABLE_KEY = env.PUBLISHABLE_KEY ?? "";
-          delete env.SUPABASE_SECRET_KEY;
-          delete env.SECRET_KEY;
-          delete env.SERVICE_ROLE_KEY;
+          const env = { ...process.env };
+          env.SUPABASE_URL = statusEnv.API_URL ?? "";
+          env.SUPABASE_PUBLISHABLE_KEY = statusEnv.PUBLISHABLE_KEY ?? "";
 
           const test = spawnSync(
             "pnpm",
