@@ -148,10 +148,9 @@ describe("public supabase configuration", () => {
 });
 
 describe("supabase reader boundary", () => {
-  it("fails closed when createSupabaseClubContextReader is not exported", async () => {
-    await expect(createRuntimeClubContextReader({})).rejects.toThrow(
-      /createSupabaseClubContextReader/,
-    );
+  it("uses the exported club context reader", async () => {
+    const reader = await createRuntimeClubContextReader({});
+    expect(typeof reader.read).toBe("function");
   });
 });
 

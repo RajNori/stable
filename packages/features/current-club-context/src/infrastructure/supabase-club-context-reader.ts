@@ -17,11 +17,14 @@ const SIGNED_IN_DISPLAY_NAME = "Signed in";
  * This function does not accept or read a secret key.
  */
 export function createSupabaseClubContextReader(
-  client: SupabaseClient<Database>,
+  client: unknown,
 ): ClubContextReader {
+  // Accept unknown so app packages are not coupled to this package's
+  // SupabaseClient identity. The cast stays inside the adapter.
+  const db = client as SupabaseClient<Database>;
   return {
     async read(userId: string): Promise<ClubContextReadResult> {
-      const membershipResult = await client
+      const membershipResult = await db
         .from("club_memberships")
         .select(
           "club_id, role, active, clubs(id, name, slug, timezone, theme_key)",
@@ -33,7 +36,7 @@ export function createSupabaseClubContextReader(
         readFailure();
       }
 
-      const profileResult = await client
+      const profileResult = await db
         .from("profiles")
         .select("display_name")
         .eq("user_id", userId)
@@ -48,7 +51,7 @@ export function createSupabaseClubContextReader(
       }
 
       if (membershipResult.data.length === 0) {
-        return parseResult(await readOutsiderDisplayName(client), []);
+        return parseResult(await readOutsiderDisplayName(db), []);
       }
 
       const displayName = readProfileDisplayName(profileResult.data);
