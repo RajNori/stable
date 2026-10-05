@@ -123,21 +123,76 @@ function httpHostname(url: string): string {
   return hostname;
 }
 
+const BOOTSTRAP_REFUSAL =
+  "Refusing to bootstrap auth because this script is local-development tooling only.";
+
+function bootstrapRefusal(reason: string, cause?: unknown): Error {
+  return new Error(`${BOOTSTRAP_REFUSAL} ${reason}`, { cause });
+}
+
 /**
- * Local auth bootstrap is development tooling. It accepts the mobile local
- * allowlist and rejects hosted Supabase projects before any Admin API call.
+ * Privileged local auth bootstrap accepts only a loopback Supabase origin.
+ * The mobile LAN allowlist is not reused here. An alternate host needs its
+ * own explicit setting; this function does not accept one.
  */
 export function assertLocalDevelopmentSupabaseUrl(url: string): void {
+  let hostname: string;
   try {
-    assertSupabaseUrl(url, "local", "mobile");
+    hostname = unwrapHost(httpHostname(url));
   } catch (error: unknown) {
     const reason =
       error instanceof Error ? error.message : "The URL is invalid.";
-    throw new Error(
-      `Refusing to bootstrap auth because this script is local-development tooling only. ${reason}`,
-      { cause: error },
+    throw bootstrapRefusal(reason, error);
+  }
+
+  if (isSupabaseHost(hostname)) {
+    throw bootstrapRefusal(
+      "Local Supabase URL must not use a supabase.co host.",
     );
   }
+
+  if (!isLoopbackRange(hostname)) {
+    throw bootstrapRefusal(
+      "Privileged bootstrap accepts only a loopback Supabase endpoint, not a private LAN or public host.",
+    );
+  }
+}
+
+function bootstrapOrigin(url: string): string {
+  assertLocalDevelopmentSupabaseUrl(url);
+  const parsed = new URL(url);
+  if (parsed.pathname !== "/") {
+    throw bootstrapRefusal("Supabase URL must be the API origin.");
+  }
+  if (parsed.search !== "" || parsed.hash !== "") {
+    throw bootstrapRefusal("Supabase URL must not include a query or hash.");
+  }
+
+  return parsed.origin;
+}
+
+/**
+ * The destination is the loopback API origin reported by `supabase status`.
+ * A SUPABASE_URL override is accepted only when it is that same origin.
+ */
+export function resolveLocalBootstrapDestination(input: {
+  requestedUrl?: string;
+  statusUrl: string;
+}): string {
+  const statusOrigin = bootstrapOrigin(input.statusUrl);
+  const requested = input.requestedUrl?.trim();
+  if (requested === undefined || requested.length === 0) {
+    return statusOrigin;
+  }
+
+  const requestedOrigin = bootstrapOrigin(requested);
+  if (requestedOrigin !== statusOrigin) {
+    throw bootstrapRefusal(
+      "SUPABASE_URL does not match the local Supabase endpoint from supabase status.",
+    );
+  }
+
+  return statusOrigin;
 }
 
 export function assertSupabaseUrl(

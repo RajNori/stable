@@ -74,6 +74,8 @@ pgTAP policy placeholders are not login users and must not reuse those ids or em
 
 Intentional local order: `supabase db reset`, pgTAP, Auth bootstrap, reader integration. The distinct ids make that order and the reverse order both valid. Do not ignore duplicate-key errors.
 
+The bootstrap destination is the loopback API URL from `supabase status`. A `SUPABASE_URL` override must match that origin. Private LAN addresses are not bootstrap destinations, and the script has no alternate-host setting.
+
 ## Workstream paths
 
 - `m0/platform`: `.github/workflows/**`, `eas.json`, Vercel config, `packages/config/**`, `packages/observability/**`

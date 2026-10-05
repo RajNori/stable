@@ -12,4 +12,7 @@ export {
 export type { ClientEnvConfig, EnvRecord } from "./client-env.js";
 
 export { assertEasConfig } from "./eas.js";
-export { assertLocalDevelopmentSupabaseUrl } from "./supabase-url.js";
+export {
+  assertLocalDevelopmentSupabaseUrl,
+  resolveLocalBootstrapDestination,
+} from "./supabase-url.js";

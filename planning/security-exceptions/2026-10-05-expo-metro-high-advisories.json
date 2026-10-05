@@ -9,6 +9,11 @@
       "advisory": "GHSA-86w9-cpqp-85rv",
       "severity": "high",
       "patchedVersions": null,
+      "classification": "tooling",
+      "allowedPathFragments": [
+        "@expo/cli>node-forge",
+        "@expo/cli>@expo/code-signing-certificates>node-forge"
+      ],
       "transitivePath": "apps/mobile > expo > @expo/cli > node-forge, and @expo/cli > @expo/code-signing-certificates > node-forge",
       "affectedPath": "Expo CLI and code-signing toolchain",
       "exploitability": "RSA PKCS#1 v1.5 signature verification accepts extra nested DigestAlgorithm elements. The package is not on the club, profile, or child-data request path.",
@@ -20,6 +25,14 @@
       "advisory": "GHSA-vfj7-8cjw-p6xm",
       "severity": "high",
       "patchedVersions": null,
+      "classification": "tooling",
+      "allowedPathFragments": [
+        "metro>metro-file-map>micromatch>braces",
+        "metro-file-map>micromatch>braces",
+        "@jest/transform>micromatch>braces",
+        "@jest/transform>jest-haste-map>micromatch>braces",
+        "jest-message-util>micromatch>braces"
+      ],
       "transitivePath": "apps/mobile > react-native > Metro > metro-file-map > micromatch > braces",
       "affectedPath": "Metro bundler and Jest file-map glob compilation",
       "exploitability": "Deeply nested brace patterns can exhaust the stack while compiling a glob. That is a build and test-runner input, not a request path.",

@@ -7,7 +7,16 @@ declare const URL: {
 };
 
 interface URL {
+  hash: string;
+  hostname: string;
   href: string;
+  origin: string;
+  password: string;
+  pathname: string;
+  port: string;
+  protocol: string;
+  search: string;
+  username: string;
 }
 
 interface ImportMeta {

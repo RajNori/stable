@@ -1,4 +1,4 @@
-import { SENSITIVE_METADATA_FIELDS } from "@stable/contracts";
+import { ApplicationError, SENSITIVE_METADATA_FIELDS } from "@stable/contracts";
 import type { ProductEventMetadata } from "@stable/contracts";
 import { describe, expect, it, vi } from "vitest";
 
@@ -46,7 +46,7 @@ describe("captureException", () => {
     expect(sink).toHaveBeenCalledOnce();
   });
 
-  it("forwards the error when a DSN and sink are configured", () => {
+  it("sends a normalized error when a DSN and sink are configured", () => {
     const error = new Error("reported");
     const sink = vi.fn();
     configureObservability({
@@ -56,7 +56,132 @@ describe("captureException", () => {
 
     captureException(error);
 
-    expect(sink).toHaveBeenCalledWith(error);
+    const forwarded: unknown = sink.mock.calls[0]?.[0];
+    expect(forwarded).toEqual({
+      name: "Error",
+      classification: "Error",
+      message: "reported",
+    });
+    expect(forwarded).not.toBe(error);
+    expect(forwarded).not.toBeInstanceOf(Error);
+  });
+
+  it("redacts sensitive values from the message, cause, and context", () => {
+    const token = "sb_secret_example";
+    const note = "coach-only note";
+    const error = new ApplicationError(
+      "VALIDATION_FAILED",
+      "member person@example.com otp 918273 phone +61400111222",
+    );
+    error.cause = new Error(`nested ${token}`);
+    Object.assign(error, {
+      email: "person@example.com",
+      phone: "+61400111222",
+      token,
+      otp: "918273",
+      playerName: "Alex Player",
+      privateNote: note,
+      absenceNote: "sick today",
+      context: {
+        playerName: "Alex Player",
+        privateNote: note,
+        cause: { absenceNote: "sick today", token },
+      },
+    });
+    const sink = vi.fn();
+    configureObservability({
+      sentryDsn: "https://example.invalid/1",
+      exceptionSink: sink,
+    });
+
+    captureException(error);
+
+    const forwarded: unknown = sink.mock.calls[0]?.[0];
+    const encoded = JSON.stringify(forwarded);
+    expect(forwarded).toMatchObject({
+      name: "ApplicationError",
+      classification: "VALIDATION_FAILED",
+      cause: { classification: "Error" },
+    });
+    expect(encoded).not.toContain("person@example.com");
+    expect(encoded).not.toContain("+61400111222");
+    expect(encoded).not.toContain(token);
+    expect(encoded).not.toContain("918273");
+    expect(encoded).not.toContain("Alex Player");
+    expect(encoded).not.toContain(note);
+    expect(encoded).not.toContain("sick today");
+    expect(encoded).not.toContain('"context"');
+    expect(encoded).not.toContain('"email"');
+  });
+
+  it("normalizes strings, unnamed values, and nested sensitive lists", () => {
+    const sink = vi.fn();
+    configureObservability({
+      sentryDsn: "https://example.invalid/1",
+      exceptionSink: sink,
+    });
+    const named = new Error("x");
+    named.name = "Not A Name";
+    named.message = `${"a".repeat(400)} Bearer abc.def person@example.com sb_publishable_ci`;
+
+    captureException("otp=918273 person@example.com");
+    captureException(named);
+    captureException({
+      message: 12,
+      email: { address: "hidden@example.com" },
+      tags: [{ playerName: "Alex Player" }],
+    });
+    captureException(42);
+
+    const encoded = JSON.stringify(sink.mock.calls);
+    expect(encoded).not.toContain("person@example.com");
+    expect(encoded).not.toContain("hidden@example.com");
+    expect(encoded).not.toContain("918273");
+    expect(encoded).not.toContain("Alex Player");
+    expect(encoded).not.toContain("sb_publishable_ci");
+    expect(encoded).not.toContain("abc.def");
+    expect(sink.mock.calls[1]?.[0]).toMatchObject({
+      name: "Error",
+      classification: "Error",
+    });
+    expect(sink.mock.calls[2]?.[0]).toMatchObject({
+      classification: "unknown",
+      message: "Unavailable",
+    });
+    expect(sink.mock.calls[3]?.[0]).toMatchObject({
+      classification: "unknown",
+      message: "Unavailable",
+    });
+    expect(JSON.stringify(sink.mock.calls[1]?.[0])).toContain(
+      `"message":"${"a".repeat(300)}"`,
+    );
+
+    const circular: { context?: object; playerName: string } = {
+      playerName: "Alex Player",
+    };
+    circular.context = circular;
+    let deep: object = { playerName: "Deep Name" };
+    for (let index = 0; index < 8; index += 1) {
+      deep = { context: deep };
+    }
+    expect(() => captureException(circular)).not.toThrow();
+    expect(() => captureException(deep)).not.toThrow();
+  });
+
+  it("does not follow a circular cause", () => {
+    const error = new Error("loop");
+    error.cause = error;
+    const sink = vi.fn();
+    configureObservability({
+      sentryDsn: "https://example.invalid/1",
+      exceptionSink: sink,
+    });
+
+    expect(() => captureException(error)).not.toThrow();
+    expect(sink.mock.calls[0]?.[0]).toMatchObject({
+      message: "loop",
+      cause: { message: "[redacted]" },
+    });
   });
 
   it("does not throw when a DSN is configured and no sink is installed", () => {

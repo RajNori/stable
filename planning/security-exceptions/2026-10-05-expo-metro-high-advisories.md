@@ -2,7 +2,7 @@
 
 Reviewed by Integrator on 2026-10-05. Production status: **BLOCKED**.
 
-This file is the human-readable copy of `2026-10-05-expo-metro-high-advisories.json`. The dependency-audit job warns on these two advisories and fails on any other high or critical advisory. It does not lower `pnpm audit --audit-level=high` and it does not mean the advisories are fixed.
+This file is the human-readable copy of `2026-10-05-expo-metro-high-advisories.json`. The dependency-audit job warns on these two advisories only when every reported path matches the reviewed tooling fragments in that JSON. It fails on any other high or critical advisory, on a path outside those fragments, on an incomplete audit report, and when a listed advisory is absent from a complete report. Absence is not a pass: the exception record has to be updated. It does not lower `pnpm audit --audit-level=high` and it does not mean the advisories are fixed.
 
 Review again when an upstream patch is published, when Expo or Metro is upgraded, or before any production Supabase, Vercel, or EAS release.
 

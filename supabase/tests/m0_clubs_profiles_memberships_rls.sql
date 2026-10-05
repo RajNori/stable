@@ -49,7 +49,7 @@ begin
 end;
 $$;
 
-select plan(33);
+select plan(35);
 
 insert into auth.users (
   instance_id,
@@ -493,6 +493,16 @@ select is(
   pg_temp.sqlstate_of('select id from public.clubs'),
   '42501',
   'anon cannot select clubs'
+);
+select is(
+  pg_temp.sqlstate_of('select user_id from public.profiles'),
+  '42501',
+  'anon cannot select profiles'
+);
+select is(
+  pg_temp.sqlstate_of('select id from public.club_memberships'),
+  '42501',
+  'anon cannot select club_memberships'
 );
 
 select * from finish();

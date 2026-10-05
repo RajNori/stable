@@ -7,6 +7,7 @@ export type {
   ExceptionSink,
   ObservabilityConfig,
   ProductEventSink,
+  SafeException,
 } from "./capture.js";
 
 export { SENSITIVE_METADATA_FIELDS } from "@stable/contracts";

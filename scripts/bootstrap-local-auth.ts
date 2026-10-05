@@ -1,9 +1,11 @@
 /**
  * Creates local login users after `supabase db reset`.
  *
- * Reads SUPABASE_URL and SUPABASE_SECRET_KEY when they are set. Otherwise
- * reads `supabase status -o env`. A legacy service-role variable is accepted
- * from that status output only and is never written to app env files.
+ * The destination is the loopback API URL from `supabase status`.
+ * SUPABASE_URL may repeat that origin. Any other host, including a private
+ * LAN address, is rejected before an Admin API or PostgREST call. There is
+ * no alternate-host setting. A legacy service-role variable is accepted from
+ * `supabase status -o env` only and is never written to app env files.
  *
  * Run from the repo root:
  *   node --experimental-strip-types --import ./scripts/register-workspace-ts.mjs scripts/bootstrap-local-auth.ts
@@ -12,7 +14,10 @@
 
 import { execFileSync } from "node:child_process";
 
-import { assertLocalDevelopmentSupabaseUrl } from "../packages/config/src/supabase-url.ts";
+import {
+  assertLocalDevelopmentSupabaseUrl,
+  resolveLocalBootstrapDestination,
+} from "../packages/config/src/supabase-url.ts";
 
 const CLUB_ID = "11111111-1111-4111-8111-111111111111";
 const MEMBER_ID = "22222222-2222-4222-8222-222222222222";
@@ -87,31 +92,39 @@ function readStatusEnv(): ReadonlyMap<string, string> {
 }
 
 function resolveConnection(): { url: string; secret: string } {
-  const envUrl = process.env.SUPABASE_URL;
-  const envSecret = process.env.SUPABASE_SECRET_KEY;
-  const status =
-    envUrl !== undefined && envSecret !== undefined
-      ? new Map<string, string>()
-      : readStatusEnv();
-  const url = firstDefined([
-    envUrl,
-    status.get("SUPABASE_URL"),
+  const envUrl = firstDefined([process.env.SUPABASE_URL]);
+  if (envUrl !== undefined) {
+    assertLocalDevelopmentSupabaseUrl(envUrl);
+  }
+
+  const status = readStatusEnv();
+  const statusUrl = firstDefined([
     status.get("API_URL"),
+    status.get("SUPABASE_URL"),
   ]);
+  if (statusUrl === undefined) {
+    throw new Error(
+      "supabase status did not report a local API URL. Start the local stack before bootstrapping auth.",
+    );
+  }
+
+  const url = resolveLocalBootstrapDestination({
+    requestedUrl: envUrl,
+    statusUrl,
+  });
   const secret = firstDefined([
-    envSecret,
+    process.env.SUPABASE_SECRET_KEY,
     status.get("SUPABASE_SECRET_KEY"),
     status.get("SECRET_KEY"),
     status.get("SERVICE_ROLE_KEY"),
   ]);
-  if (url === undefined || secret === undefined) {
+  if (secret === undefined) {
     throw new Error(
-      "Missing local Supabase URL or secret. Set SUPABASE_URL and SUPABASE_SECRET_KEY, or start the local stack so supabase status can provide them.",
+      "Missing local Supabase secret. Set SUPABASE_SECRET_KEY, or start the local stack so supabase status can provide it.",
     );
   }
-  const localUrl = url.replace(/\/$/, "");
-  assertLocalDevelopmentSupabaseUrl(localUrl);
-  return { url: localUrl, secret };
+
+  return { url, secret };
 }
 
 function isRecord(value: unknown): value is JsonRecord {
