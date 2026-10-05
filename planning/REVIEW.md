@@ -246,3 +246,107 @@ None.
 ### Files relied on
 
 `packages/config/src/client-env.ts`, `client-env.test.ts`, `supabase-url.ts`, `local-bootstrap-url.test.ts`, `dependency-audit.ts`, `dependency-audit.test.ts`, `apps/web/lib/boot-env.server.ts`, `apps/web/lib/public-supabase-env.ts`, `apps/web/lib/supabase/browser.ts`, `apps/web/lib/supabase/server.ts`, `apps/web/app/layout.tsx`, `apps/web/instrumentation.ts`, `apps/web/scripts/validate-boot-env.ts`, `apps/web/next.config.ts`, `apps/web/package.json`, `apps/web/e2e-auth/local-session.ts`, `apps/web/e2e-auth/local-auth-club-context.spec.ts`, `apps/web/playwright.auth.config.ts`, `apps/web/lib/fixtures.ts`, `apps/mobile/src/boot-env.ts`, `apps/mobile/src/boot-env.test.ts`, `apps/mobile/app/_layout.tsx`, `apps/mobile/app.config.ts`, `apps/mobile/package.json`, `apps/mobile/src/supabase-client.ts`, `scripts/bootstrap-local-auth.ts`, `scripts/check-dependency-exceptions.ts`, `supabase/tests/m0_clubs_profiles_memberships_rls.sql`, `supabase/migrations/20261005120000_create_clubs_profiles_club_memberships.sql`, `.github/workflows/ci.yml`, `planning/RELEASE.md`, `planning/security-exceptions/2026-10-05-expo-metro-high-advisories.json`, `planning/security-exceptions/2026-10-05-expo-metro-high-advisories.md`, `planning/MILESTONE_0_FREEZE.md`, `pnpm-workspace.yaml`, and `pnpm-lock.yaml`.
+
+## QA — 2026-10-05 / Milestone 0 finalization / 5fa78c3
+
+- Scope: finalization commit `5fa78c32e16b8ca073d004c982ab03925b63406f` on `main`. Re-checked the four Low findings from `planning/CODEX_M0_REVIEW.md`: privileged bootstrap destination, audit-exception path binding, exception normalization, and anonymous SELECT denial. This reviewer did not implement the commit.
+- Working tree was clean at the start. No push, no deploy, no `supabase start`, no `supabase db reset`. Product code was not edited. `planning/CODEX_M0_REVIEW.md` was not edited.
+- Database: the existing stack on `127.0.0.1:54321` / `54322`. `supabase test db` ran on that database and rolled back. Afterwards policy users `55555555-5555-4555-8555-555555555555` and `66666666-6666-4666-8666-666666666666` were 0, policy membership `77777777-7777-4777-8777-777777777777` was 0, and login membership `44444444-4444-4444-8444-444444444444` was still active `CLUB_ADMIN`.
+- Node was `24.21.0`.
+- Recommendation: **PASS**
+
+No Critical, High, or Medium defect. The four Codex lows are closed on the behaviours that were re-run. One residual Low remains in exception-message scrubbing. Production release stays blocked: `productionStatus` is `BLOCKED`.
+
+### Critical
+
+None.
+
+### High
+
+None.
+
+### Medium
+
+None.
+
+### Low
+
+1. **A sensitive literal in `Error.message` is kept when the matching key sits only on a non-enumerable `cause`.** `captureException` still sends a `SafeException` and does not pass the raw `Error`. Enumerable `cause` and `context` values for `email`, `phone`, `token`, `otp`, `playerName`, `privateNote`, and `absenceNote` were absent from the sink payload. `new Error(message, { cause })` stores `cause` as a non-enumerable property, and `collectSensitive` walks `Object.entries`, so it does not see that `cause`. A probe whose message was `failed <privateNote>` and whose `privateNote` lived only on that `cause` forwarded the note inside `message`. `playerName`, present only on the nested `cause`, was not forwarded. Sink keys on the cause were `name`, `classification`, and `message`. No application calls `Sentry.init`, so this does not leave the process today.
+
+### Uncertain
+
+None.
+
+### What was verified
+
+| Behaviour | Result |
+| --- | --- |
+| M0-LOW-01 bootstrap destination | `assertLocalDevelopmentSupabaseUrl` accepts `localhost`, `127.0.0.1`, and `[::1]`. It rejects `10.0.2.2`, `192.168.1.20`, `172.16.0.4`, `https://abcd.supabase.co`, a `supabase.co` path, `8.8.8.8`, `https://example.com`, `not a url`, and `ftp://127.0.0.1/db` before any Admin call. `resolveLocalBootstrapDestination` returns the status origin, including a trailing slash, and rejects a different loopback port, a non-loopback status URL, and a path, query, or hash. The mobile local allowlist still accepts `http://192.168.1.20:54321` and `http://10.0.2.2:54321`. The privileged check rejects both. |
+| Bootstrap script, before Admin API | Spawned `scripts/bootstrap-local-auth.ts` with `SUPABASE_URL` set to `http://192.168.1.20:54321`, `http://10.0.2.2:54321`, `https://abcd.supabase.co`, `https://example.com`, `not a url`, and `http://127.0.0.1:59999`. Each exited 1. Stdout did not contain `bootstrapped`. Stderr did not contain an `sb_secret_` or `eyJ` token. The RFC1918 and emulator URLs failed the loopback refusal. The hosted URL failed the `supabase.co` refusal. The public host failed the public-host refusal. The malformed URL failed as not absolute. The wrong loopback port failed because it does not match the endpoint from `supabase status`. `resolveConnection` throws in that function before `requestJson`. |
+| M0-LOW-02 audit exceptions | The exception file `productionStatus` is `BLOCKED`. Accepted ids are `node-forge` `GHSA-86w9-cpqp-85rv` and `braces` `GHSA-vfj7-8cjw-p6xm`, classification `tooling`, with the reviewed path fragments. Live `pnpm audit --json` exited 1 with high 2, critical 0, moderate 2. Both highs have `patched_versions` null. All 140 high-advisory paths matched a reviewed fragment. The checker printed the two residual-risk warnings and exited 0. |
+| Audit failures | An injected critical `left-pad` failed as not accepted. Adding `apps__web>node-forge` failed as outside the reviewed tooling path. Deleting the `node-forge` advisory while leaving the high count at 2 failed with `Audit report is incomplete or malformed.` and did not say the advisory was removed. Deleting it and lowering the high count to 1 failed with `node-forge GHSA-86w9-cpqp-85rv is no longer present in the dependency graph.` Passing `productionStatus` `OPEN` failed with the production-stays-blocked failure. The file on disk remains `BLOCKED`. |
+| M0-LOW-03 exception sink | With a DSN and sink, the forwarded value was `{ name, classification, message, cause }`, not the same reference and not an `Error`. A fixture with those seven sensitive keys on the error, on `context`, and on a nested `cause` left none of the values in the JSON payload. A throwing sink did not escape `captureException`. A blank DSN does not call the sink. Repository search found no `Sentry.init`. |
+| M0-LOW-04 anonymous denial | `supabase/tests/m0_clubs_profiles_memberships_rls.sql` has `select plan(35)` and `42501` assertions for `select` on `clubs`, `profiles`, and `club_memberships` as `anon`. `supabase test db`: 1 file, 35 tests, PASS. Rollback held, as counted above. |
+
+### Commands
+
+| Command | Result |
+| --- | --- |
+| `git rev-parse HEAD` | `5fa78c32e16b8ca073d004c982ab03925b63406f` on `main`. |
+| `node -v` after `nvm use 24.21.0` | `v24.21.0`. |
+| `pnpm --filter @stable/config exec vitest run src/local-bootstrap-url.test.ts src/dependency-audit.test.ts --coverage.enabled=false` | Exit 0. 2 files, 34 tests. |
+| `pnpm --filter @stable/observability exec vitest run src/capture.test.ts --coverage.enabled=false` | Exit 0. 1 file, 15 tests. |
+| `pnpm audit --json` then `scripts/check-dependency-exceptions.ts` on that file | Audit exit 1. Checker exit 0. Two `::warning::` lines for `node-forge` `GHSA-86w9-cpqp-85rv` and `braces` `GHSA-vfj7-8cjw-p6xm`. |
+| Direct `evaluateDependencyAudit` on the live report, then a critical extra, a runtime path, an incomplete drop, a complete drop, and `productionStatus` `OPEN` | Failures empty; then the unaccepted critical; the tooling-path failure; incomplete only; `no longer present`; production-stays-blocked. Live path count 140, unmatched 0. |
+| Spawned `scripts/bootstrap-local-auth.ts` for RFC1918, `10.0.2.2`, hosted `supabase.co`, a public host, a malformed URL, and `http://127.0.0.1:59999` | Exit 1 in every case. No `bootstrapped` line. No secret-shaped stderr. |
+| `pnpm exec supabase test db` | Exit 0. Files=1, Tests=35, Result: PASS. CLI stayed `2.118.0` and printed an upgrade notice for `2.119.0`. The pin was left unchanged. |
+| Rolled-back fixture counts in `supabase_db_stable` | Policy users 0. Policy membership 0. Login membership `true CLUB_ADMIN`. |
+
+Not re-run: `pnpm format:check`, `pnpm lint`, `pnpm typecheck`, full `pnpm test`, web production build, Expo, Playwright, `supabase db reset`, and a successful bootstrap against the live stack.
+
+### Addendum — f7b417b
+
+- Scope: `f7b417bbb41aa751ff63e90273c3884a135ea238` only. `collectSensitive` now follows `Error.cause` before the parent message is redacted. The new test builds `new Error(message, { cause: { privateNote, playerName } })`.
+- The Low finding from this section is closed. The same probe used a non-enumerable `cause` (`enumerable: false`). The sink value was not the raw `Error`. The message was `failed [redacted]`. Neither `coach-only note` nor `Alex Player` appeared in the payload.
+- `pnpm --filter @stable/observability test` on Node `24.21.0`: exit 0. 16 tests. Coverage 100% statements, branches, functions, and lines.
+- Recommendation: **PASS**
+
+## Security — 2026-10-05 / Milestone 0 finalization / 5fa78c3
+
+- Reviewer: independent security. Static review of `5fa78c32e16b8ca073d004c982ab03925b63406f`, plus focused unit tests (3 files, 49 tests). Did not edit the tree, start Supabase, or run live audit or live pgTAP. Passing tests are evidence, not proof.
+- Recommendation: **PASS**. No Critical, High, Medium, Low, or Uncertain findings.
+- The four Codex lows are closed on this SHA. Production Supabase, Vercel production, and EAS production stay blocked.
+
+### Critical
+
+None.
+
+### High
+
+None.
+
+### Medium
+
+None.
+
+### Low
+
+None.
+
+### Uncertain
+
+None.
+
+### Confirmed
+
+- `resolveLocalBootstrapDestination` returns only the loopback origin from `supabase status`. A `SUPABASE_URL` is accepted only when it is that same origin. RFC1918, public hosts, `supabase.co`, a different loopback port, and a non-loopback status URL are rejected before any Auth Admin or PostgREST call. The mobile LAN allowlist is not reused. The script still creates the two local Auth users and upserts only `profiles` and `club_memberships`.
+- Accepted highs must be classified `tooling` and every reported path must contain a reviewed fragment (`@expo/cli` / code-signing for `node-forge`; Metro and Jest chains for `braces`). Any other high or critical fails. A path outside those fragments fails. An incomplete report fails as incomplete and is not treated as a removed advisory. A complete report that omits a listed advisory fails until the exception file is updated. `productionStatus` is `BLOCKED` in the exception JSON, and `planning/RELEASE.md` still blocks production Supabase, Vercel, and EAS while that status remains. The checker also fails if exceptions exist and the status is anything else.
+- `captureException` sends a new `{ name, classification, message, cause? }` value, not the raw error. `email`, `phone`, `token`, `otp`, `playerName`, `privateNote`, and `absenceNote` are not copied, including when nested under `cause` or `context`. String values of those fields are removed from the message, and the same normalization is applied to `cause`. There is no `Sentry.init` and no `@sentry/*` import in application source.
+- pgTAP expects SQLSTATE `42501` for anonymous `SELECT` on `clubs`, `profiles`, and `club_memberships`, and the plan count is 35. `supabase/migrations/20261005120000_create_clubs_profiles_club_memberships.sql` is unchanged. `anon` has no `SELECT` grant on those tables.
+
+### Follow-up — f7b417b
+
+- Scope: `f7b417bbb41aa751ff63e90273c3884a135ea238` only. `collectSensitive` follows non-enumerable `Error.cause` before the parent message is redacted.
+- M0-LOW-03 remains closed. A `privateNote` or `playerName` that exists only on that cause is removed from the parent message. The extra walk only adds strings to the redaction list. An already-seen cause is not walked twice, and a circular cause still stops. The capture suite passed: 16 tests. There is still no `Sentry.init`.
+- No Critical or High finding.
+- Recommendation: **PASS**
