@@ -111,6 +111,37 @@ describe("current club context shell", () => {
       screen.getByLabelText("Club context").getAttribute("data-state"),
     ).toBe("loading");
   });
+
+  it("keeps page content hidden for a signed-in adult without a club", async () => {
+    const presentation = await loadClubContext(
+      fixtureClubContextInput("outsider"),
+    );
+
+    render(
+      <ClubAdminShell presentation={presentation}>
+        <p>Invitation</p>
+      </ClubAdminShell>,
+    );
+
+    expect(screen.queryByText("Invitation")).toBeNull();
+    expect(screen.queryByRole("link", { name: "Players" })).toBeNull();
+  });
+
+  it("shows signed-in page content without granting admin navigation", async () => {
+    const presentation = await loadClubContext(
+      fixtureClubContextInput("outsider"),
+    );
+
+    render(
+      <ClubAdminShell presentation={presentation} showSignedInContent>
+        <p>Invitation</p>
+      </ClubAdminShell>,
+    );
+
+    expect(screen.getByText("Invitation")).toBeTruthy();
+    expect(screen.queryByRole("link", { name: "Players" })).toBeNull();
+    expect(screen.queryByRole("link", { name: "Club structure" })).toBeNull();
+  });
 });
 
 describe("fixture mode", () => {

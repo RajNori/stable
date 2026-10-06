@@ -2,6 +2,8 @@ import { TEAM_STAFF_ROLES } from "@stable/contracts";
 import type { TeamStaffRole } from "@stable/contracts";
 import { themeFor } from "@stable/design-tokens";
 
+import { InvitationPanel, type InvitationView } from "./invitation-panel";
+
 type FormAction = (formData: FormData) => void | Promise<void>;
 
 export type StaffAssignmentView = {
@@ -26,6 +28,9 @@ export function TeamStaffPanel({
   assignRole,
   revokeRole,
   reactivateRole,
+  invitations = [],
+  createInvitation,
+  revokeInvitation,
   error,
 }: {
   clubId: string | null;
@@ -35,6 +40,11 @@ export function TeamStaffPanel({
   assignRole: FormAction;
   revokeRole: FormAction;
   reactivateRole: FormAction;
+  invitations?: readonly InvitationView[];
+  createInvitation?: (
+    formData: FormData,
+  ) => Promise<{ token?: string; error?: string }>;
+  revokeInvitation?: FormAction;
   error?: string | undefined;
 }) {
   const theme = themeFor("mustangs");
@@ -111,6 +121,21 @@ export function TeamStaffPanel({
               </button>
             </form>
           )}
+          {createInvitation !== undefined && revokeInvitation !== undefined ? (
+            <InvitationPanel
+              invitations={invitations.filter(
+                (invitation) => invitation.teamId === team.id,
+              )}
+              hidden={{
+                clubId,
+                teamId: team.id,
+                returnTo: `/teams/${team.id}/staff`,
+              }}
+              includeRole
+              createInvitation={createInvitation}
+              revokeInvitation={revokeInvitation}
+            />
+          ) : null}
         </>
       )}
     </section>

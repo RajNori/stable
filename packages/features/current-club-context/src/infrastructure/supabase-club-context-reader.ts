@@ -74,17 +74,13 @@ export function createSupabaseClubContextReader(
         readFailure();
       }
 
-      const hasAccess =
-        memberships.length > 0 ||
-        teamMemberships.length > 0 ||
-        guardianLinks.length > 0 ||
-        registrations.length > 0;
-      const displayName = hasAccess
-        ? readProfileDisplayName(profileResult.data)
-        : await readOutsiderDisplayName(db);
-      if (displayName === undefined) {
+      const profileName = readProfileDisplayName(profileResult.data);
+      const hasClubOrTeamAccess =
+        memberships.length > 0 || teamMemberships.length > 0;
+      if (hasClubOrTeamAccess && profileName === undefined) {
         readFailure();
       }
+      const displayName = profileName ?? (await readOutsiderDisplayName(db));
 
       return parseResult({
         displayName,

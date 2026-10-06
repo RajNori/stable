@@ -478,6 +478,51 @@ describe("createSupabaseClubContextReader", () => {
     expect(JSON.stringify(result)).not.toContain("Synthetic");
   });
 
+  it("uses the signed-in name when a guardian profile is not visible yet", async () => {
+    const playerId = "eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee";
+    const fake = createFakeClient({
+      memberships: { data: [], error: null },
+      profile: { data: null, error: null },
+      auth: {
+        data: {
+          user: {
+            id: userId,
+            user_metadata: { display_name: "Local Outsider" },
+          },
+        },
+        error: null,
+      },
+      rpc: { data: true, error: null },
+      tables: {
+        guardian_relationships: {
+          data: [
+            {
+              club_id: clubId,
+              player_id: playerId,
+              active: true,
+            },
+          ],
+          error: null,
+        },
+      },
+    });
+
+    const result = await createSupabaseClubContextReader(fake.client).read(
+      userId,
+    );
+
+    expect(result.displayName).toBe("Local Outsider");
+    expect(result.guardianLinks).toEqual([
+      {
+        clubId,
+        playerId,
+        active: true,
+        playerActive: true,
+      },
+    ]);
+    expect(fake.getUserCalls).toBe(1);
+  });
+
   it("redacts a staff row without a team and a guardian row without a player", async () => {
     const missingTeam = createFakeClient({
       memberships: { data: [], error: null },

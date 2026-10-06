@@ -1,6 +1,8 @@
 import { createSupabaseClubStructureGateway } from "@stable/club-structure";
 import { ApplicationError } from "@stable/contracts";
 import { getCurrentClubContext } from "@stable/current-club-context";
+import { createSupabaseInvitationGateway } from "@stable/invitations";
+import { invitationMessages } from "@stable/invitations";
 import { createSupabaseMembershipGateway } from "@stable/membership";
 import {
   childDisplayName,
@@ -36,6 +38,10 @@ import {
   registerPlayerAction,
   unregisterPlayerAction,
 } from "./actions";
+import {
+  createInvitationAction,
+  revokeInvitationAction,
+} from "../invitations/actions";
 
 export const dynamic = "force-dynamic";
 
@@ -49,7 +55,9 @@ type PlayersPageProps = {
 
 export default async function PlayersPage({ searchParams }: PlayersPageProps) {
   const params = await searchParams;
-  const error = playerPageError(params["error"], params["rows"]);
+  const error =
+    playerPageError(params["error"], params["rows"]) ??
+    invitationPageError(params["error"]);
   const fixtureName = contextFixtureFromQuery(params["fixture"]);
 
   if (fixtureName === "loading") {
@@ -96,12 +104,15 @@ export default async function PlayersPage({ searchParams }: PlayersPageProps) {
     const gateway = createSupabasePlayerGateway(supabase);
     const structure = createSupabaseClubStructureGateway(supabase);
     const membership = createSupabaseMembershipGateway(supabase);
-    const [players, adults, registrations, snapshot] = await Promise.all([
-      gateway.listPlayers(context.club.id),
-      gateway.listClubAdults(context.club.id),
-      membership.listRegistrations(context.club.id),
-      structure.list(context.club.id),
-    ]);
+    const invitationsGateway = createSupabaseInvitationGateway(supabase);
+    const [players, adults, registrations, snapshot, invitations] =
+      await Promise.all([
+        gateway.listPlayers(context.club.id),
+        gateway.listClubAdults(context.club.id),
+        membership.listRegistrations(context.club.id),
+        structure.list(context.club.id),
+        invitationsGateway.listInvitations(context.club.id),
+      ]);
     const adultNames = new Map(
       adults.map((adult) => [adult.userId, adult.displayName]),
     );
@@ -136,6 +147,18 @@ export default async function PlayersPage({ searchParams }: PlayersPageProps) {
             name: team.name,
           }))}
           {...panelActions()}
+          invitations={invitations.map((invitation) => ({
+            id: invitation.id,
+            status: invitation.status,
+            label:
+              invitation.intendedEmail ??
+              invitation.intendedPhone ??
+              "Invitation",
+            playerId: invitation.playerId,
+            teamId: invitation.teamId,
+          }))}
+          createInvitation={createInvitationAction}
+          revokeInvitation={revokeInvitationAction}
         />
       </ClubAdminShell>
     );
@@ -225,4 +248,15 @@ function toManagedPlayer(
       label: adultNames.get(guardian.guardianUserId) ?? "Linked adult",
     })),
   };
+}
+
+function invitationPageError(
+  value: string | string[] | undefined,
+): string | undefined {
+  const text = Array.isArray(value) ? value[0] : value;
+  if (text === undefined) {
+    return undefined;
+  }
+  const allowed: readonly string[] = Object.values(invitationMessages);
+  return allowed.includes(text) ? text : undefined;
 }

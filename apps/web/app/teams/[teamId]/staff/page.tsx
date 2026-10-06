@@ -2,6 +2,10 @@ import { ApplicationError } from "@stable/contracts";
 import { createSupabaseClubStructureGateway } from "@stable/club-structure";
 import { getCurrentClubContext } from "@stable/current-club-context";
 import {
+  createSupabaseInvitationGateway,
+  invitationMessages,
+} from "@stable/invitations";
+import {
   createSupabaseMembershipGateway,
   membershipMessages,
 } from "@stable/membership";
@@ -14,6 +18,10 @@ import { loadLiveClubContext } from "../../../../lib/load-live-club-context";
 import { principalFromSupabase } from "../../../../lib/principal";
 import { createRuntimeClubContextReader } from "../../../../lib/runtime-club-context-reader";
 import { createSupabaseServerClient } from "../../../../lib/supabase/server";
+import {
+  createInvitationAction,
+  revokeInvitationAction,
+} from "../../../invitations/actions";
 import {
   assignTeamRoleAction,
   reactivateTeamRoleAction,
@@ -54,9 +62,11 @@ export default async function TeamStaffPage({
     const team = snapshot.teams.find((item) => item.id === teamId) ?? null;
     const players = createSupabasePlayerGateway(supabase);
     const membership = createSupabaseMembershipGateway(supabase);
-    const [adults, assignments] = await Promise.all([
+    const invitationGateway = createSupabaseInvitationGateway(supabase);
+    const [adults, assignments, invitations] = await Promise.all([
       players.listClubAdults(context.club.id),
       team === null ? Promise.resolve([]) : membership.listTeamStaff(team.id),
+      invitationGateway.listInvitations(context.club.id),
     ]);
     const names = new Map(
       adults.map((adult) => [adult.userId, adult.displayName]),
@@ -74,6 +84,18 @@ export default async function TeamStaffPage({
           assignRole={assignTeamRoleAction}
           revokeRole={revokeTeamRoleAction}
           reactivateRole={reactivateTeamRoleAction}
+          invitations={invitations.map((invitation) => ({
+            id: invitation.id,
+            status: invitation.status,
+            label:
+              invitation.intendedEmail ??
+              invitation.intendedPhone ??
+              "Invitation",
+            playerId: invitation.playerId,
+            teamId: invitation.teamId,
+          }))}
+          createInvitation={createInvitationAction}
+          revokeInvitation={revokeInvitationAction}
           error={team === null ? membershipMessages.notFound : error}
         />
       </ClubAdminShell>
@@ -125,6 +147,9 @@ function allowedStaffError(
   if (text === undefined) {
     return undefined;
   }
-  const allowed: readonly string[] = Object.values(membershipMessages);
+  const allowed: readonly string[] = [
+    ...Object.values(membershipMessages),
+    ...Object.values(invitationMessages),
+  ];
   return allowed.includes(text) ? text : undefined;
 }

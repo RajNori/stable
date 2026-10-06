@@ -8,6 +8,7 @@ type ClubAdminShellProps = {
   onRetry?: () => void;
   children?: ReactNode;
   accessory?: ReactNode;
+  showSignedInContent?: boolean;
 };
 
 export function ClubAdminShell({
@@ -15,6 +16,7 @@ export function ClubAdminShell({
   onRetry,
   children,
   accessory,
+  showSignedInContent = false,
 }: ClubAdminShellProps) {
   const theme = themeFor("mustangs");
   const frameStyle: CSSProperties & { "--admin-gap": string } = {
@@ -127,12 +129,23 @@ export function ClubAdminShell({
           cardStyle={cardStyle}
           onRetry={onRetry}
         />
-        {presentation.status === "member" && children !== undefined ? (
+        {showPageContent(presentation.status, showSignedInContent) &&
+        children !== undefined ? (
           <div style={{ marginTop: theme.space[6] }}>{children}</div>
         ) : null}
       </main>
     </div>
   );
+}
+
+function showPageContent(
+  status: ClubContextPresentation["status"],
+  showSignedInContent: boolean,
+): boolean {
+  if (status === "member") {
+    return true;
+  }
+  return showSignedInContent && status === "no-membership";
 }
 
 function ClubContextPanel({

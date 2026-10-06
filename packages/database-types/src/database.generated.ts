@@ -230,6 +230,79 @@ export type Database = {
           },
         ];
       };
+      invitations: {
+        Row: {
+          club_id: string;
+          consumed_at: string | null;
+          created_at: string;
+          created_by: string;
+          expires_at: string;
+          id: string;
+          intended_email: string | null;
+          intended_phone: string | null;
+          invite_type: string;
+          player_id: string | null;
+          revoked_at: string | null;
+          team_id: string | null;
+          token_hash: string;
+          updated_at: string;
+        };
+        Insert: {
+          club_id: string;
+          consumed_at?: string | null;
+          created_at?: string;
+          created_by: string;
+          expires_at: string;
+          id?: string;
+          intended_email?: string | null;
+          intended_phone?: string | null;
+          invite_type: string;
+          player_id?: string | null;
+          revoked_at?: string | null;
+          team_id?: string | null;
+          token_hash: string;
+          updated_at?: string;
+        };
+        Update: {
+          club_id?: string;
+          consumed_at?: string | null;
+          created_at?: string;
+          created_by?: string;
+          expires_at?: string;
+          id?: string;
+          intended_email?: string | null;
+          intended_phone?: string | null;
+          invite_type?: string;
+          player_id?: string | null;
+          revoked_at?: string | null;
+          team_id?: string | null;
+          token_hash?: string;
+          updated_at?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "invitations_club_id_fkey";
+            columns: ["club_id"];
+            isOneToOne: false;
+            referencedRelation: "clubs";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "invitations_player_same_club";
+            columns: ["player_id", "club_id"];
+            isOneToOne: false;
+            referencedRelation: "players";
+            referencedColumns: ["id", "club_id"];
+          },
+          {
+            foreignKeyName: "invitations_team_same_club";
+            columns: ["team_id", "club_id"];
+            isOneToOne: false;
+            referencedRelation: "teams";
+            referencedColumns: ["id", "club_id"];
+          },
+        ];
+      };
       player_source_identities: {
         Row: {
           club_id: string;
@@ -586,6 +659,16 @@ export type Database = {
       [_ in never]: never;
     };
     Functions: {
+      accept_invitation: {
+        Args: { p_token: string };
+        Returns: {
+          club_id: string;
+          invitation_id: string;
+          invite_type: string;
+          player_id: string;
+          team_id: string;
+        }[];
+      };
       assert_club_structure_admin: {
         Args: { p_club_id: string };
         Returns: string;
@@ -695,6 +778,21 @@ export type Database = {
           isSetofReturn: false;
         };
       };
+      create_invitation: {
+        Args: {
+          p_club_id: string;
+          p_intended_email: string;
+          p_intended_phone: string;
+          p_invite_type: string;
+          p_player_id: string;
+          p_team_id: string;
+        };
+        Returns: {
+          expires_at: string;
+          id: string;
+          token: string;
+        }[];
+      };
       create_player: {
         Args: { p_club_id: string; p_first_name: string; p_last_name: string };
         Returns: {
@@ -758,6 +856,23 @@ export type Database = {
         Returns: {
           display_name: string;
           user_id: string;
+        }[];
+      };
+      list_club_invitations: {
+        Args: { p_club_id: string };
+        Returns: {
+          club_id: string;
+          consumed_at: string;
+          created_at: string;
+          expires_at: string;
+          id: string;
+          intended_email: string;
+          intended_phone: string;
+          invite_type: string;
+          player_id: string;
+          revoked_at: string;
+          status: string;
+          team_id: string;
         }[];
       };
       lock_administered_player: {
@@ -835,6 +950,7 @@ export type Database = {
           isSetofReturn: false;
         };
       };
+      revoke_invitation: { Args: { p_invitation_id: string }; Returns: string };
       revoke_team_role: {
         Args: { p_role: string; p_team_id: string; p_user_id: string };
         Returns: {

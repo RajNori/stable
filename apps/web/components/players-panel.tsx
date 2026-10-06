@@ -1,6 +1,7 @@
 import type { CSSProperties } from "react";
 import { themeFor } from "@stable/design-tokens";
 
+import { InvitationPanel, type InvitationView } from "./invitation-panel";
 import { PlayerImportForm } from "./player-import-form";
 
 export type ManagedPlayer = {
@@ -40,6 +41,11 @@ type PlayersPanelProps = {
   teams?: readonly { id: string; name: string }[];
   registerPlayer?: FormAction;
   unregisterPlayer?: FormAction;
+  invitations?: readonly InvitationView[];
+  createInvitation?: (
+    formData: FormData,
+  ) => Promise<{ token?: string; error?: string }>;
+  revokeInvitation?: FormAction;
   error?: string | undefined;
 };
 
@@ -57,6 +63,9 @@ export function PlayersPanel({
   teams = [],
   registerPlayer,
   unregisterPlayer,
+  invitations = [],
+  createInvitation,
+  revokeInvitation,
   error,
 }: PlayersPanelProps) {
   const theme = themeFor("mustangs");
@@ -213,6 +222,23 @@ export function PlayersPanel({
                 action={linkGuardian}
               />
             )}
+            {createInvitation !== undefined &&
+            revokeInvitation !== undefined &&
+            clubId !== null ? (
+              <InvitationPanel
+                invitations={invitations.filter(
+                  (invitation) => invitation.playerId === player.id,
+                )}
+                hidden={{
+                  clubId,
+                  playerId: player.id,
+                  returnTo: "/players",
+                }}
+                includeRole={false}
+                createInvitation={createInvitation}
+                revokeInvitation={revokeInvitation}
+              />
+            ) : null}
           </li>
         ))}
       </ul>
