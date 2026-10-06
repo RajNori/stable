@@ -11,6 +11,7 @@
     "@stable/current-club-context": "workspace:*",
     "@stable/design-tokens": "workspace:*",
     "@stable/fixtures": "workspace:*",
+    "@stable/game-day": "workspace:*",
     "@stable/permissions": "workspace:*",
     "@stable/invitations": "workspace:*",
     "@stable/membership": "workspace:*",

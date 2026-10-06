@@ -15,9 +15,11 @@ import {
 import { loadMobileBootEnv } from "../src/boot-env";
 import { CurrentClubContextScreen } from "../src/current-club-context-screen";
 import { loadMobileCurrentClubContext } from "../src/load-mobile-current-club-context";
+import { loadMobileGameDay } from "../src/load-mobile-game-day";
 import { loadMobileTeamRoster } from "../src/load-mobile-team-roster";
 import { loadMobileTeamSchedule } from "../src/load-mobile-team-schedule";
 import { MobileDestinations } from "../src/mobile-destinations";
+import { TeamGameDayScreen } from "../src/team-game-day-screen";
 import { TeamRosterScreen } from "../src/team-roster-screen";
 import { TeamScheduleScreen } from "../src/team-schedule-screen";
 import { getMobileSupabaseClient } from "../src/supabase-client";
@@ -63,10 +65,16 @@ export default function CurrentClubContextRoute() {
           <MobileDestinations
             home={<CurrentClubContextScreen loadContext={loadContext} />}
             schedule={
-              <TeamScheduleScreen
-                loadContext={loadContext}
-                loadSchedule={loadMobileTeamSchedule}
-              />
+              <>
+                <TeamGameDayScreen
+                  loadContext={loadContext}
+                  loadGameDay={loadMobileGameDay}
+                />
+                <TeamScheduleScreen
+                  loadContext={loadContext}
+                  loadSchedule={loadMobileTeamSchedule}
+                />
+              </>
             }
             team={
               <TeamRosterScreen

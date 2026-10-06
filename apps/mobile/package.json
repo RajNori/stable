@@ -32,6 +32,7 @@
     "@stable/contracts": "workspace:*",
     "@stable/current-club-context": "workspace:*",
     "@stable/design-tokens": "workspace:*",
+    "@stable/game-day": "workspace:*",
     "@stable/observability": "workspace:*",
     "@stable/roster": "workspace:*",
     "@stable/schedule": "workspace:*",

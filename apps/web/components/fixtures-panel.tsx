@@ -61,7 +61,8 @@ export function FixturesPanel({
               {fixture.roundLabel === null ? "Game" : fixture.roundLabel}
               {": "}
               {fixture.opponentName} at {fixture.officialStartLocal} (
-              {fixture.fixtureStatus})
+              {fixture.fixtureStatus}){" "}
+              <a href={`/teams/${teamId}/games/${fixture.eventId}`}>Game day</a>
             </p>
             {canManageOfficial ? (
               <form action={officialAction}>
