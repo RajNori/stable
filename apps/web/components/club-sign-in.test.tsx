@@ -30,12 +30,7 @@ describe("club sign-in", () => {
   });
 
   it("shows the auth entry and hides disabled providers", () => {
-    render(
-      <ClubSignIn
-        session={unauthenticated}
-        actions={idleActions()}
-      />,
-    );
+    render(<ClubSignIn session={unauthenticated} actions={idleActions()} />);
 
     expect(
       screen.getByRole("heading", { name: "Know what's next. Show up ready." }),
@@ -119,12 +114,7 @@ describe("club sign-in", () => {
   });
 
   it("keeps error text at or above 4.5:1", () => {
-    render(
-      <ClubSignIn
-        session={unauthenticated}
-        actions={idleActions()}
-      />,
-    );
+    render(<ClubSignIn session={unauthenticated} actions={idleActions()} />);
     const css = document.querySelector("style")?.textContent ?? "";
     expect(css).toMatch(
       /\.club-sign-in-error\s*\{[^}]*background:\s*var\(--sign-in-surface\)/u,
@@ -274,19 +264,13 @@ describe("club sign-in", () => {
 
   it("keeps admin content hidden while the session is unresolved", () => {
     const { rerender } = render(
-      <ClubSignIn
-        session={{ state: "loading" }}
-        actions={idleActions()}
-      />,
+      <ClubSignIn session={{ state: "loading" }} actions={idleActions()} />,
     );
     expect(screen.getByText("Checking your session")).toBeTruthy();
     expect(screen.queryByTestId("club-admin-frame")).toBeNull();
 
     rerender(
-      <ClubSignIn
-        session={{ state: "expired" }}
-        actions={idleActions()}
-      />,
+      <ClubSignIn session={{ state: "expired" }} actions={idleActions()} />,
     );
     expect(
       screen.getByText("Your session has ended. Sign in again."),
@@ -363,8 +347,14 @@ const readyProviderConfig = {
 } as const satisfies AuthProviderSettings;
 
 function contrastRatio(foreground: string, background: string): number {
-  const lighter = Math.max(relativeLuminance(foreground), relativeLuminance(background));
-  const darker = Math.min(relativeLuminance(foreground), relativeLuminance(background));
+  const lighter = Math.max(
+    relativeLuminance(foreground),
+    relativeLuminance(background),
+  );
+  const darker = Math.min(
+    relativeLuminance(foreground),
+    relativeLuminance(background),
+  );
   return (lighter + 0.05) / (darker + 0.05);
 }
 
@@ -380,9 +370,7 @@ function linearChannel(hex: string, index: number): number {
   const start = index * 2 + 1;
   const parsed = Number.parseInt(hex.slice(start, start + 2), 16);
   const value = parsed / 255;
-  return value <= 0.03928
-    ? value / 12.92
-    : ((value + 0.055) / 1.055) ** 2.4;
+  return value <= 0.03928 ? value / 12.92 : ((value + 0.055) / 1.055) ** 2.4;
 }
 
 function idleActions(

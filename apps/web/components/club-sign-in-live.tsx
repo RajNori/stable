@@ -80,7 +80,5 @@ export function ClubSignInLive({
     [appEnv, publishableKey, router, supabaseUrl],
   );
 
-  return (
-    <ClubSignIn session={session} actions={actions} notice={notice} />
-  );
+  return <ClubSignIn session={session} actions={actions} notice={notice} />;
 }

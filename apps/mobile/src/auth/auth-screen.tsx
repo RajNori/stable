@@ -107,7 +107,9 @@ export function AuthScreen({
     return (
       <View style={styles.screen}>
         <Text style={styles.brand}>The Stable</Text>
-        <Text accessibilityRole="header" style={styles.heading}>Sign-in is paused</Text>
+        <Text accessibilityRole="header" style={styles.heading}>
+          Sign-in is paused
+        </Text>
         <Text accessibilityRole="alert" style={styles.error}>
           {session.message}
         </Text>
@@ -299,7 +301,9 @@ function Welcome({
   return (
     <View style={styles.stack}>
       <Text style={styles.brand}>The Stable</Text>
-      <Text accessibilityRole="header" style={styles.heading}>Know what's next. Show up ready.</Text>
+      <Text accessibilityRole="header" style={styles.heading}>
+        Know what's next. Show up ready.
+      </Text>
       <Text style={styles.body}>
         Everything your basketball team needs for game day, training and the
         week ahead.
@@ -367,7 +371,9 @@ function Entry({
 }) {
   return (
     <View style={styles.stack}>
-      <Text accessibilityRole="header" style={styles.heading}>{title}</Text>
+      <Text accessibilityRole="header" style={styles.heading}>
+        {title}
+      </Text>
       <Text style={styles.body}>{hint}</Text>
       <Text style={styles.label}>{label}</Text>
       <TextInput
@@ -428,7 +434,9 @@ function CodeEntry({
     resendIn > 0 ? `Resend code in ${resendIn}s` : "Resend code";
   return (
     <View style={styles.stack}>
-      <Text accessibilityRole="header" style={styles.heading}>{title}</Text>
+      <Text accessibilityRole="header" style={styles.heading}>
+        {title}
+      </Text>
       <Text style={styles.body}>Sent to {sentTo}</Text>
       <TextInput
         accessibilityLabel="6-digit code"

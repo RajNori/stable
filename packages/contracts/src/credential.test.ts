@@ -165,7 +165,10 @@ describe("oauth sign-in navigation contract", () => {
     ];
     for (const authorizationUrl of rejected) {
       expect(
-        isSafeOAuthAuthorizationUrl(authorizationUrl, LOCAL_SUPABASE_AUTH_ORIGIN),
+        isSafeOAuthAuthorizationUrl(
+          authorizationUrl,
+          LOCAL_SUPABASE_AUTH_ORIGIN,
+        ),
       ).toBe(false);
     }
     expect(

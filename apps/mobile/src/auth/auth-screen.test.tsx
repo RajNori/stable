@@ -118,11 +118,7 @@ describe("mobile auth screen", () => {
     expect(
       visibleAuthProviders({ settings: readyProviderConfig, start }),
     ).toEqual({ google: true, apple: true });
-    requestVisibleProvider(
-      "google",
-      start,
-      readyProviderConfig.google,
-    );
+    requestVisibleProvider("google", start, readyProviderConfig.google);
     expect(started).toEqual(["google", "apple", "google"]);
   });
 
@@ -327,19 +323,13 @@ describe("mobile auth screen", () => {
 
   it("renders loading, expired, and recovery without a second auth flag", async () => {
     const { rerender } = await render(
-      <AuthScreen
-        session={{ state: "loading" }}
-        actions={idleActions()}
-      />,
+      <AuthScreen session={{ state: "loading" }} actions={idleActions()} />,
     );
     expect(screen.getByText("Checking your session")).toBeTruthy();
     expect(screen.queryByLabelText("Continue with mobile")).toBeNull();
 
     await rerender(
-      <AuthScreen
-        session={{ state: "expired" }}
-        actions={idleActions()}
-      />,
+      <AuthScreen session={{ state: "expired" }} actions={idleActions()} />,
     );
     expect(
       screen.getByText("Your session has ended. Sign in again."),
