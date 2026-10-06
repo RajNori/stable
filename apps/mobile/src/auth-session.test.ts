@@ -220,6 +220,75 @@ describe("mobile auth session", () => {
     expect(client.scopes).toEqual(["local"]);
   });
 
+  it("keeps a stored session when a rejected refresh did not remove it", async () => {
+    const store = memoryStore({ [storageKey]: '{"persisted":true}' });
+    const client = fakeClient({
+      session: {
+        user: {
+          id: userId,
+          user_metadata: { display_name: "Alex M", access_token: leakedToken },
+        },
+        expires_at: Math.floor(now / 1000) + 3600,
+      },
+      refreshError: { status: 401, code: "refresh_token_already_used" },
+    });
+
+    const snapshot = await refreshMobileAuthSession({
+      client,
+      storage: store.storage,
+      storageKey,
+      now,
+    });
+
+    expect(snapshot).toEqual({
+      state: "authenticated",
+      principal: { userId, displayName: "Alex M" },
+    });
+    expect(store.removed).toEqual([]);
+    expect(JSON.stringify(snapshot).includes(leakedToken)).toBe(false);
+  });
+
+  it("stays in recovery when secure storage cannot be read", async () => {
+    const store = memoryStore({ [storageKey]: '{"persisted":true}' });
+    store.storage.getItem = async () => {
+      throw new Error(`read failed ${leakedToken}`);
+    };
+    const client = fakeClient({ session: null });
+
+    const snapshot = await restoreMobileAuthSession({
+      client,
+      storage: store.storage,
+      storageKey,
+      now,
+    });
+
+    expect(snapshot).toMatchObject({ state: "recovery" });
+    expect(JSON.stringify(snapshot).includes(leakedToken)).toBe(false);
+    expect(store.removed).toEqual([]);
+    expect(client.sessionCalls).toBe(0);
+  });
+
+  it("stays in recovery when a corrupt session cannot be deleted", async () => {
+    const store = memoryStore({ [storageKey]: "{secret-refresh-token" });
+    store.storage.removeItem = async () => {
+      throw new Error(`delete failed ${leakedToken}`);
+    };
+    const client = fakeClient({ session: null });
+
+    const snapshot = await restoreMobileAuthSession({
+      client,
+      storage: store.storage,
+      storageKey,
+      now,
+    });
+
+    expect(snapshot).toMatchObject({ state: "recovery" });
+    expect(JSON.stringify(snapshot).includes(leakedToken)).toBe(false);
+    expect(JSON.stringify(snapshot).includes("secret-refresh-token")).toBe(
+      false,
+    );
+  });
+
   it("does not claim sign-out succeeded while the stored session remains", async () => {
     const store = memoryStore({ [storageKey]: '{"persisted":true}' });
     store.storage.removeItem = async () => undefined;

@@ -74,7 +74,7 @@ function failureRead(error: unknown): PersistedSessionRead {
 export function createWebAuthSessionGateway(
   client: WebAuthClient,
 ): AuthSessionGateway {
-  return {
+  const gateway: AuthSessionGateway = {
     async readPersisted() {
       try {
         const { data, error } = await client.auth.getUser();
@@ -98,7 +98,17 @@ export function createWebAuthSessionGateway(
       try {
         const { data, error } = await client.auth.refreshSession();
         if (error !== null && error !== undefined) {
-          return failureRead(error);
+          const failure = failureRead(error);
+          if (failure.kind === "unavailable" || failure.kind === "corrupt") {
+            return failure;
+          }
+
+          const follow = await gateway.readPersisted();
+          if (follow.kind === "principal" || follow.kind === "unavailable") {
+            return follow;
+          }
+
+          return failure;
         }
 
         if (data.session === null) {
@@ -130,6 +140,8 @@ export function createWebAuthSessionGateway(
       }
     },
   };
+
+  return gateway;
 }
 
 export function webAuthSessionGatewayFromSupabase(

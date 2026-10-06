@@ -108,3 +108,23 @@ Local callbacks, and no others, are executable:
 - `stable://auth/callback`
 
 Staging and production redirect lists are empty. Hosted Auth, Apple, Google, and a real SMS provider are unchanged.
+
+## Session persistence
+
+Supabase Auth storage is the only persisted session. `AuthSessionSnapshot` is derived from it. The app does not persist a second copy of the snapshot, principal, roles, capabilities, or memberships.
+
+On mobile, the GoTrue session is stored through a chunked SecureStore adapter under `sb-<host>-auth-token`. Each keychain value stays within 2048 UTF-8 bytes. A measured local email session is 2195 bytes and a measured local phone session is 1991 bytes, so one SecureStore value is not treated as safe. A plausible Google session that repeats a long picture URL in metadata and the access token is about 4912 bytes. The digest on the manifest detects a torn write. It is not a second cipher. Confidentiality remains the platform store: iOS Keychain or Android Keystore.
+
+The adapter replaces a value by writing the next generation, then the manifest, then deleting the previous generation. A crash before the manifest update keeps the previous session and the next read drops the incomplete generation. A corrupt manifest or a digest mismatch is cleared and reads as absent. A SecureStore read or delete failure stays a recovery, not a logout. An existing single-value session at the same key is copied into the chunked form on the next read.
+
+SecureStore is opened with `WHEN_UNLOCKED_THIS_DEVICE_ONLY` and without biometric authentication. The session is readable while the device is unlocked, which is when the app is in use. It is not migrated to another device by a backup. Android ignores that iOS accessibility flag and uses its Keystore without requiring user authentication.
+
+`autoRefreshToken` is off on the mobile client so GoTrue does not run a continuous refresh ticker. One AppState binding calls `startAutoRefresh` while the app is active and `stopAutoRefresh` otherwise. Binding again replaces the previous listener and stops the previous client. Restore and refresh go through that same client. GoTrue deduplicates an in-flight refresh. If a refresh is rejected but a session is still stored, the app keeps that session instead of clearing a token that already rotated.
+
+`local` sign-out revokes the current refresh session and removes it on this device. Other devices stay signed in. `global` sign-out revokes server-side refresh sessions for the adult. An access JWT already issued on another device remains valid until it expires, and the next refresh on that device fails. The UI must not treat sign-out as complete until the follow-up read shows the local session is gone.
+
+iOS can keep Keychain items after uninstall, including items that were written before `THIS_DEVICE_ONLY`. Uninstall is not a logout. Detecting a reinstall by comparing Keychain survival with a store that the OS wipes would be a separate decision and is not implemented. Android Keystore keys are typically invalidated on reinstall; Expo SecureStore then drops the undecryptable value and returns null.
+
+A restored principal is presentation state. It is not `club.read` and it is not permission to write. Protected data still requires the current Supabase user, RLS, and contextual membership checks.
+
+Web session reads use `getUser` on the `@supabase/ssr` server client. Cookies stay inside that client. The publishable key is the only key that client receives. Callback completion still returns `AuthSessionSnapshot` and drops provider tokens.

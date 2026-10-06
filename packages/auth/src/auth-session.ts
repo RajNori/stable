@@ -160,6 +160,13 @@ export async function refreshAuthSession(
   }
 }
 
+/**
+ * `local` revokes the current refresh session and removes it from this device.
+ * Other device sessions stay. `global` revokes server-side refresh sessions for
+ * the adult. An access JWT already issued to another device stays valid until
+ * it expires, then fails when that device refreshes. Success is returned only
+ * after a follow-up read shows the local session is gone.
+ */
 export async function signOutAuthSession(
   gateway: AuthSessionGateway,
   scope: LogoutScope,

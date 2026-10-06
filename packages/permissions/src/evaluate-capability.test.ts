@@ -87,6 +87,22 @@ describe("evaluateCapability", () => {
     ).toBe("deny");
   });
 
+  it("does not treat an authenticated principal as club.read", () => {
+    const principal = {
+      userId: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+    };
+
+    expect(principal).not.toHaveProperty("role");
+    expect(principal).not.toHaveProperty("capabilities");
+    expect(
+      evaluateCapability({
+        memberships: [],
+        capability: CLUB_READ_CAPABILITY,
+        clubId,
+      }),
+    ).toBe("deny");
+  });
+
   it("non-admin membership denies club.read", () => {
     const membership = adminMembership(clubId, true);
     Reflect.set(membership, "role", "HEAD_COACH");

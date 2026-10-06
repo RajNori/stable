@@ -10,9 +10,11 @@ import {
 import type { AuthSessionSnapshot, LogoutScope } from "@stable/contracts";
 import { ENV } from "@stable/contracts";
 import type { SupabaseClient } from "@supabase/supabase-js";
-import * as SecureStore from "expo-secure-store";
 
-import { getMobileSupabaseClient } from "./supabase-client";
+import {
+  getMobileSessionStorage,
+  getMobileSupabaseClient,
+} from "./supabase-client";
 
 export type MobileAuthStorage = {
   getItem(key: string): Promise<string | null>;
@@ -119,7 +121,7 @@ async function removeStoredSession(
 export function createMobileAuthSessionGateway(
   input: MobileAuthSessionDependencies,
 ): AuthSessionGateway {
-  return {
+  const gateway: AuthSessionGateway = {
     async readPersisted() {
       const raw = await input.storage.getItem(input.storageKey);
       if (raw === null || raw.trim().length === 0) {
@@ -138,7 +140,17 @@ export function createMobileAuthSessionGateway(
     async refresh() {
       const { data, error } = await input.client.auth.refreshSession();
       if (error !== null && error !== undefined) {
-        return providerFailureRead(error);
+        const failure = providerFailureRead(error);
+        if (failure.kind === "unavailable") {
+          return failure;
+        }
+
+        const follow = await gateway.readPersisted();
+        if (follow.kind === "principal" || follow.kind === "unavailable") {
+          return follow;
+        }
+
+        return failure;
       }
 
       if (data.session === null) {
@@ -157,6 +169,8 @@ export function createMobileAuthSessionGateway(
       await removeStoredSession(input.storage, input.storageKey);
     },
   };
+
+  return gateway;
 }
 
 export function mobileAuthSessionGatewayFromSupabase(
@@ -185,10 +199,7 @@ export function createLiveMobileAuthSessionGateway(): AuthSessionGateway {
 
   return mobileAuthSessionGatewayFromSupabase(
     getMobileSupabaseClient(),
-    {
-      getItem: (key) => SecureStore.getItemAsync(key),
-      removeItem: (key) => SecureStore.deleteItemAsync(key),
-    },
+    getMobileSessionStorage(),
     url,
   );
 }

@@ -110,6 +110,42 @@ describe("web auth session", () => {
     });
   });
 
+  it("keeps the verified user when a rejected refresh leaves that user in place", async () => {
+    const client = fakeClient({
+      user: {
+        id: userId,
+        user_metadata: { display_name: "Alex M", access_token: leakedToken },
+      },
+      refreshError: { status: 401, code: "refresh_token_already_used" },
+    });
+
+    const snapshot = await refreshWebAuthSession(client, now);
+
+    expect(snapshot).toEqual({
+      state: "authenticated",
+      principal: { userId, displayName: "Alex M" },
+    });
+    expect(client.scopes).toEqual([]);
+    expect(JSON.stringify(snapshot)).not.toContain(leakedToken);
+  });
+
+  it("expires the browser session when refresh is rejected and the user is gone", async () => {
+    const client = fakeClient({
+      user: null,
+      refreshError: {
+        status: 401,
+        code: "refresh_token_not_found",
+        message: leakedToken,
+      },
+    });
+
+    const snapshot = await refreshWebAuthSession(client, now);
+
+    expect(snapshot).toEqual({ state: "expired" });
+    expect(client.scopes).toEqual(["local"]);
+    expect(JSON.stringify(snapshot)).not.toContain(leakedToken);
+  });
+
   it("signs out this browser with local scope", async () => {
     const client = fakeClient({
       user: { id: userId },
