@@ -12,6 +12,10 @@ import { ENV } from "@stable/contracts";
 import type { SupabaseClient } from "@supabase/supabase-js";
 
 import {
+  clearUserGameDaySnapshots,
+  secureGameDaySnapshotStore,
+} from "./game-day-snapshot";
+import {
   getMobileSessionStorage,
   getMobileSupabaseClient,
 } from "./supabase-client";
@@ -245,10 +249,16 @@ export async function restoreLiveMobileAuthSession(): Promise<AuthSessionSnapsho
 }
 
 export async function signOutLiveMobileAuthSession(): Promise<AuthSessionSnapshot> {
+  const client = getMobileSupabaseClient();
+  const { data } = await client.auth.getSession();
+  const userId = data.session?.user.id;
   const decision = await signOutAuthSession(
     createLiveMobileAuthSessionGateway(),
     "local",
   );
+  if (userId !== undefined) {
+    await clearUserGameDaySnapshots(secureGameDaySnapshotStore(), userId);
+  }
   return decision.snapshot;
 }
 

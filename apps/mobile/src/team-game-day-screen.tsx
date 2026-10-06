@@ -7,6 +7,14 @@ import { useQuery } from "@tanstack/react-query";
 import React from "react";
 import { StyleSheet, Text, View } from "react-native";
 
+import {
+  gameDaySnapshotFromProjection,
+  readGameDaySnapshot,
+  saveGameDaySnapshot,
+  type GameDaySnapshotStore,
+} from "./game-day-snapshot";
+import { OfflineGameDayView } from "./offline-game-day-view";
+
 const theme = themeFor("mustangs");
 
 const styles = StyleSheet.create({
@@ -36,9 +44,15 @@ function message(error: unknown): string {
 export function TeamGameDayScreen({
   loadContext,
   loadGameDay,
+  snapshotStore,
+  online = true,
+  now = Date.now(),
 }: {
   loadContext: () => Promise<CurrentClubContext>;
   loadGameDay: (teamId: string) => Promise<GameDayProjection | null>;
+  snapshotStore?: GameDaySnapshotStore | undefined;
+  online?: boolean | undefined;
+  now?: number | undefined;
 }) {
   const context = useQuery({
     queryKey: ["current-club-context"],
@@ -47,17 +61,66 @@ export function TeamGameDayScreen({
   });
   const teamId =
     context.data?.club === null ? null : (context.data?.activeTeam?.id ?? null);
-  const gameDay = useQuery({
-    queryKey: ["game-day", teamId],
+  const userId = context.data?.userId;
+  const cached = useQuery({
+    queryKey: ["game-day-snapshot", userId, teamId],
     queryFn: () => {
-      if (teamId === null) {
-        throw new Error(gameDayMessages.readFailed);
+      if (
+        snapshotStore === undefined ||
+        userId === undefined ||
+        teamId === null
+      ) {
+        return Promise.resolve(null);
       }
-      return loadGameDay(teamId);
+      return readGameDaySnapshot(snapshotStore, userId, teamId);
     },
-    enabled: teamId !== null,
+    enabled:
+      snapshotStore !== undefined && userId !== undefined && teamId !== null,
     retry: false,
   });
+  const gameDay = useQuery({
+    queryKey: ["game-day", teamId],
+    queryFn: async () => {
+      if (
+        teamId === null ||
+        context.data === undefined ||
+        context.data.activeTeam === null
+      ) {
+        throw new Error(gameDayMessages.readFailed);
+      }
+      const team = context.data.activeTeam;
+      const projection = await loadGameDay(teamId);
+      if (
+        projection !== null &&
+        snapshotStore !== undefined &&
+        userId !== undefined
+      ) {
+        await saveGameDaySnapshot(
+          snapshotStore,
+          gameDaySnapshotFromProjection({
+            userId,
+            teamName: team.name,
+            projection,
+            savedAt: new Date(now).toISOString(),
+          }),
+        );
+      }
+      return projection;
+    },
+    enabled: online && teamId !== null,
+    retry: false,
+  });
+
+  if (!online) {
+    if (teamId !== null && cached.isPending) {
+      return (
+        <View style={styles.screen}>
+          <Text style={styles.body}>Loading game day</Text>
+        </View>
+      );
+    }
+    return <OfflineGameDayView snapshot={cached.data ?? null} now={now} />;
+  }
 
   if (context.isPending || (teamId !== null && gameDay.isPending)) {
     return (
@@ -90,6 +153,9 @@ export function TeamGameDayScreen({
   }
 
   if (gameDay.isError || gameDay.data === undefined) {
+    if (cached.data !== undefined && cached.data !== null) {
+      return <OfflineGameDayView snapshot={cached.data} now={now} />;
+    }
     return (
       <View style={styles.screen}>
         <Text style={styles.title}>{message(gameDay.error)}</Text>

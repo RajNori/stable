@@ -19,6 +19,7 @@ import { loadMobileGameDay } from "../src/load-mobile-game-day";
 import { loadMobileTeamRoster } from "../src/load-mobile-team-roster";
 import { loadMobileTeamSchedule } from "../src/load-mobile-team-schedule";
 import { MobileDestinations } from "../src/mobile-destinations";
+import { secureGameDaySnapshotStore } from "../src/game-day-snapshot";
 import { TeamGameDayScreen } from "../src/team-game-day-screen";
 import { TeamRosterScreen } from "../src/team-roster-screen";
 import { TeamScheduleScreen } from "../src/team-schedule-screen";
@@ -69,6 +70,7 @@ export default function CurrentClubContextRoute() {
                 <TeamGameDayScreen
                   loadContext={loadContext}
                   loadGameDay={loadMobileGameDay}
+                  snapshotStore={secureGameDaySnapshotStore()}
                 />
                 <TeamScheduleScreen
                   loadContext={loadContext}
