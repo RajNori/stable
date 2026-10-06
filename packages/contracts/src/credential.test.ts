@@ -137,6 +137,88 @@ describe("oauth sign-in navigation contract", () => {
       ),
     ).toBe(false);
   });
+
+  it("rejects encoded token keys, nested emails, and unsafe fragments", () => {
+    const local = `${LOCAL_SUPABASE_AUTH_ORIGIN}/auth/v1/authorize`;
+    const rejected = [
+      `${local}?access_token=secret`,
+      `${local}?%61ccess_token=secret`,
+      `${local}?access%5ftoken=secret`,
+      `${local}?refresh_token=secret`,
+      `${local}?provider_token=secret`,
+      `${local}?id_token=secret`,
+      `${local}?ACCESS_TOKEN=secret`,
+      `${local}?email=person@example.com`,
+      `${local}?email=person%40example.com`,
+      `${local}?email=person%2540example.com`,
+      `${local}?email=person%252540example.com`,
+      `${local}?%65mail=person%2540example.com`,
+      `${local}#access_token`,
+      `${local}#access_token=secret`,
+      `${local}#%61ccess_token=secret`,
+      `${local}#email=person%2540example.com`,
+      `${local}?state=%FF`,
+      `${local}?state=%25252561`,
+      `${local}?provider=google#access_token=secret`,
+      `${hosted}/auth/v1/authorize?provider=google`,
+      `${local}/extra`,
+    ];
+    for (const authorizationUrl of rejected) {
+      expect(
+        isSafeOAuthAuthorizationUrl(authorizationUrl, LOCAL_SUPABASE_AUTH_ORIGIN),
+      ).toBe(false);
+    }
+    expect(
+      isSafeOAuthAuthorizationUrl(
+        `${hosted}/auth/v1/authorize?%61ccess_token=secret`,
+        hosted,
+      ),
+    ).toBe(false);
+    expect(
+      isSafeOAuthAuthorizationUrl("http://[", LOCAL_SUPABASE_AUTH_ORIGIN),
+    ).toBe(false);
+    expect(
+      isSafeOAuthAuthorizationUrl(
+        "HTTP://127.0.0.1:54321/auth/v1/authorize",
+        LOCAL_SUPABASE_AUTH_ORIGIN,
+      ),
+    ).toBe(false);
+    expect(
+      isSafeOAuthAuthorizationUrl(
+        `${LOCAL_SUPABASE_AUTH_ORIGIN}/auth/v1/authorize/../authorize`,
+        LOCAL_SUPABASE_AUTH_ORIGIN,
+      ),
+    ).toBe(false);
+    expect(authorizationUrlWithoutParser(local)).toBe(false);
+    expect(authorizationUrlWithInvalidParser(local)).toBe(false);
+    expect(
+      oauthSignInNavigationSchema.safeParse({
+        status: "redirect_required",
+        provider: "google",
+        authorizationUrl: `${local}?email=person%2540example.com`,
+      }).success,
+    ).toBe(false);
+  });
+
+  it("allows a canonical authorize URL with ordinary encoded parameters", () => {
+    const allowed = [
+      `${LOCAL_SUPABASE_AUTH_ORIGIN}/auth/v1/authorize`,
+      `${LOCAL_SUPABASE_AUTH_ORIGIN}/auth/v1/authorize?provider=google&code_challenge=abc-def_123&code_challenge_method=S256`,
+      `${LOCAL_SUPABASE_AUTH_ORIGIN}/auth/v1/authorize?state=abc%2Fdef`,
+      `${LOCAL_SUPABASE_AUTH_ORIGIN}/auth/v1/authorize?redirect_to=http%3A%2F%2F127.0.0.1%3A3000%2Fauth%2Fcallback`,
+      `${LOCAL_SUPABASE_AUTH_ORIGIN}/auth/v1/authorize?state=100%25done`,
+      `${LOCAL_SUPABASE_AUTH_ORIGIN}/auth/v1/authorize?state=%252561`,
+      `${LOCAL_SUPABASE_AUTH_ORIGIN}/auth/v1/authorize?provider=google#state=ok`,
+      `${hosted}/auth/v1/authorize?provider=apple`,
+      `${hosted}/auth/v1/authorize#provider=apple`,
+    ];
+    for (const authorizationUrl of allowed) {
+      const origin = authorizationUrl.startsWith(hosted)
+        ? hosted
+        : LOCAL_SUPABASE_AUTH_ORIGIN;
+      expect(isSafeOAuthAuthorizationUrl(authorizationUrl, origin)).toBe(true);
+    }
+  });
 });
 
 describe("oauth provider settings contract", () => {
@@ -173,3 +255,41 @@ describe("oauth provider settings contract", () => {
     ).toBe(false);
   });
 });
+
+function authorizationUrlWithoutParser(authorizationUrl: string): boolean {
+  const descriptor = Object.getOwnPropertyDescriptor(globalThis, "URL");
+  Reflect.deleteProperty(globalThis, "URL");
+  try {
+    return isSafeOAuthAuthorizationUrl(
+      authorizationUrl,
+      LOCAL_SUPABASE_AUTH_ORIGIN,
+    );
+  } finally {
+    if (descriptor !== undefined) {
+      Object.defineProperty(globalThis, "URL", descriptor);
+    }
+  }
+}
+
+function authorizationUrlWithInvalidParser(authorizationUrl: string): boolean {
+  return withReplacedUrl("not-a-parser", () =>
+    isSafeOAuthAuthorizationUrl(authorizationUrl, LOCAL_SUPABASE_AUTH_ORIGIN),
+  );
+}
+
+function withReplacedUrl(replacement: unknown, read: () => boolean): boolean {
+  const descriptor = Object.getOwnPropertyDescriptor(globalThis, "URL");
+  Object.defineProperty(globalThis, "URL", {
+    configurable: true,
+    value: replacement,
+  });
+  try {
+    return read();
+  } finally {
+    if (descriptor === undefined) {
+      Reflect.deleteProperty(globalThis, "URL");
+    } else {
+      Object.defineProperty(globalThis, "URL", descriptor);
+    }
+  }
+}
