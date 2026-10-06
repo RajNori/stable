@@ -269,3 +269,86 @@ To close this finding, retain the token only in the mounted handoff instance (st
 **PASS WITH CONDITIONS**
 
 The URL transport portion is verified and the authorization model is unchanged. Keep Milestone 1 freeze conditional on removing module-scoped token retention and adding an SPA unmount/navigation regression check. M1-LOW-01 remains accepted Low technical debt.
+
+# M1-MED-01 Final Remediation Delta
+
+## Reviewed range
+
+- Final remediation baseline: `6d98f905f2273f0ee86a1d43edb5fd18064da72d`.
+- Remediation commit: `33987b99450799f35573564b7ab972bc297783e2`.
+- Current HEAD: `518c793368ae5a9898df7a618ae37580c0440dcb`, a documentation-only commit after the remediation.
+- The baseline is an ancestor of HEAD; the worktree was clean at review start.
+- Commits in the delta: `33987b99450799f35573564b7ab972bc297783e2` (token lifetime hardening), followed by `518c793368ae5a9898df7a618ae37580c0440dcb` (review documentation).
+- Product delta is limited to the invitation handoff and its tests. No Milestone 2 files changed. No tag points to the remediation; no remote-tracking branch containing it is present in this checkout. No push, tag, or hosted infrastructure operation was performed during this review.
+
+## Component-local token lifetime
+
+The module-level `retainedFragmentToken` and `resetInvitationHandoffMemory` are removed. There is no replacement singleton, context, provider, global, or window token cache in the acceptance handoff. The token is held in a `useRef` and React state owned by the mounted `AcceptInvitationHandoff` instance. The hidden input is rendered only after the client reads the token; it submits that token with the acceptance server action when the user submits the form.
+
+A new instance at `/invitations/accept` with no fragment starts with an undefined ref, reads no token, sets null, and renders the not-found message without an acceptance button. A real unmount destroys the instance ref/state. The unit unmount/remount test and same-runtime Playwright navigation test both verify the old token is not recovered.
+
+No token is written to pathname, query, retained fragment, localStorage, sessionStorage, cookies, or navigation history state. The creator’s invitation panel still holds the generated copyable link in component state while it is displayed; this is the intended one-time delivery surface and is not browser storage.
+
+## Strict Mode behavior
+
+On the first effect setup, the mounted instance captures the fragment into its ref before scrubbing the URL, then copies it into local state. React development Strict Mode can replay the effect setup/cleanup for the same mounted instance; the ref remains populated, so the replay does not need the scrubbed fragment and acceptance remains available. A new component instance receives a new empty ref and cannot recover that value. The explicit React `StrictMode` component test passes.
+
+## SPA navigation proof
+
+The component test captures a valid fragment, unmounts the handoff, and mounts a new handoff with no fragment; it displays the not-found message and no acceptance button. A separate component test toggles away from and back to the handoff.
+
+The authenticated Playwright test creates an invitation, captures and scrubs its fragment, records a marker on `window`, navigates away with the Next client router, and navigates back to `/invitations/accept` without a fragment. The marker confirms the browser JavaScript runtime survived the navigation. The new page fails closed, contains no acceptance button, and contains no token in its URL or HTML. This directly covers the prior module-cache behavior.
+
+## URL/request safety
+
+Generated links continue to use `/invitations/accept#<token>`; no generated link uses `?token=`. The fragment is client-only and absent from the initial HTTP request target. `useLayoutEffect` captures it and calls `history.replaceState`; the visible URL becomes `/invitations/accept`. The server page redirects any supplied `token` query to the clean acceptance route and never passes that query value into the handoff.
+
+The focused browser coverage verifies initial request/response URLs and acceptance-page HTML omit the token, and that the POST body carries it only on form submission. Malformed and missing fragments show not-found and fail closed; malformed fragments are scrubbed. A crafted `?token=` is redirected without copying the token into the redirect, rendered page, or acceptance state. Hard reload after scrub fails closed. Hash changes are read and scrubbed by the listener.
+
+## Secret retention
+
+The remediation contains no localStorage, sessionStorage, cookie, analytics, Sentry, console, or application logging write for the raw acceptance token. The Playwright request watcher observes URLs and POST data and confirms the token occurs in the POST body only when acceptance is submitted, not in request URLs. No request-body logging middleware was introduced or found. Audit behavior is unchanged and does not receive the raw token. Database migration and schema files are unchanged; only the existing SHA-256 digest is stored.
+
+## Authorization regression
+
+The product delta does not change invitation SQL, migrations, database types, feature commands/gateway, or server actions. The final remediation is limited to browser token lifetime and related tests. The prior authorization invariants therefore remain unchanged: 32 cryptographically random bytes, SHA-256 digest-only persistence, verified email/phone match, expiry, revocation, one-time consumption, `FOR UPDATE` serialization, guardian relationship creation/reactivation, team staff membership creation/reactivation, forced invitation RLS, same-club target scoping, and transactional audit behavior.
+
+## Test evidence
+
+**RERUN**
+
+- `pnpm --filter @stable/web test` — PASS, 12 files / 67 tests.
+- `pnpm format:check` — PASS.
+- `pnpm lint` — PASS.
+- `git diff --check 6d98f905f2273f0ee86a1d43edb5fd18064da72d..HEAD` and worktree diff check — PASS.
+- Focused authenticated invitation/roster Playwright — PASS, 4 tests, including Strict Mode unit coverage, one-time/identity-bound acceptance, missing/malformed/query token failure, same-runtime client navigation away/back, and roster regression.
+- Local `supabase test db` — PASS, 6 files / 490 assertions; invitation RLS file passed.
+
+**SOURCE REVIEW**
+
+- Confirmed no module-scope token variable or test reset export remains; token state/ref is instantiated inside the mounted component.
+- Traced Strict Mode effect replay and real unmount/remount behavior.
+- Reviewed the unit and Playwright regressions for SPA navigation in the same JavaScript runtime.
+- Compared the delta against the previous invitation SQL and server-action behavior; those files are unchanged.
+
+**REPORTED ONLY**
+
+- Typecheck, full workspace tests, and web production build were reported as passing for the final remediation but were not rerun in this delta review.
+
+The available Node runtime was 24.19.0 while the workspace declares 24.21.0. Rerun checks completed successfully with the engine warning. The local pgTAP suite was run against the already-running local Supabase stack; no hosted service was accessed.
+
+## M1-MED-01 final status
+
+**CLOSED**
+
+The query-string exposure remains fixed, the fragment is scrubbed, and the token now belongs only to the mounted handoff instance. A fresh mount and an SPA return in the same runtime cannot recover it. Strict Mode effect replay preserves the token for the same instance, while a real unmount destroys it. Acceptance authorization semantics remain unchanged.
+
+## M1-LOW-01 disposition
+
+**ACCEPTED LOW TECHNICAL DEBT.** Roster masking did not change in this remediation. The known one-code-point SQL versus one-grapheme domain display difference remains a presentation inconsistency without demonstrated additional surname disclosure and is not a Milestone 1 freeze blocker.
+
+## Milestone 1 final freeze recommendation
+
+**PASS**
+
+M1-MED-01 is closed based on source review and passing focused unit, browser, and database regression checks. M1-LOW-01 remains accepted Low technical debt.
