@@ -795,11 +795,6 @@ select is(
   'repeating reactivation does not write another audit row'
 );
 
-select results_eq(
-  $$select user_id::text from public.list_club_adults('11111111-1111-4111-8111-111111111111') order by 1$$,
-  $$values ('23232323-2323-4232-8232-232323232323'), ('55555555-5555-4555-8555-555555555555')$$,
-  'adult list contains only active members of this club'
-);
 select is(
   (
     select display_name
@@ -807,10 +802,75 @@ select is(
     where user_id = '55555555-5555-4555-8555-555555555555'
   ),
   'Policy Admin',
-  'adult list returns the adult display name'
+  'adult list includes the active fixture club admin'
+);
+select is(
+  (
+    select display_name
+    from public.list_club_adults('11111111-1111-4111-8111-111111111111')
+    where user_id = '23232323-2323-4232-8232-232323232323'
+  ),
+  'Second Adult',
+  'adult list includes the other active same-club fixture adult'
+);
+select is_empty(
+  $$
+    select user_id
+    from public.list_club_adults('11111111-1111-4111-8111-111111111111')
+    where user_id in (
+      '66666666-6666-4666-8666-666666666666',
+      'bcbcbcbc-bcbc-4bcb-8bcb-bcbcbcbcbcbc'
+    )
+  $$,
+  'outsider and other-club adults are absent from this club list'
 );
 
 reset role;
+
+select ok(
+  not exists (
+    select 1
+    from public.list_club_adults('11111111-1111-4111-8111-111111111111') as adult
+    where not exists (
+      select 1
+      from public.club_memberships as membership
+      where membership.club_id = '11111111-1111-4111-8111-111111111111'
+        and membership.user_id = adult.user_id
+        and membership.active
+    )
+  ),
+  'every listed adult has an active membership in this club'
+);
+select is(
+  (
+    select count(*)
+    from public.list_club_adults('11111111-1111-4111-8111-111111111111')
+    where user_id = '22222222-2222-4222-8222-222222222222'
+  ),
+  (
+    select count(*)
+    from public.club_memberships
+    where club_id = '11111111-1111-4111-8111-111111111111'
+      and user_id = '22222222-2222-4222-8222-222222222222'
+      and active
+  ),
+  'the bootstrapped local club admin is listed only while that membership is active'
+);
+select ok(
+  not exists (
+    select 1
+    from public.list_club_adults('11111111-1111-4111-8111-111111111111')
+    where user_id = '33333333-3333-4333-8333-333333333333'
+  )
+  or exists (
+    select 1
+    from public.club_memberships
+    where club_id = '11111111-1111-4111-8111-111111111111'
+      and user_id = '33333333-3333-4333-8333-333333333333'
+      and active
+  ),
+  'an adult without an active same-club membership is absent'
+);
 
 select is(
   pg_temp.sqlstate_of(
@@ -1053,6 +1113,23 @@ begin
 end $$;
 set local role authenticated;
 
+select is_empty(
+  $$
+    select user_id
+    from public.list_club_adults('11111111-1111-4111-8111-111111111111')
+    where user_id = '23232323-2323-4232-8232-232323232323'
+  $$,
+  'a revoked member is absent from the adult list'
+);
+select is(
+  (
+    select display_name
+    from public.list_club_adults('11111111-1111-4111-8111-111111111111')
+    where user_id = '55555555-5555-4555-8555-555555555555'
+  ),
+  'Policy Admin',
+  'an active club admin stays listed after another member is revoked'
+);
 select throws_ok(
   format(
     'select public.link_player_guardian(%L::uuid, %L::uuid)',
@@ -1119,8 +1196,13 @@ where n.nspname = 'public'
 
 select ok(
   pg_get_functiondef('public.list_club_adults(uuid)'::regprocedure) not like '%email%'
-    and pg_get_functiondef('public.list_club_adults(uuid)'::regprocedure) not like '%phone%',
-  'list_club_adults does not read email or phone'
+    and pg_get_functiondef('public.list_club_adults(uuid)'::regprocedure) not like '%phone%'
+    and pg_get_functiondef('public.list_club_adults(uuid)'::regprocedure) not like '%auth.users%'
+    and pg_get_functiondef('public.list_club_adults(uuid)'::regprocedure) not like '%auth.identities%'
+    and pg_get_functiondef('public.list_club_adults(uuid)'::regprocedure) not like '%raw_app_meta_data%'
+    and pg_get_functiondef('public.list_club_adults(uuid)'::regprocedure) not like '%raw_user_meta_data%'
+    and pg_get_functiondef('public.list_club_adults(uuid)'::regprocedure) not like '%provider%',
+  'list_club_adults does not read email, phone, or auth metadata'
 );
 
 select ok(
