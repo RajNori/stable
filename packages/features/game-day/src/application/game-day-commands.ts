@@ -9,7 +9,11 @@ import type {
 import { evaluateCapability } from "@stable/permissions";
 import { z } from "zod";
 
-import { DUTY_TYPES, OWN_RSVP, gameDayMessages } from "./game-day-messages.js";
+import {
+  DUTY_TYPES,
+  RSVP_STATUSES,
+  gameDayMessages,
+} from "./game-day-messages.js";
 
 const idSchema = z.string().uuid();
 const instantSchema = z.string().refine((value) => {
@@ -32,7 +36,7 @@ export const gameDayProjectionSchema = z.strictObject({
   courtLabel: z.string().nullable(),
   uniformNote: z.string().nullable(),
   coachFocus: z.string().nullable(),
-  ownRsvp: z.literal(OWN_RSVP),
+  ownRsvp: z.enum(RSVP_STATUSES),
   ownDutyLabel: z.string().nullable(),
   ownDutyStatus: z.literal("ASSIGNED").nullable(),
   attendingCount: countSchema,

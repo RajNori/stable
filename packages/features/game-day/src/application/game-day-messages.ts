@@ -8,4 +8,10 @@ export const gameDayMessages = {
 } as const;
 
 export const DUTY_TYPES = ["SCORER", "CLOCK", "CANTEEN", "OTHER"] as const;
+export const RSVP_STATUSES = [
+  "UNANSWERED",
+  "ATTENDING",
+  "UNAVAILABLE",
+  "UNSURE",
+] as const;
 export const OWN_RSVP = "UNANSWERED" as const;

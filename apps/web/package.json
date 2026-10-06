@@ -4,6 +4,7 @@
   "private": true,
   "dependencies": {
     "@sentry/nextjs": "^11.4.0",
+    "@stable/attendance": "workspace:*",
     "@stable/auth": "workspace:*",
     "@stable/club-structure": "workspace:*",
     "@stable/config": "workspace:*",

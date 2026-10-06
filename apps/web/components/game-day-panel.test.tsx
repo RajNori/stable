@@ -35,6 +35,19 @@ describe("game day panel", () => {
     expect(screen.getByText("Round 1: Visitors")).toBeTruthy();
     expect(screen.getByText("RSVP UNANSWERED")).toBeTruthy();
     expect(screen.queryByText(/Attending/)).toBeNull();
+    expect(screen.queryByRole("button", { name: "Save RSVP" })).toBeNull();
+  });
+
+  it("offers a masked RSVP form for a managed player", () => {
+    render(
+      <GameDayPanel
+        projection={projection}
+        players={[{ playerId: projection.eventId, label: "Alex R." }]}
+        recordAction={() => Promise.resolve()}
+      />,
+    );
+    expect(screen.getByText("Alex R.")).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Save RSVP" })).toBeTruthy();
   });
 
   it("shows staff counts when the projection includes them", () => {
