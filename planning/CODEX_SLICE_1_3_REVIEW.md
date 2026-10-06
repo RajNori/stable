@@ -151,3 +151,38 @@ Workspace-wide typecheck and production build are recorded as passing on the sam
 ## Freeze recommendation
 
 **PASS WITH CONDITIONS** — Slice 1.3’s player and guardian behavior is ready to freeze, with one LOW observability hardening item to close before any product-event path accepts nested or extensible player metadata. No Slice 1.4 work or product-code changes were made in this review.
+
+# Codex Remediation Closure
+
+The original review above is unchanged. This section records the closure of its only finding.
+
+## Reviewed remediation
+
+- `ae90c9e6adfba4bc3633343adfe8f2b9c3ebe1fd` — `fix(observability): reject nested sensitive product metadata`
+
+Files in that commit:
+
+- `packages/observability/src/capture.ts`
+- `packages/observability/src/capture.test.ts`
+
+No player, guardian, RLS, permission, analytics-provider, or product-event call-site change is in the commit. Sentry exception redaction is unchanged.
+
+## S1.3-01
+
+Status: CLOSED
+
+`isSafeProductMetadata` now enforces the existing flat `ProductEventMetadata` contract. An own key is accepted only when it is `teamId`, `eventId`, `clubId`, or `userId` and its value is a string. Nested objects, arrays, unknown keys, and non-string values are rejected. Sensitive names are compared with `toLowerCase()`, so `firstName`, `FIRSTNAME`, `FirstName`, `first_name`, and `LAST_NAME` fail closed. A rejected event returns before the sink is called. The rejected value is not logged and is not placed in an error.
+
+Regression tests in `packages/observability/src/capture.test.ts` prove:
+
+- `{ context: { firstName: "Synthetic" } }` does not reach the sink.
+- `{ context: { last_name: "Player" } }` does not reach the sink.
+- Case-variant sensitive keys do not reach the sink and do not appear in console output.
+- Nested objects, arrays, and unknown metadata keys are rejected.
+- Existing flat `teamId`, `eventId`, `clubId`, and `userId` metadata still reaches the sink unchanged.
+
+`pnpm --filter @stable/observability test` passed: 19 tests. `capture.ts` coverage is 100% statements, branches, functions, and lines. Repository `pnpm format:check`, `pnpm lint`, `pnpm typecheck`, and `pnpm test` passed on that commit. The web production build was not rerun; this commit does not change the web app.
+
+## Freeze recommendation
+
+**PASS.** S1.3-01 is closed. The original Critical, High, and Medium result is unchanged: none were found. Slice 1.4 was not started.
