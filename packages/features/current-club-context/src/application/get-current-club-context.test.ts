@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import {
   ApplicationError,
+  CLUB_CONTEXT_CAPABILITIES,
   CLUB_READ_CAPABILITY,
   type ApplicationErrorCode,
   type ClubContextReadResult,
@@ -9,18 +10,22 @@ import {
   type ClubMembershipRecord,
   type ClubSummary,
   type Principal,
+  type TeamRecord,
 } from "@stable/contracts";
-import { evaluateCapability } from "@stable/permissions";
+import * as Permissions from "@stable/permissions";
 
 import { getCurrentClubContext } from "../index.js";
 
-vi.mock("@stable/permissions", () => {
+vi.mock("@stable/permissions", async () => {
+  const actual = await vi.importActual<typeof Permissions>(
+    "@stable/permissions",
+  );
   return {
-    evaluateCapability: vi.fn((): "allow" | "deny" => "allow"),
+    evaluateCapability: vi.fn(actual.evaluateCapability),
   };
 });
 
-const evaluateCapabilityMock = vi.mocked(evaluateCapability);
+const evaluateCapabilityMock = vi.mocked(Permissions.evaluateCapability);
 
 const userId = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
 const inactiveClubId = "00000000-0000-4000-8000-000000000000";
@@ -56,11 +61,30 @@ function membership(
   };
 }
 
-function createReader(result: ClubContextReadResult): {
+function readResult(
+  partial: Pick<ClubContextReadResult, "displayName" | "memberships"> &
+    Partial<ClubContextReadResult>,
+): ClubContextReadResult {
+  return {
+    teamMemberships: [],
+    guardianLinks: [],
+    registrations: [],
+    teams: [],
+    clubs: [],
+    ...partial,
+  };
+}
+
+function createReader(
+  partial: Pick<ClubContextReadResult, "displayName" | "memberships"> &
+    Partial<ClubContextReadResult>,
+): {
   reader: ClubContextReader;
   read: ReturnType<typeof vi.fn<ClubContextReader["read"]>>;
 } {
-  const read = vi.fn<ClubContextReader["read"]>(async () => result);
+  const read = vi.fn<ClubContextReader["read"]>(async () =>
+    readResult(partial),
+  );
   return { reader: { read }, read };
 }
 
@@ -98,9 +122,12 @@ function expectApplicationError(
 }
 
 describe("getCurrentClubContext", () => {
-  beforeEach(() => {
+  beforeEach(async () => {
+    const actual = await vi.importActual<typeof Permissions>(
+      "@stable/permissions",
+    );
     evaluateCapabilityMock.mockReset();
-    evaluateCapabilityMock.mockReturnValue("allow");
+    evaluateCapabilityMock.mockImplementation(actual.evaluateCapability);
   });
 
   it("throws UNAUTHENTICATED and does not call the reader when principal is null", async () => {
@@ -157,17 +184,22 @@ describe("getCurrentClubContext", () => {
     const result = await getCurrentClubContext({ principal, reader });
 
     expect(read).toHaveBeenCalledWith(userId);
-    expect(evaluateCapabilityMock).toHaveBeenCalledExactlyOnceWith({
-      memberships: [{ clubId: alphaClubId, role: "CLUB_ADMIN", active: true }],
-      capability: CLUB_READ_CAPABILITY,
-      clubId: alphaClubId,
-    });
+    expect(evaluateCapabilityMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        clubMemberships: [
+          { clubId: alphaClubId, role: "CLUB_ADMIN", active: true },
+        ],
+        capability: CLUB_READ_CAPABILITY,
+        resource: { clubId: alphaClubId },
+      }),
+    );
     expect(result).toEqual({
       userId,
       displayName: "Jordan P",
       club,
       activeTeam: null,
-      capabilities: [CLUB_READ_CAPABILITY],
+      availableTeams: [],
+      capabilities: [...CLUB_CONTEXT_CAPABILITIES],
       managedPlayerIds: [],
     });
   });
@@ -202,6 +234,7 @@ describe("getCurrentClubContext", () => {
       displayName: "Outsider O",
       club: null,
       activeTeam: null,
+      availableTeams: [],
       capabilities: [],
       managedPlayerIds: [],
     });
@@ -237,18 +270,14 @@ describe("getCurrentClubContext", () => {
 
     const result = await getCurrentClubContext({ principal, reader });
 
-    expect(evaluateCapabilityMock).toHaveBeenCalledExactlyOnceWith({
-      memberships: [
-        { clubId: charlieClubId, role: "CLUB_ADMIN", active: true },
-        { clubId: inactiveClubId, role: "CLUB_ADMIN", active: false },
-        { clubId: alphaClubId, role: "CLUB_ADMIN", active: true },
-        { clubId: bravoClubId, role: "CLUB_ADMIN", active: true },
-      ],
-      capability: CLUB_READ_CAPABILITY,
-      clubId: alphaClubId,
-    });
+    expect(evaluateCapabilityMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        capability: CLUB_READ_CAPABILITY,
+        resource: { clubId: alphaClubId },
+      }),
+    );
     expect(result.club).toEqual(clubSummary(alphaClubId, "Alpha Club"));
-    expect(result.capabilities).toEqual([CLUB_READ_CAPABILITY]);
+    expect(result.capabilities).toEqual([...CLUB_CONTEXT_CAPABILITIES]);
     expect(result.displayName).toBe("Multi Admin");
   });
 
@@ -265,7 +294,9 @@ describe("getCurrentClubContext", () => {
     const result = await getCurrentClubContext({ principal, reader });
 
     expect(evaluateCapabilityMock).toHaveBeenCalledWith(
-      expect.objectContaining({ clubId: alphaClubId }),
+      expect.objectContaining({
+        resource: { clubId: alphaClubId },
+      }),
     );
     expect(result.club).toEqual(clubSummary(alphaClubId, "Alpha Club"));
     expect(result.capabilities).toEqual([]);
@@ -284,5 +315,209 @@ describe("getCurrentClubContext", () => {
 
     expect(error.message).not.toContain("displayName");
     expect(evaluateCapabilityMock).not.toHaveBeenCalled();
+  });
+
+  it("keeps activeTeam null for a club admin with no team role", async () => {
+    const { reader } = createReader({
+      displayName: "Jordan P",
+      memberships: [membership(alphaClubId, "Mentone Mustangs", true)],
+    });
+
+    const result = await getCurrentClubContext({ principal, reader });
+
+    expect(result.activeTeam).toBeNull();
+    expect(result.availableTeams).toEqual([]);
+    expect(result.managedPlayerIds).toEqual([]);
+  });
+
+  it("selects the only staff team and does not invent one when several are valid", async () => {
+    const teamA = "dddddddd-dddd-4ddd-8ddd-dddddddddddd";
+    const teamB = "eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee";
+    const teams: TeamRecord[] = [
+      { id: teamB, name: "Team B", clubId: alphaClubId, active: true },
+      { id: teamA, name: "Team A", clubId: alphaClubId, active: true },
+    ];
+    const teamARecord: TeamRecord = {
+      id: teamA,
+      name: "Team A",
+      clubId: alphaClubId,
+      active: true,
+    };
+    const single = await getCurrentClubContext({
+      principal,
+      reader: createReader({
+        displayName: "Coach",
+        memberships: [],
+        clubs: [clubSummary(alphaClubId, "Alpha Club")],
+        teams: [teamARecord],
+        teamMemberships: [
+          {
+            clubId: alphaClubId,
+            teamId: teamA,
+            role: "HEAD_COACH",
+            active: true,
+            teamActive: true,
+          },
+        ],
+      }).reader,
+    });
+
+    expect(single.club?.id).toBe(alphaClubId);
+    expect(single.capabilities).toEqual(["club.read"]);
+    expect(single.activeTeam).toEqual({ id: teamA, name: "Team A" });
+    expect(single.availableTeams).toEqual([{ id: teamA, name: "Team A" }]);
+    expect(single.managedPlayerIds).toEqual([]);
+
+    const many = await getCurrentClubContext({
+      principal,
+      reader: createReader({
+        displayName: "Coach",
+        memberships: [],
+        clubs: [clubSummary(alphaClubId, "Alpha Club")],
+        teams,
+        teamMemberships: [
+          {
+            clubId: alphaClubId,
+            teamId: teamA,
+            role: "HEAD_COACH",
+            active: true,
+            teamActive: true,
+          },
+          {
+            clubId: alphaClubId,
+            teamId: teamB,
+            role: "TEAM_MANAGER",
+            active: true,
+            teamActive: true,
+          },
+        ],
+      }).reader,
+    });
+
+    expect(many.activeTeam).toBeNull();
+    expect(many.availableTeams).toEqual([
+      { id: teamA, name: "Team A" },
+      { id: teamB, name: "Team B" },
+    ]);
+    expect(many.capabilities).toEqual(["club.read"]);
+  });
+
+  it("fills managed players only for active guardian registrations in the club", async () => {
+    const teamA = "dddddddd-dddd-4ddd-8ddd-dddddddddddd";
+    const teamB = "eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee";
+    const player1 = "ffffffff-ffff-4fff-8fff-ffffffffffff";
+    const player2 = "12121212-1212-4121-8121-121212121212";
+    const result = await getCurrentClubContext({
+      principal,
+      reader: createReader({
+        displayName: "Guardian",
+        memberships: [],
+        clubs: [clubSummary(alphaClubId, "Alpha Club")],
+        teams: [
+          { id: teamA, name: "Team A", clubId: alphaClubId, active: true },
+          { id: teamB, name: "Team B", clubId: alphaClubId, active: true },
+        ],
+        guardianLinks: [
+          {
+            clubId: alphaClubId,
+            playerId: player1,
+            active: true,
+            playerActive: true,
+          },
+          {
+            clubId: alphaClubId,
+            playerId: player2,
+            active: true,
+            playerActive: true,
+          },
+          {
+            clubId: alphaClubId,
+            playerId: "13131313-1313-4131-8131-131313131313",
+            active: false,
+            playerActive: true,
+          },
+        ],
+        registrations: [
+          {
+            clubId: alphaClubId,
+            teamId: teamA,
+            playerId: player1,
+            active: true,
+            teamActive: true,
+          },
+          {
+            clubId: alphaClubId,
+            teamId: teamB,
+            playerId: player2,
+            active: true,
+            teamActive: true,
+          },
+        ],
+      }).reader,
+    });
+
+    expect(result.managedPlayerIds).toEqual([player2, player1].sort());
+    expect(result.activeTeam).toBeNull();
+    expect(result.availableTeams).toEqual([
+      { id: teamA, name: "Team A" },
+      { id: teamB, name: "Team B" },
+    ]);
+    expect(result.capabilities).toEqual(["club.read"]);
+  });
+
+  it("drops inactive teams and fails closed when the club summary is missing", async () => {
+    const teamA = "dddddddd-dddd-4ddd-8ddd-dddddddddddd";
+    const hidden = await getCurrentClubContext({
+      principal,
+      reader: createReader({
+        displayName: "Coach",
+        memberships: [membership(alphaClubId, "Alpha Club", true)],
+        teams: [
+          { id: teamA, name: "Team A", clubId: alphaClubId, active: false },
+        ],
+        teamMemberships: [
+          {
+            clubId: alphaClubId,
+            teamId: teamA,
+            role: "HEAD_COACH",
+            active: true,
+            teamActive: false,
+          },
+          {
+            clubId: bravoClubId,
+            teamId: teamA,
+            role: "ASSISTANT_COACH",
+            active: true,
+            teamActive: true,
+          },
+        ],
+      }).reader,
+    });
+
+    expect(hidden.availableTeams).toEqual([]);
+    expect(hidden.activeTeam).toBeNull();
+
+    const error = expectApplicationError(
+      await captureError(() =>
+        getCurrentClubContext({
+          principal,
+          reader: createReader({
+            displayName: "Coach",
+            memberships: [],
+            teamMemberships: [
+              {
+                clubId: alphaClubId,
+                teamId: teamA,
+                role: "TEAM_MANAGER",
+                active: true,
+                teamActive: true,
+              },
+            ],
+          }).reader,
+        }),
+      ),
+      "VALIDATION_FAILED",
+    );
+    expect(error.message).not.toContain(alphaClubId);
   });
 });

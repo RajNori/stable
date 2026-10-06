@@ -9,16 +9,26 @@ export { principalSchema } from "./principal.js";
 export type { Principal } from "./principal.js";
 
 export {
+  CLUB_CONTEXT_CAPABILITIES,
   CLUB_MEMBERSHIP_ROLES,
   CLUB_READ_CAPABILITY,
   KNOWN_CAPABILITIES,
+  PLAYER_CAPABILITIES,
+  TEAM_CAPABILITIES,
+  TEAM_STAFF_ROLES,
 } from "./capabilities.js";
 export type {
   Capability,
   CapabilityDecision,
+  CapabilityResource,
+  ClubContextCapability,
   ClubMembershipRole,
   EvaluateCapability,
+  GuardianLinkFact,
   MembershipFact,
+  PlayerTeamRegistrationFact,
+  TeamMembershipFact,
+  TeamStaffRole,
 } from "./capabilities.js";
 
 export {
@@ -26,6 +36,11 @@ export {
   clubMembershipRecordSchema,
   clubSummarySchema,
   currentClubContextSchema,
+  guardianLinkRecordSchema,
+  registrationRecordSchema,
+  teamContextSchema,
+  teamMembershipRecordSchema,
+  teamRecordSchema,
 } from "./current-club-context.js";
 export type {
   ClubContextReadResult,
@@ -35,6 +50,11 @@ export type {
   CurrentClubContext,
   GetCurrentClubContext,
   GetCurrentClubContextInput,
+  GuardianLinkRecord,
+  RegistrationRecord,
+  TeamContext,
+  TeamMembershipRecord,
+  TeamRecord,
 } from "./current-club-context.js";
 
 export { APP_ENV_VALUES, ENV } from "./env.js";

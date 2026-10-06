@@ -34,6 +34,19 @@ test("club admin adds a player and sees the safe display name", async ({
   await item.getByLabel("Club adult").selectOption({ label: "Local Member" });
   await item.getByRole("button", { name: "Link guardian" }).click();
   await expect(item).toContainText("Local Member");
+  await expect(
+    item.getByRole("button", { name: "Unregister team" }),
+  ).toHaveCount(0);
+  await item.getByLabel("Team").selectOption({ label: "U14 Boys" });
+  await item.getByRole("button", { name: "Register team" }).click();
+  await expect(
+    item.getByRole("button", { name: "Unregister team" }),
+  ).toBeVisible();
+  await item.getByRole("button", { name: "Unregister team" }).click();
+  await expect(
+    item.getByRole("button", { name: "Unregister team" }),
+  ).toHaveCount(0);
+  await expect(item).toContainText("No team");
   await context.close();
 });
 

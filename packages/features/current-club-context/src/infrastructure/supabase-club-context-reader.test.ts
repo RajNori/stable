@@ -61,6 +61,8 @@ function createFakeClient(input: {
   memberships: QueryResult;
   profile: QueryResult;
   auth?: AuthResult;
+  tables?: Record<string, QueryResult>;
+  rpc?: QueryResult;
 }): FakeClient {
   const recorded: RecordedQuery[] = [];
   let getUserCalls = 0;
@@ -71,7 +73,12 @@ function createFakeClient(input: {
 
   const fake = {
     from(table: string) {
-      const result = table === "profiles" ? input.profile : input.memberships;
+      const result =
+        table === "profiles"
+          ? input.profile
+          : table === "club_memberships"
+            ? input.memberships
+            : (input.tables?.[table] ?? { data: [], error: null });
       return {
         select(columns: string) {
           const query: RecordedQuery = {
@@ -112,6 +119,9 @@ function createFakeClient(input: {
         return Promise.resolve(authResult);
       },
     },
+    rpc() {
+      return Promise.resolve(input.rpc ?? { data: true, error: null });
+    },
   };
 
   return {
@@ -124,23 +134,22 @@ function createFakeClient(input: {
 }
 
 function expectCallerQueries(recorded: RecordedQuery[]): void {
-  expect(recorded).toEqual([
-    {
-      table: "club_memberships",
-      columns: membershipColumns,
-      filters: [
-        { column: "user_id", value: userId },
-        { column: "active", value: true },
-      ],
-      maybeSingle: false,
-    },
-    {
-      table: "profiles",
-      columns: "display_name",
-      filters: [{ column: "user_id", value: userId }],
-      maybeSingle: true,
-    },
+  expect(recorded.map((query) => query.table)).toEqual([
+    "club_memberships",
+    "team_memberships",
+    "guardian_relationships",
+    "player_team_registrations",
+    "profiles",
   ]);
+  expect(recorded[0]).toEqual({
+    table: "club_memberships",
+    columns: membershipColumns,
+    filters: [
+      { column: "user_id", value: userId },
+      { column: "active", value: true },
+    ],
+    maybeSingle: false,
+  });
 }
 
 async function captureReadError(
@@ -210,6 +219,19 @@ describe("createSupabaseClubContextReader", () => {
           },
         },
       ],
+      teamMemberships: [],
+      guardianLinks: [],
+      registrations: [],
+      teams: [],
+      clubs: [
+        {
+          id: clubId,
+          name: "Mentone Mustangs",
+          slug: "mentone-mustangs",
+          timezone: "Australia/Melbourne",
+          themeKey: "mustangs",
+        },
+      ],
     });
     expect(JSON.stringify(result)).not.toContain("theme_key");
     expect(JSON.stringify(result)).not.toContain("display_name");
@@ -239,6 +261,11 @@ describe("createSupabaseClubContextReader", () => {
     expect(result).toEqual({
       displayName: "Outsider O",
       memberships: [],
+      teamMemberships: [],
+      guardianLinks: [],
+      registrations: [],
+      teams: [],
+      clubs: [],
     });
   });
 
@@ -266,6 +293,11 @@ describe("createSupabaseClubContextReader", () => {
       expect(result).toEqual({
         displayName: "Signed in",
         memberships: [],
+        teamMemberships: [],
+        guardianLinks: [],
+        registrations: [],
+        teams: [],
+        clubs: [],
       });
     },
   );
@@ -357,4 +389,145 @@ describe("createSupabaseClubContextReader", () => {
       expect(fake.getUserCalls).toBe(0);
     },
   );
+
+  it("maps staff, guardian, and registration rows without child names", async () => {
+    const teamId = "dddddddd-dddd-4ddd-8ddd-dddddddddddd";
+    const playerId = "eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee";
+    const club = {
+      id: clubId,
+      name: "Mentone Mustangs",
+      slug: "mentone-mustangs",
+      timezone: "Australia/Melbourne",
+      theme_key: "mustangs",
+    };
+    const fake = createFakeClient({
+      memberships: { data: [], error: null },
+      profile: { data: { display_name: "Team Coach" }, error: null },
+      tables: {
+        team_memberships: {
+          data: [
+            {
+              club_id: clubId,
+              team_id: teamId,
+              role: "HEAD_COACH",
+              active: true,
+              teams: [
+                {
+                  id: teamId,
+                  name: "Team A",
+                  active: true,
+                  club_id: clubId,
+                  clubs: club,
+                },
+              ],
+            },
+          ],
+          error: null,
+        },
+        guardian_relationships: {
+          data: [{ club_id: clubId, player_id: playerId, active: true }],
+          error: null,
+        },
+        player_team_registrations: {
+          data: [
+            {
+              club_id: clubId,
+              team_id: teamId,
+              player_id: playerId,
+              active: true,
+              teams: {
+                id: teamId,
+                name: "Team A",
+                active: true,
+                club_id: clubId,
+                clubs: { id: 4 },
+              },
+            },
+          ],
+          error: null,
+        },
+      },
+    });
+
+    const result = await createSupabaseClubContextReader(fake.client).read(
+      userId,
+    );
+
+    expect(result.teamMemberships).toEqual([
+      {
+        clubId,
+        teamId,
+        role: "HEAD_COACH",
+        active: true,
+        teamActive: true,
+      },
+    ]);
+    expect(result.guardianLinks).toEqual([
+      {
+        clubId,
+        playerId,
+        active: true,
+        playerActive: true,
+      },
+    ]);
+    expect(result.registrations[0]).toMatchObject({
+      playerId,
+      teamActive: true,
+    });
+    expect(JSON.stringify(result)).not.toContain("first_name");
+    expect(JSON.stringify(result)).not.toContain("Synthetic");
+  });
+
+  it("redacts a staff row without a team and a guardian row without a player", async () => {
+    const missingTeam = createFakeClient({
+      memberships: { data: [], error: null },
+      profile: { data: { display_name: "Team Coach" }, error: null },
+      tables: {
+        team_memberships: {
+          data: [
+            {
+              club_id: clubId,
+              team_id: clubId,
+              role: "HEAD_COACH",
+              active: true,
+              teams: { id: clubId, active: true },
+            },
+          ],
+          error: null,
+        },
+      },
+    });
+    expectRedacted(await captureReadError(missingTeam.client));
+
+    const missingPlayer = createFakeClient({
+      memberships: { data: [], error: null },
+      profile: { data: { display_name: "Guardian" }, error: null },
+      tables: {
+        guardian_relationships: {
+          data: [{ club_id: clubId, active: true }],
+          error: null,
+        },
+      },
+    });
+    expectRedacted(await captureReadError(missingPlayer.client));
+
+    const rpcFailure = createFakeClient({
+      memberships: { data: [], error: null },
+      profile: { data: { display_name: "Guardian" }, error: null },
+      rpc: { data: null, error: driverError(driverMessage) },
+      tables: {
+        guardian_relationships: {
+          data: [
+            {
+              club_id: clubId,
+              player_id: "eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee",
+              active: true,
+            },
+          ],
+          error: null,
+        },
+      },
+    });
+    expectRedacted(await captureReadError(rpcFailure.client));
+  });
 });

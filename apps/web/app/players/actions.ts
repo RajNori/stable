@@ -2,6 +2,12 @@
 
 import { ApplicationError } from "@stable/contracts";
 import {
+  createSupabaseMembershipGateway,
+  membershipMessages,
+  registerPlayerOnTeam,
+  unregisterPlayerFromTeam,
+} from "@stable/membership";
+import {
   PlayerImportValidationError,
   createPlayer,
   createSupabasePlayerGateway,
@@ -200,6 +206,76 @@ async function run(
       error instanceof ApplicationError
         ? error.message
         : playerMessages.saveFailed;
+    redirect(playersErrorUrl(message));
+  }
+
+  redirect("/players");
+}
+
+export async function registerPlayerAction(formData: FormData): Promise<void> {
+  const clubId = formData.get("clubId");
+  const playerId = formData.get("playerId");
+  const teamId = formData.get("teamId");
+  if (
+    typeof clubId !== "string" ||
+    typeof playerId !== "string" ||
+    typeof teamId !== "string"
+  ) {
+    redirect(playersErrorUrl(membershipMessages.validationFailed));
+  }
+
+  await runMembership(async (gateway, session) => {
+    await registerPlayerOnTeam({
+      principal: session.principal,
+      memberships: session.memberships,
+      clubId,
+      playerId,
+      teamId,
+      writer: gateway,
+    });
+  });
+}
+
+export async function unregisterPlayerAction(
+  formData: FormData,
+): Promise<void> {
+  const clubId = formData.get("clubId");
+  const playerId = formData.get("playerId");
+  if (typeof clubId !== "string" || typeof playerId !== "string") {
+    redirect(playersErrorUrl(membershipMessages.validationFailed));
+  }
+
+  await runMembership(async (gateway, session) => {
+    await unregisterPlayerFromTeam({
+      principal: session.principal,
+      memberships: session.memberships,
+      clubId,
+      playerId,
+      writer: gateway,
+    });
+  });
+}
+
+async function runMembership(
+  work: (
+    gateway: ReturnType<typeof createSupabaseMembershipGateway>,
+    session: Awaited<
+      ReturnType<ReturnType<typeof createSupabasePlayerGateway>["readSession"]>
+    >,
+  ) => Promise<void>,
+): Promise<void> {
+  const supabase = await createSupabaseServerClient();
+  const players = createSupabasePlayerGateway(supabase);
+  const gateway = createSupabaseMembershipGateway(supabase);
+
+  try {
+    const session = await players.readSession();
+    await work(gateway, session);
+  } catch (error: unknown) {
+    const message =
+      error instanceof ApplicationError
+        ? error.message
+        : membershipMessages.saveFailed;
     redirect(playersErrorUrl(message));
   }
 

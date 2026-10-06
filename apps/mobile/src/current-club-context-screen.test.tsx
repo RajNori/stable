@@ -63,6 +63,11 @@ describe("current club context screen", () => {
             club: mustangs,
           },
         ],
+        teamMemberships: [],
+        guardianLinks: [],
+        registrations: [],
+        teams: [],
+        clubs: [],
       }),
     };
 
@@ -71,6 +76,7 @@ describe("current club context screen", () => {
     expect(await screen.findByText("Mentone Mustangs")).toBeTruthy();
     expect(screen.getByText("Ada Lovelace")).toBeTruthy();
     expect(screen.getByText("club.read")).toBeTruthy();
+    expect(screen.getByText("Managed players: 0")).toBeTruthy();
 
     const refresh = screen.getByRole("button", { name: "Refresh club" });
     const style = StyleSheet.flatten(refresh.props.style);
@@ -84,6 +90,11 @@ describe("current club context screen", () => {
       read: async () => ({
         displayName: "Outsider Person",
         memberships: [],
+        teamMemberships: [],
+        guardianLinks: [],
+        registrations: [],
+        teams: [],
+        clubs: [],
       }),
     };
 
@@ -111,6 +122,11 @@ describe("current club context screen", () => {
       read: async () => ({
         displayName: "Nobody",
         memberships: [],
+        teamMemberships: [],
+        guardianLinks: [],
+        registrations: [],
+        teams: [],
+        clubs: [],
       }),
     };
 
@@ -132,5 +148,99 @@ describe("current club context screen", () => {
       await screen.findByText("Club context could not be read."),
     ).toBeTruthy();
     expect(screen.getByRole("button", { name: "Try again" })).toBeTruthy();
+  });
+
+  it("shows the only team and a managed-player count without child names", async () => {
+    const teamId = "17171717-1717-4717-8717-171717171717";
+    const playerId = "18181818-1818-4818-8818-181818181818";
+    const principal: Principal = { userId, displayName: "Coach Person" };
+    const reader: ClubContextReader = {
+      read: async () => ({
+        displayName: "Coach Person",
+        memberships: [],
+        teamMemberships: [
+          {
+            clubId,
+            teamId,
+            role: "HEAD_COACH",
+            active: true,
+            teamActive: true,
+          },
+        ],
+        guardianLinks: [
+          {
+            clubId,
+            playerId,
+            active: true,
+            playerActive: true,
+          },
+        ],
+        registrations: [
+          {
+            clubId,
+            teamId,
+            playerId,
+            active: true,
+            teamActive: true,
+          },
+        ],
+        teams: [
+          {
+            id: teamId,
+            name: "U14 Boys",
+            clubId,
+            active: true,
+          },
+        ],
+        clubs: [mustangs],
+      }),
+    };
+
+    await renderScreen(principal, reader);
+
+    expect(await screen.findByText("U14 Boys")).toBeTruthy();
+    expect(screen.getByText("Managed players: 1")).toBeTruthy();
+    expect(screen.queryByText(playerId)).toBeNull();
+  });
+
+  it("lists every available team when more than one is eligible", async () => {
+    const teamA = "17171717-1717-4717-8717-171717171717";
+    const teamB = "17171717-1717-4717-8717-171717171718";
+    const principal: Principal = { userId };
+    const reader: ClubContextReader = {
+      read: async () => ({
+        displayName: "Coach Person",
+        memberships: [],
+        teamMemberships: [
+          {
+            clubId,
+            teamId: teamB,
+            role: "ASSISTANT_COACH",
+            active: true,
+            teamActive: true,
+          },
+          {
+            clubId,
+            teamId: teamA,
+            role: "HEAD_COACH",
+            active: true,
+            teamActive: true,
+          },
+        ],
+        guardianLinks: [],
+        registrations: [],
+        teams: [
+          { id: teamB, name: "U16 Boys", clubId, active: true },
+          { id: teamA, name: "U14 Boys", clubId, active: true },
+        ],
+        clubs: [mustangs],
+      }),
+    };
+
+    await renderScreen(principal, reader);
+
+    expect(await screen.findByText("U14 Boys")).toBeTruthy();
+    expect(screen.getByText("U16 Boys")).toBeTruthy();
+    expect(screen.getByText("Managed players: 0")).toBeTruthy();
   });
 });

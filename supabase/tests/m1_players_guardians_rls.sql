@@ -979,9 +979,13 @@ select is_empty(
   $$select id from public.players$$,
   'a linked guardian without club admin membership cannot select players'
 );
+select isnt_empty(
+  $$select id from public.guardian_relationships where user_id = '44444444-4444-4444-8444-444444444444'$$,
+  'a linked guardian can select their own relationship'
+);
 select is_empty(
-  $$select id from public.guardian_relationships$$,
-  'a linked guardian cannot select relationships'
+  $$select id from public.guardian_relationships where user_id <> '44444444-4444-4444-8444-444444444444'$$,
+  'a linked guardian cannot select another relationship'
 );
 select throws_ok(
   format(

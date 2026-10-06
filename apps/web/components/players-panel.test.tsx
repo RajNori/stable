@@ -56,4 +56,36 @@ describe("players panel", () => {
     expect(screen.queryByRole("searchbox")).toBeNull();
     expect(document.body.textContent).not.toContain("@");
   });
+
+  it("registers one team and does not show a roster", () => {
+    render(
+      <PlayersPanel
+        clubId="11111111-1111-4111-8111-111111111111"
+        players={[{ ...player, teamName: "U14 Boys" }]}
+        adults={[]}
+        teams={[
+          {
+            id: "17171717-1717-4717-8717-171717171717",
+            name: "U14 Boys",
+          },
+        ]}
+        createPlayer={noop}
+        importPlayers={noop}
+        updatePlayer={noop}
+        deactivatePlayer={noop}
+        reactivatePlayer={noop}
+        linkGuardian={noop}
+        unlinkGuardian={noop}
+        registerPlayer={noop}
+        unregisterPlayer={noop}
+      />,
+    );
+
+    expect(screen.getByRole("button", { name: "Register team" })).toBeTruthy();
+    expect(
+      screen.getByRole("button", { name: "Unregister team" }),
+    ).toBeTruthy();
+    expect(screen.queryByLabelText("Jersey")).toBeNull();
+    expect(screen.queryByLabelText("Position")).toBeNull();
+  });
 });

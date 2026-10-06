@@ -1,5 +1,7 @@
+import { createSupabaseClubStructureGateway } from "@stable/club-structure";
 import { ApplicationError } from "@stable/contracts";
 import { getCurrentClubContext } from "@stable/current-club-context";
+import { createSupabaseMembershipGateway } from "@stable/membership";
 import {
   childDisplayName,
   createSupabasePlayerGateway,
@@ -31,6 +33,8 @@ import {
   reactivatePlayerAction,
   unlinkGuardianAction,
   updatePlayerAction,
+  registerPlayerAction,
+  unregisterPlayerAction,
 } from "./actions";
 
 export const dynamic = "force-dynamic";
@@ -66,6 +70,9 @@ export default async function PlayersPage({ searchParams }: PlayersPageProps) {
           players={[fixturePlayer()]}
           adults={fixtureAdults()}
           error={error}
+          teams={[
+            { id: "17171717-1717-4717-8717-171717171717", name: "U14 Boys" },
+          ]}
           {...panelActions()}
         />
       </ClubAdminShell>
@@ -87,17 +94,33 @@ export default async function PlayersPage({ searchParams }: PlayersPageProps) {
     }
 
     const gateway = createSupabasePlayerGateway(supabase);
-    const [players, adults] = await Promise.all([
+    const structure = createSupabaseClubStructureGateway(supabase);
+    const membership = createSupabaseMembershipGateway(supabase);
+    const [players, adults, registrations, snapshot] = await Promise.all([
       gateway.listPlayers(context.club.id),
       gateway.listClubAdults(context.club.id),
+      membership.listRegistrations(context.club.id),
+      structure.list(context.club.id),
     ]);
     const adultNames = new Map(
       adults.map((adult) => [adult.userId, adult.displayName]),
     );
+    const teamNames = new Map(
+      snapshot.teams.map((team) => [team.id, team.name]),
+    );
     const managed = await Promise.all(
       players.map(async (player) => {
         const guardians = await gateway.listGuardians(player.id);
-        return toManagedPlayer(player, guardians, adultNames);
+        const registration = registrations.find(
+          (row) => row.playerId === player.id && row.active,
+        );
+        return {
+          ...toManagedPlayer(player, guardians, adultNames),
+          teamName:
+            registration === undefined
+              ? null
+              : (teamNames.get(registration.teamId) ?? null),
+        };
       }),
     );
 
@@ -108,6 +131,10 @@ export default async function PlayersPage({ searchParams }: PlayersPageProps) {
           players={managed}
           adults={adults}
           error={error}
+          teams={snapshot.teams.map((team) => ({
+            id: team.id,
+            name: team.name,
+          }))}
           {...panelActions()}
         />
       </ClubAdminShell>
@@ -140,6 +167,8 @@ function panelActions() {
     reactivatePlayer: reactivatePlayerAction,
     linkGuardian: linkGuardianAction,
     unlinkGuardian: unlinkGuardianAction,
+    registerPlayer: registerPlayerAction,
+    unregisterPlayer: unregisterPlayerAction,
   };
 }
 

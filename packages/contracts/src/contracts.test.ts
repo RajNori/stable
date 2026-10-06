@@ -28,6 +28,7 @@ describe("current club context contract", () => {
       displayName: "Alex M",
       club,
       activeTeam: null,
+      availableTeams: [],
       capabilities: [CLUB_READ_CAPABILITY],
       managedPlayerIds: [],
     });
@@ -43,6 +44,7 @@ describe("current club context contract", () => {
       displayName: "Alex M",
       club: null,
       activeTeam: null,
+      availableTeams: [],
       capabilities: [],
       managedPlayerIds: [],
     });
@@ -58,6 +60,7 @@ describe("current club context contract", () => {
         displayName: "Alex M",
         club,
         activeTeam: { id: clubId },
+        availableTeams: [],
         capabilities: [],
         managedPlayerIds: [],
       }).success,
@@ -69,6 +72,7 @@ describe("current club context contract", () => {
         displayName: "Alex M",
         club: null,
         activeTeam: null,
+        availableTeams: [],
         capabilities: [],
         managedPlayerIds: [],
         role: "CLUB_ADMIN",

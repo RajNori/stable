@@ -36,6 +36,25 @@ test("club admin creates a season and team and reads them back", async ({
   await expect(
     page.getByRole("region", { name: "Club structure" }).getByRole("alert"),
   ).toHaveCount(0);
+
+  await page.getByRole("link", { name: teamName }).click();
+  await expect(page.getByRole("heading", { name: teamName })).toBeVisible();
+  await expect(page.getByLabel("Email")).toHaveCount(0);
+  await page.getByLabel("Club adult").selectOption({ label: "Local Member" });
+  await page.locator("#staff-role").selectOption({ label: "Assistant coach" });
+  await page.getByRole("button", { name: "Assign role" }).click();
+
+  const assigned = page.getByRole("list", { name: "Staff assignments" });
+  const coach = assigned
+    .getByRole("listitem")
+    .filter({ hasText: "Assistant coach" });
+  await expect(coach).toContainText("Local Member");
+  await expect(coach.getByRole("button", { name: "Revoke" })).toBeVisible();
+  await coach.getByRole("button", { name: "Revoke" }).click();
+  await expect(coach).toContainText("(revoked)");
+  await expect(
+    page.getByRole("region", { name: "Team staff" }).getByRole("alert"),
+  ).toHaveCount(0);
   await context.close();
 });
 

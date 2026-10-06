@@ -10,6 +10,7 @@ export type ManagedPlayer = {
   registeredName: string;
   displayName: string;
   active: boolean;
+  teamName?: string | null;
   guardians: readonly {
     id: string;
     guardianUserId: string;
@@ -36,6 +37,9 @@ type PlayersPanelProps = {
   reactivatePlayer: FormAction;
   linkGuardian: FormAction;
   unlinkGuardian: FormAction;
+  teams?: readonly { id: string; name: string }[];
+  registerPlayer?: FormAction;
+  unregisterPlayer?: FormAction;
   error?: string | undefined;
 };
 
@@ -50,6 +54,9 @@ export function PlayersPanel({
   reactivatePlayer,
   linkGuardian,
   unlinkGuardian,
+  teams = [],
+  registerPlayer,
+  unregisterPlayer,
   error,
 }: PlayersPanelProps) {
   const theme = themeFor("mustangs");
@@ -106,6 +113,42 @@ export function PlayersPanel({
             <p style={{ margin: `${theme.space[2]}px 0 0` }}>
               {player.active ? "Active" : "Inactive"}
             </p>
+            <p style={{ margin: `${theme.space[2]}px 0 0` }}>
+              {player.teamName ?? "No team"}
+            </p>
+            {registerPlayer !== undefined && teams.length > 0 ? (
+              <form action={registerPlayer}>
+                <input type="hidden" name="clubId" value={clubId ?? ""} />
+                <input type="hidden" name="playerId" value={player.id} />
+                <label htmlFor={`team-${player.id}`}>
+                  Team
+                  <select
+                    id={`team-${player.id}`}
+                    name="teamId"
+                    defaultValue={teams[0]?.id}
+                    style={inputStyle(theme)}
+                  >
+                    {teams.map((team) => (
+                      <option key={team.id} value={team.id}>
+                        {team.name}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                <button type="submit" style={primaryButton(theme)}>
+                  Register team
+                </button>
+              </form>
+            ) : null}
+            {unregisterPlayer !== undefined && player.teamName != null ? (
+              <form action={unregisterPlayer}>
+                <input type="hidden" name="clubId" value={clubId ?? ""} />
+                <input type="hidden" name="playerId" value={player.id} />
+                <button type="submit" style={secondaryButton(theme)}>
+                  Unregister team
+                </button>
+              </form>
+            ) : null}
             <form action={updatePlayer} style={{ marginTop: theme.space[4] }}>
               <input type="hidden" name="playerId" value={player.id} />
               <label htmlFor={`given-${player.id}`}>

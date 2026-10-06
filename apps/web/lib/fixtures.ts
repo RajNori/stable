@@ -102,6 +102,11 @@ export function fixtureClubContextInput(
         Promise.resolve({
           displayName: "Sam Outsider",
           memberships: [],
+          teamMemberships: [],
+          guardianLinks: [],
+          registrations: [],
+          teams: [],
+          clubs: [],
         }),
       ),
     };
@@ -113,6 +118,11 @@ export function fixtureClubContextInput(
       Promise.resolve({
         displayName: "Jordan P",
         memberships: [memberMembership()],
+        teamMemberships: [],
+        guardianLinks: [],
+        registrations: [],
+        teams: [],
+        clubs: [],
       }),
     ),
   };

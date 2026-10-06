@@ -71,6 +71,7 @@ export function ClubStructurePanel({
           items={snapshot.teams.map((team) => ({
             id: team.id,
             name: team.name,
+            href: `/teams/${team.id}/staff`,
           }))}
         />
       </div>
@@ -129,7 +130,7 @@ function NameList({
   items,
 }: {
   title: string;
-  items: readonly { id: string; name: string }[];
+  items: readonly { id: string; name: string; href?: string }[];
 }) {
   const theme = themeFor("mustangs");
   return (
@@ -151,7 +152,13 @@ function NameList({
         }}
       >
         {items.map((item) => (
-          <li key={item.id}>{item.name}</li>
+          <li key={item.id}>
+            {item.href === undefined ? (
+              item.name
+            ) : (
+              <a href={item.href}>{item.name}</a>
+            )}
+          </li>
         ))}
       </ul>
     </div>

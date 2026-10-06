@@ -272,6 +272,58 @@ export type Database = {
           },
         ];
       };
+      player_team_registrations: {
+        Row: {
+          active: boolean;
+          club_id: string;
+          created_at: string;
+          id: string;
+          player_id: string;
+          team_id: string;
+          updated_at: string;
+        };
+        Insert: {
+          active?: boolean;
+          club_id: string;
+          created_at?: string;
+          id?: string;
+          player_id: string;
+          team_id: string;
+          updated_at?: string;
+        };
+        Update: {
+          active?: boolean;
+          club_id?: string;
+          created_at?: string;
+          id?: string;
+          player_id?: string;
+          team_id?: string;
+          updated_at?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "player_team_registrations_club_id_fkey";
+            columns: ["club_id"];
+            isOneToOne: false;
+            referencedRelation: "clubs";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "player_team_registrations_player_same_club";
+            columns: ["player_id", "club_id"];
+            isOneToOne: false;
+            referencedRelation: "players";
+            referencedColumns: ["id", "club_id"];
+          },
+          {
+            foreignKeyName: "player_team_registrations_team_same_club";
+            columns: ["team_id", "club_id"];
+            isOneToOne: false;
+            referencedRelation: "teams";
+            referencedColumns: ["id", "club_id"];
+          },
+        ];
+      };
       players: {
         Row: {
           active: boolean;
@@ -378,6 +430,54 @@ export type Database = {
             isOneToOne: false;
             referencedRelation: "clubs";
             referencedColumns: ["id"];
+          },
+        ];
+      };
+      team_memberships: {
+        Row: {
+          active: boolean;
+          club_id: string;
+          created_at: string;
+          id: string;
+          role: string;
+          team_id: string;
+          updated_at: string;
+          user_id: string;
+        };
+        Insert: {
+          active?: boolean;
+          club_id: string;
+          created_at?: string;
+          id?: string;
+          role: string;
+          team_id: string;
+          updated_at?: string;
+          user_id: string;
+        };
+        Update: {
+          active?: boolean;
+          club_id?: string;
+          created_at?: string;
+          id?: string;
+          role?: string;
+          team_id?: string;
+          updated_at?: string;
+          user_id?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "team_memberships_club_id_fkey";
+            columns: ["club_id"];
+            isOneToOne: false;
+            referencedRelation: "clubs";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "team_memberships_team_same_club";
+            columns: ["team_id", "club_id"];
+            isOneToOne: false;
+            referencedRelation: "teams";
+            referencedColumns: ["id", "club_id"];
           },
         ];
       };
@@ -490,6 +590,26 @@ export type Database = {
         Args: { p_club_id: string };
         Returns: string;
       };
+      assign_team_role: {
+        Args: { p_role: string; p_team_id: string; p_user_id: string };
+        Returns: {
+          active: boolean;
+          club_id: string;
+          created_at: string;
+          id: string;
+          role: string;
+          team_id: string;
+          updated_at: string;
+          user_id: string;
+        };
+        SetofOptions: {
+          from: "*";
+          to: "team_memberships";
+          isOneToOne: true;
+          isSetofReturn: false;
+        };
+      };
+      caller_guards_player: { Args: { p_player_id: string }; Returns: boolean };
       create_club_competition: {
         Args: { p_club_id: string; p_name: string; p_season_id: string };
         Returns: {
@@ -658,6 +778,7 @@ export type Database = {
           isSetofReturn: false;
         };
       };
+      player_is_active: { Args: { p_player_id: string }; Returns: boolean };
       player_text: { Args: { p_value: string }; Returns: string };
       reactivate_player: {
         Args: { p_player_id: string };
@@ -677,7 +798,64 @@ export type Database = {
           isSetofReturn: false;
         };
       };
+      reactivate_team_role: {
+        Args: { p_role: string; p_team_id: string; p_user_id: string };
+        Returns: {
+          active: boolean;
+          club_id: string;
+          created_at: string;
+          id: string;
+          role: string;
+          team_id: string;
+          updated_at: string;
+          user_id: string;
+        };
+        SetofOptions: {
+          from: "*";
+          to: "team_memberships";
+          isOneToOne: true;
+          isSetofReturn: false;
+        };
+      };
+      register_player_on_team: {
+        Args: { p_player_id: string; p_team_id: string };
+        Returns: {
+          active: boolean;
+          club_id: string;
+          created_at: string;
+          id: string;
+          player_id: string;
+          team_id: string;
+          updated_at: string;
+        };
+        SetofOptions: {
+          from: "*";
+          to: "player_team_registrations";
+          isOneToOne: true;
+          isSetofReturn: false;
+        };
+      };
+      revoke_team_role: {
+        Args: { p_role: string; p_team_id: string; p_user_id: string };
+        Returns: {
+          active: boolean;
+          club_id: string;
+          created_at: string;
+          id: string;
+          role: string;
+          team_id: string;
+          updated_at: string;
+          user_id: string;
+        };
+        SetofOptions: {
+          from: "*";
+          to: "team_memberships";
+          isOneToOne: true;
+          isSetofReturn: false;
+        };
+      };
       structure_name: { Args: { p_name: string }; Returns: string };
+      team_is_active: { Args: { p_team_id: string }; Returns: boolean };
       unlink_player_guardian: {
         Args: { p_guardian_user_id: string; p_player_id: string };
         Returns: {
@@ -692,6 +870,24 @@ export type Database = {
         SetofOptions: {
           from: "*";
           to: "guardian_relationships";
+          isOneToOne: true;
+          isSetofReturn: false;
+        };
+      };
+      unregister_player_from_team: {
+        Args: { p_player_id: string };
+        Returns: {
+          active: boolean;
+          club_id: string;
+          created_at: string;
+          id: string;
+          player_id: string;
+          team_id: string;
+          updated_at: string;
+        };
+        SetofOptions: {
+          from: "*";
+          to: "player_team_registrations";
           isOneToOne: true;
           isSetofReturn: false;
         };

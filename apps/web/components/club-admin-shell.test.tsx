@@ -56,7 +56,7 @@ describe("current club context shell", () => {
       screen.getByRole("heading", { name: "Mentone Mustangs" }),
     ).toBeTruthy();
     expect(screen.getByText("Jordan P")).toBeTruthy();
-    expect(screen.getByText("club.read")).toBeTruthy();
+    expect(screen.getByText(/club\.read/)).toBeTruthy();
     expect(
       screen.getByRole("link", { name: "Club structure" }).getAttribute("href"),
     ).toBe("/club-structure");

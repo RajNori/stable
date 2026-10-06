@@ -144,6 +144,19 @@ export function CurrentClubContextScreen({
         {context.club.name}
       </Text>
       <Text style={styles.body}>{context.displayName}</Text>
+      {context.activeTeam === null ? null : (
+        <Text style={styles.body}>{context.activeTeam.name}</Text>
+      )}
+      {context.availableTeams.length > 1
+        ? context.availableTeams.map((team) => (
+            <Text key={team.id} style={styles.body}>
+              {team.name}
+            </Text>
+          ))
+        : null}
+      <Text style={styles.body}>
+        {`Managed players: ${context.managedPlayerIds.length}`}
+      </Text>
       {context.capabilities.map((capability) => (
         <Text key={capability} style={styles.body}>
           {capability}
