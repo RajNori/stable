@@ -118,7 +118,7 @@ describe("evaluateCapability", () => {
 
   it("unknown capability denies", () => {
     expect(
-      decide("fixture.read", { clubId }, { clubMemberships: [admin()] }),
+      decide("playhq.sync", { clubId }, { clubMemberships: [admin()] }),
     ).toBe("deny");
   });
 
@@ -482,5 +482,132 @@ describe("evaluateCapability", () => {
         derived,
       ),
     ).toBe("deny");
+  });
+
+  it("grants fixture, attendance, and training access only on an active team", () => {
+    const ownTeam = { clubId, teamId: teamA, teamActive: true };
+    const inactiveTeam = { clubId, teamId: teamA, teamActive: false };
+    const otherTeam = { clubId, teamId: teamB, teamActive: true };
+    const guardian = {
+      guardianLinks: [link()],
+      registrations: [registration()],
+    };
+
+    expect(
+      decide("fixture.read", { clubId }, { clubMemberships: [admin()] }),
+    ).toBe("deny");
+    expect(
+      decide("fixture.read", inactiveTeam, { clubMemberships: [admin()] }),
+    ).toBe("deny");
+    expect(
+      decide("fixture.read", ownTeam, { clubMemberships: [admin()] }),
+    ).toBe("allow");
+    expect(
+      decide("fixture.read", ownTeam, {
+        teamMemberships: [staff("HEAD_COACH")],
+      }),
+    ).toBe("allow");
+    expect(
+      decide("fixture.read", ownTeam, {
+        teamMemberships: [staff("ASSISTANT_COACH")],
+      }),
+    ).toBe("allow");
+    expect(
+      decide("fixture.read", ownTeam, {
+        teamMemberships: [staff("TEAM_MANAGER")],
+      }),
+    ).toBe("allow");
+    expect(decide("fixture.read", ownTeam, guardian)).toBe("allow");
+    expect(decide("fixture.read", ownTeam)).toBe("deny");
+    expect(
+      decide("fixture.read", otherTeam, {
+        teamMemberships: [staff("HEAD_COACH")],
+      }),
+    ).toBe("deny");
+    expect(
+      decide("fixture.read", ownTeam, {
+        teamMemberships: [staff("HEAD_COACH", teamA, false)],
+      }),
+    ).toBe("deny");
+
+    expect(
+      decide("fixture.manage_manual", ownTeam, { clubMemberships: [admin()] }),
+    ).toBe("allow");
+    expect(
+      decide("fixture.manage_manual", ownTeam, {
+        clubMemberships: [admin(false)],
+      }),
+    ).toBe("deny");
+    expect(
+      decide("fixture.manage_manual", ownTeam, {
+        teamMemberships: [staff("TEAM_MANAGER")],
+      }),
+    ).toBe("allow");
+    expect(
+      decide("fixture.manage_manual", ownTeam, {
+        teamMemberships: [staff("HEAD_COACH")],
+      }),
+    ).toBe("deny");
+    expect(
+      decide("fixture.manage_manual", ownTeam, {
+        teamMemberships: [staff("ASSISTANT_COACH")],
+      }),
+    ).toBe("deny");
+    expect(decide("fixture.manage_manual", ownTeam, guardian)).toBe("deny");
+    expect(
+      decide("fixture.manage_manual", ownTeam, {
+        clubMemberships: [admin(true, otherClubId)],
+      }),
+    ).toBe("deny");
+
+    expect(
+      decide("fixture.overlay_manage", ownTeam, { clubMemberships: [admin()] }),
+    ).toBe("allow");
+    expect(
+      decide("fixture.overlay_manage", ownTeam, {
+        teamMemberships: [staff("HEAD_COACH")],
+      }),
+    ).toBe("allow");
+    expect(
+      decide("fixture.overlay_manage", ownTeam, {
+        teamMemberships: [staff("TEAM_MANAGER")],
+      }),
+    ).toBe("allow");
+    expect(
+      decide("fixture.overlay_manage", ownTeam, {
+        teamMemberships: [staff("ASSISTANT_COACH")],
+      }),
+    ).toBe("deny");
+    expect(decide("fixture.overlay_manage", ownTeam, guardian)).toBe("deny");
+
+    expect(
+      decide("attendance.read_team", ownTeam, { clubMemberships: [admin()] }),
+    ).toBe("allow");
+    expect(
+      decide("attendance.read_team", ownTeam, {
+        teamMemberships: [staff("ASSISTANT_COACH")],
+      }),
+    ).toBe("allow");
+    expect(decide("attendance.read_team", ownTeam, guardian)).toBe("deny");
+
+    expect(
+      decide("training.manage", ownTeam, { clubMemberships: [admin()] }),
+    ).toBe("allow");
+    expect(
+      decide("training.manage", ownTeam, {
+        teamMemberships: [staff("HEAD_COACH")],
+      }),
+    ).toBe("allow");
+    expect(
+      decide("training.manage", ownTeam, {
+        teamMemberships: [staff("TEAM_MANAGER")],
+      }),
+    ).toBe("allow");
+    expect(
+      decide("training.manage", ownTeam, {
+        teamMemberships: [staff("ASSISTANT_COACH")],
+      }),
+    ).toBe("deny");
+    expect(decide("training.manage", ownTeam, guardian)).toBe("deny");
   });
 });

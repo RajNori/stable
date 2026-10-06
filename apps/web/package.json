@@ -10,6 +10,8 @@
     "@stable/contracts": "workspace:*",
     "@stable/current-club-context": "workspace:*",
     "@stable/design-tokens": "workspace:*",
+    "@stable/fixtures": "workspace:*",
+    "@stable/permissions": "workspace:*",
     "@stable/invitations": "workspace:*",
     "@stable/membership": "workspace:*",
     "@stable/observability": "workspace:*",

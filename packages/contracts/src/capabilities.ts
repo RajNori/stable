@@ -29,6 +29,11 @@ export const TEAM_CAPABILITIES = [
   "roster.read_full",
   "roster.manage",
   "coach_checkin",
+  "fixture.read",
+  "fixture.manage_manual",
+  "fixture.overlay_manage",
+  "attendance.read_team",
+  "training.manage",
 ] as const;
 
 export const PLAYER_CAPABILITIES = [

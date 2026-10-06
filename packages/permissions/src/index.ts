@@ -32,6 +32,8 @@ const CLUB_ADMIN_CAPABILITIES = new Set<string>([
 ]);
 
 const COACH_ROLES = new Set<TeamStaffRole>(["HEAD_COACH", "ASSISTANT_COACH"]);
+const HEAD_COACH_ROLES = new Set<TeamStaffRole>(["HEAD_COACH"]);
+const TEAM_MANAGER_ROLES = new Set<TeamStaffRole>(["TEAM_MANAGER"]);
 
 function isActiveClubAdmin(
   memberships: readonly MembershipFact[],
@@ -192,5 +194,61 @@ export const evaluateCapability: EvaluateCapability = (input) => {
     return playerScoped(input, clubId);
   }
 
+  if (
+    input.capability === "fixture.read" ||
+    input.capability === "fixture.manage_manual" ||
+    input.capability === "fixture.overlay_manage" ||
+    input.capability === "attendance.read_team" ||
+    input.capability === "training.manage"
+  ) {
+    return teamEventScoped(input, clubId);
+  }
+
   return "deny";
 };
+
+function teamEventScoped(
+  input: Parameters<EvaluateCapability>[0],
+  clubId: string,
+): "allow" | "deny" {
+  const teamId = input.resource.teamId;
+  if (teamId === undefined || input.resource.teamActive !== true) {
+    return "deny";
+  }
+
+  const admin = isActiveClubAdmin(input.clubMemberships, clubId);
+  const staff = activeStaff(input.teamMemberships, clubId, teamId);
+  const headCoach = activeStaff(
+    input.teamMemberships,
+    clubId,
+    teamId,
+    HEAD_COACH_ROLES,
+  );
+  const manager = activeStaff(
+    input.teamMemberships,
+    clubId,
+    teamId,
+    TEAM_MANAGER_ROLES,
+  );
+  const guardian = derivedRegistration(
+    input.guardianLinks,
+    input.registrations,
+    clubId,
+    teamId,
+    undefined,
+  );
+
+  if (input.capability === "fixture.read") {
+    return admin || staff || guardian ? "allow" : "deny";
+  }
+  if (input.capability === "fixture.manage_manual") {
+    return admin || manager ? "allow" : "deny";
+  }
+  if (input.capability === "fixture.overlay_manage") {
+    return admin || headCoach || manager ? "allow" : "deny";
+  }
+  if (input.capability === "attendance.read_team") {
+    return admin || staff ? "allow" : "deny";
+  }
+  return admin || headCoach || manager ? "allow" : "deny";
+}
