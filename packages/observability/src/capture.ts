@@ -197,14 +197,31 @@ export function captureException(error: unknown): void {
   }
 }
 
+function isProductEventKey(key: string): key is keyof ProductEventMetadata {
+  return (
+    key === "teamId" ||
+    key === "eventId" ||
+    key === "clubId" ||
+    key === "userId"
+  );
+}
+
 function isSafeProductMetadata(value: unknown): value is ProductEventMetadata {
   if (typeof value !== "object" || value === null || Array.isArray(value)) {
     return false;
   }
 
-  return !SENSITIVE_METADATA_FIELDS.some((field) =>
-    Object.hasOwn(value, field),
-  );
+  const record = value as Record<PropertyKey, unknown>;
+  for (const key of Reflect.ownKeys(record)) {
+    if (typeof key !== "string" || SENSITIVE_KEYS.has(key.toLowerCase())) {
+      return false;
+    }
+    if (!isProductEventKey(key) || typeof record[key] !== "string") {
+      return false;
+    }
+  }
+
+  return true;
 }
 
 export function captureProductEvent(

@@ -338,4 +338,135 @@ describe("captureProductEvent", () => {
     ).not.toThrow();
     expect(sink).not.toHaveBeenCalled();
   });
+
+  it("rejects nested child names and does not send them to the sink", () => {
+    const sink = vi.fn();
+    const logs = spyOnConsole();
+    configureObservability({
+      posthogKey: "phc_test",
+      productEventSink: sink,
+    });
+
+    expect(() =>
+      captureProductEvent("game_day_opened", {
+        teamId: "team-1",
+        context: { firstName: "Synthetic" },
+      } as unknown as ProductEventMetadata),
+    ).not.toThrow();
+    expect(() =>
+      captureProductEvent("game_day_opened", {
+        teamId: "team-1",
+        context: { last_name: "Player" },
+      } as unknown as ProductEventMetadata),
+    ).not.toThrow();
+
+    expect(sink).not.toHaveBeenCalled();
+    expect(logs.output()).not.toContain("Synthetic");
+    expect(logs.output()).not.toContain("Player");
+    logs.restore();
+  });
+
+  it("rejects case-variant child-name keys without logging the value", () => {
+    const sink = vi.fn();
+    const logs = spyOnConsole();
+    configureObservability({
+      posthogKey: "phc_test",
+      productEventSink: sink,
+    });
+    const variants = [
+      "firstName",
+      "FIRSTNAME",
+      "FirstName",
+      "first_name",
+      "LAST_NAME",
+    ];
+
+    for (const key of variants) {
+      expect(() =>
+        captureProductEvent("game_day_opened", {
+          teamId: "team-1",
+          [key]: "Synthetic",
+        } as unknown as ProductEventMetadata),
+      ).not.toThrow();
+    }
+
+    expect(sink).not.toHaveBeenCalled();
+    expect(logs.output()).not.toContain("Synthetic");
+    logs.restore();
+  });
+
+  it("rejects nested objects, arrays, and unknown metadata keys", () => {
+    const sink = vi.fn();
+    configureObservability({
+      posthogKey: "phc_test",
+      productEventSink: sink,
+    });
+
+    expect(() =>
+      captureProductEvent("game_day_opened", {
+        teamId: { firstName: "Synthetic" },
+      } as unknown as ProductEventMetadata),
+    ).not.toThrow();
+    expect(() =>
+      captureProductEvent("game_day_opened", {
+        teamId: ["team-1"],
+      } as unknown as ProductEventMetadata),
+    ).not.toThrow();
+    expect(() =>
+      captureProductEvent("game_day_opened", {
+        teamId: "team-1",
+        note: "not-a-supported-field",
+      } as unknown as ProductEventMetadata),
+    ).not.toThrow();
+
+    expect(sink).not.toHaveBeenCalled();
+  });
 });
+
+const CONSOLE_METHODS = ["debug", "error", "info", "log", "warn"] as const;
+
+type ConsoleMethod = (typeof CONSOLE_METHODS)[number];
+
+function spyOnConsole(): { output: () => string; restore: () => void } {
+  const host: unknown = globalThis;
+  const consoleObject = readConsole(host);
+  const spies =
+    consoleObject === null
+      ? []
+      : CONSOLE_METHODS.map((method) =>
+          vi.spyOn(consoleObject, method).mockImplementation(() => undefined),
+        );
+  return {
+    output() {
+      return spies
+        .flatMap((spy) => spy.mock.calls)
+        .flat()
+        .map((value) => String(value))
+        .join("\n");
+    },
+    restore() {
+      for (const spy of spies) {
+        spy.mockRestore();
+      }
+    },
+  };
+}
+
+function readConsole(
+  host: unknown,
+): Record<ConsoleMethod, (...args: readonly unknown[]) => void> | null {
+  if (typeof host !== "object" || host === null) {
+    return null;
+  }
+  const candidate = (host as Record<string, unknown>)["console"];
+  if (typeof candidate !== "object" || candidate === null) {
+    return null;
+  }
+  const record = candidate as Record<string, unknown>;
+  for (const method of CONSOLE_METHODS) {
+    if (typeof record[method] !== "function") {
+      return null;
+    }
+  }
+  return record as Record<ConsoleMethod, (...args: readonly unknown[]) => void>;
+}
