@@ -198,3 +198,74 @@ The checkout was clean before review. No product code was changed, no commit was
 **PASS WITH CONDITIONS**
 
 No Critical or High finding remains. Resolve M1-MED-01 by preventing raw invitation tokens from persisting in request URLs/browser history or by adding verified equivalent redaction and scrubbing controls before freeze. M1-LOW-01 is a known display-consistency issue with no demonstrated increase in surname disclosure and may be tracked as Low.
+
+# M1-MED-01 Remediation Delta
+
+## Reviewed range
+
+- Baseline: `6ca43f9d91efbd03ef0748877ee711473aa5a3d9`.
+- Review/documentation commit: `c190534f28088cedcab533d804baa816ad65ba3b`.
+- Remediation commit and current HEAD: `6d98f905f2273f0ee86a1d43edb5fd18064da72d`.
+- Baseline is an ancestor; initial worktree was clean.
+- The 12-file delta consists of invitation acceptance URL/page/client handoff, related unit and Playwright coverage, and this review documentation. No Milestone 2 implementation exists. No hosted service was accessed.
+
+## Token transport
+
+Generated links use `/invitations/accept#<64-lowercase-hex-token>`. The URL helper stores the token in the fragment, so the initial HTTP request target omits it. The server page does not use a query token as acceptance state. If a `token` query key is present, it redirects to the clean acceptance route (preserving only an allowlisted result message); it never copies that query value into the client component or POST form. The fragment parser requires exactly 64 lowercase hexadecimal characters.
+
+## URL/history behavior
+
+The client handoff reads `window.location.hash` in `useLayoutEffect` and immediately calls `history.replaceState` with a URL that has neither fragment nor token query. The resulting visible URL is `/invitations/accept` (or that path plus a safe result query). A `hashchange` listener handles fragments added or changed after the page is open. Malformed fragments are scrubbed and display the not-found message.
+
+Playwright captured request URLs and acceptance-page response URLs/HTML. For valid generated links, it observed no raw token in the initial request URL, response URL, response HTML, or post-scrub visible URL. The raw token appears in the server-action POST body only when the acceptance form is submitted.
+
+A hard reload after scrubbing starts with a fresh JavaScript realm and fails closed; the E2E test verifies this. SPA unmount/remount behavior is different and has the retention issue described under Secret retention.
+
+## Secret retention
+
+No remediation code writes the token to localStorage, sessionStorage, cookies, analytics, Sentry, console, application logging, audit metadata, or a new database field. The existing server action passes the submitted value to the acceptance RPC, which hashes it for lookup; migration, database type, and invitation action files are unchanged in this delta. No application request logger that records POST bodies was found.
+
+**Residual defect:** `accept-invitation-handoff.tsx:12, 27-45` stores the token in the module-level `retainedFragmentToken`. This variable survives component unmounts and client-side navigation in the same tab/runtime. If the handoff is later mounted at `/invitations/accept` with no fragment, `takeFragmentToken` returns that cached token and reconstructs an acceptance form. It also outlives the component that ostensibly owns the transient token. The hard-reload test passes because a full reload discards the module, but it does not test SPA navigation. This is more persistence than transient component memory and means missing-fragment does not always fail closed within the same runtime.
+
+The test-only `resetInvitationHandoffMemory` helper is not called by application navigation or unmount cleanup. The token is also placed in the rendered hidden input after handoff; this is expected for the eventual POST, but combined with the module cache it remains available after navigating away and back.
+
+## Authorization regression
+
+The delta does not change invitation SQL, migrations, database types, feature commands/gateway, or server actions. Source comparison confirms the token generation remains 32 random bytes, the database stores only the SHA-256 digest, and verified email/phone identity matching, expiry, revocation, one-time consumption, `FOR UPDATE`, guardian/staff grant creation/reactivation, and audit behavior are unchanged. Invitation table RLS and grants are unchanged. Thus the remediation reduces request-URL exposure without changing database authorization semantics; the cached token cannot bypass the verified-identity or consumed-state checks.
+
+## Test evidence
+
+**RERUN**
+
+- `pnpm --filter @stable/web test` — PASS, 12 files / 65 tests.
+- `pnpm format:check` — PASS.
+- `pnpm lint` — PASS.
+- `git diff --check 6ca43f9d91efbd03ef0748877ee711473aa5a3d9..HEAD` — PASS.
+- Focused authenticated Playwright, invitation and roster specs — PASS, 3 tests (guardian accept/identity mismatch/replay, missing/malformed/query token handling, and masked/full roster flow).
+- Local `supabase test db` — PASS, 6 files / 490 assertions; the invitation RLS file passed.
+
+**SOURCE REVIEW**
+
+- Generated link helper, fragment parser, scrub logic, page query redirect, handoff state lifetime, server-action boundary, and E2E request/response assertions were reviewed.
+- No token logging middleware or request-body logger was found in the web application.
+- Authorization and invitation SQL are unchanged in the delta.
+
+The workspace requested Node 24.21.0; the available runtime was 24.19.0. Rerun commands completed successfully with the workspace engine warning.
+
+## M1-MED-01 status
+
+**OPEN**
+
+The original query-string exposure is closed for generated links and malicious query values are redirected without rendering or submitting them. URL scrubbing and initial-request behavior pass. The finding remains open because the module-level cache survives component unmount/navigation and can restore a token on a later no-fragment visit. The acceptance authorization checks remain intact, but the stated transient-only retention condition is not met.
+
+To close this finding, retain the token only in the mounted handoff instance (state/ref that supports React effect replay), clear it on real unmount or completion, and verify client-side navigation away/back with no fragment fails closed. Keep the existing request-target, history, and post-body assertions.
+
+## M1-LOW-01 disposition
+
+**ACCEPTED LOW TECHNICAL DEBT.** This remediation does not change SQL masking or the domain grapheme formatter. The prior finding remains a presentation inconsistency without demonstrated additional surname disclosure and is not reopened.
+
+## Final freeze recommendation
+
+**PASS WITH CONDITIONS**
+
+The URL transport portion is verified and the authorization model is unchanged. Keep Milestone 1 freeze conditional on removing module-scoped token retention and adding an SPA unmount/navigation regression check. M1-LOW-01 remains accepted Low technical debt.
