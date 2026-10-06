@@ -268,3 +268,93 @@ Lint, typecheck, the package tests above, and the web production build passed. T
 ## Recommendation
 
 PASS WITH CONDITIONS
+
+# Remediation Delta Review
+
+Review only. No product code was changed for this delta. Findings were not fixed here. Slice 1.4 was not started. Nothing was pushed, tagged, or applied to hosted Supabase.
+
+## Reviewed range
+
+`084a5f9b6cc15079d46168f7bfbcc36eb41a9f10..6ef6bfe47dd56d55a54cdd9cc34913cc4d80d4ff`
+
+`slice-1.2` remains an ancestor of `HEAD`. `HEAD` is `6ef6bfe47dd56d55a54cdd9cc34913cc4d80d4ff`. The working tree was clean at the start of this delta. The branch is four commits ahead of `origin/main` and has no tag on the implementation or the remediation.
+
+Commits after the implementation:
+
+- `1a3fed3` `docs(players): record Slice 1.3 QA and security review` — adds this review file only
+- `b9666b4` `test(players): harden adult picker membership assertion` — `supabase/tests/m1_players_guardians_rls.sql` only
+- `6ef6bfe` `chore(format): normalize inherited formatting` — the five inherited files only
+
+No migration, feature, permission, or web product file changed in this range.
+
+## S13-01
+
+Status: CLOSED
+
+Evidence:
+
+`git diff 084a5f9b6cc15079d46168f7bfbcc36eb41a9f10..HEAD` does not touch `list_club_adults` or any other production SQL or application file. The function contract is unchanged: an administering caller receives every active same-club member, as `user_id` and `display_name` only.
+
+`b9666b4` removes the exact two-id `results_eq`. The replacement proves identities:
+
+- Fixture adults `5555…` (`Policy Admin`) and `2323…` (`Second Adult`) are present.
+- Outsider `6666…` and other-club admin `bcbc…` are absent.
+- Every returned id has an active membership in that club, so inactive and non-member rows cannot appear.
+- Bootstrapped local admin `2222…` is listed only while that membership is active. A count of zero and a count of one both pass. The assertion does not require a fixed club-wide total.
+- Bootstrapped outsider `3333…` is absent unless that user has an active same-club membership.
+- After `2323…` is revoked, that id is absent and `Policy Admin` remains.
+- `pg_get_function_result` is still `TABLE(user_id uuid, display_name text)`.
+- The function body must not contain `email`, `phone`, `auth.users`, `auth.identities`, `raw_app_meta_data`, `raw_user_meta_data`, or `provider`.
+
+This delta re-ran `pnpm exec supabase test db` against the already running local API at `127.0.0.1:54321` (CLI 2.118.0). No reset was performed. The bootstrapped Club Admin membership was present. Result: 3 files, 351 tests, 0 failures, PASS.
+
+## S13-02
+
+Status: CLOSED
+
+Evidence:
+
+`git diff slice-1.2..b9666b4` is empty for all five paths, so they were unchanged from the frozen Slice 1.2 tag until the format commit. `6ef6bfe` changes only:
+
+- `apps/mobile/src/auth/auth-screen.test.tsx`
+- `apps/mobile/src/auth/auth-screen.tsx`
+- `apps/web/components/club-sign-in-live.tsx`
+- `apps/web/components/club-sign-in.test.tsx`
+- `packages/contracts/src/credential.test.ts`
+
+The patch is Prettier line wrapping. Calls, conditions, strings, provider checks, and error text are the same. This delta’s `pnpm format:check` passed for the repository.
+
+## Regression evidence
+
+The remediation range does not change the player table, guardian relationships, RLS, security-definer functions, audit writes, import behaviour, `childDisplayName`, or the Player/Auth separation. `managedPlayerIds` is still `[]`. `evaluateCapability` is not in the diff and still allows only `club.read` for an active club admin. A guardian relationship still has no select policy of its own.
+
+No env file, credential, or hosted Supabase URL was committed. Boot validation was not edited.
+
+Re-run in this delta:
+
+- `@stable/players`: 23 passed, 100% statements, branches, functions, and lines. Display-name coverage remains in that package result.
+- `@stable/contracts`: 34 passed, 100%.
+- `@stable/permissions`: 8 passed, 100%.
+- `@stable/current-club-context`: 25 passed, 100%.
+- `@stable/web` Vitest: 7 files, 43 passed, including the formatted club sign-in tests and the players panel.
+
+## Repository gates
+
+| Gate | This delta |
+| --- | --- |
+| `pnpm format:check` | PASS |
+| `@stable/players`, contracts, permissions, current-club-context, web Vitest | PASS |
+| `pnpm exec supabase test db` | PASS, 351 tests, 0 failures |
+| Product diff in the remediation range | None |
+
+Lint, the full workspace `pnpm test`, typecheck, and the web production build were not started again in this delta. They passed on this same `HEAD` in the gate closure immediately before it, and this range does not change their inputs beyond the formatting already covered by `format:check` and the web and contracts tests.
+
+## Remaining unverified items
+
+- Signed-in Playwright `apps/web/e2e-auth/players.spec.ts` was not re-run.
+- Lint, typecheck, the full workspace test, and the web production build were not re-executed in this delta. They are green on this `HEAD` from the preceding gate closure.
+- No second database reset was run. The bootstrapped local database is the state that originally failed, and it now passes.
+
+## Final recommendation
+
+PASS
