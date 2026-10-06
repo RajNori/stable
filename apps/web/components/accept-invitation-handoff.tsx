@@ -1,6 +1,6 @@
 "use client";
 
-import { useLayoutEffect, useState } from "react";
+import { useLayoutEffect, useRef, useState } from "react";
 
 import {
   readFragmentToken,
@@ -8,12 +8,6 @@ import {
 } from "../lib/invitation-acceptance-url";
 
 type AcceptAction = (formData: FormData) => void | Promise<void>;
-
-let retainedFragmentToken: string | null | undefined;
-
-export function resetInvitationHandoffMemory(): void {
-  retainedFragmentToken = undefined;
-}
 
 function scrubVisibleUrl(): void {
   const next = scrubbedAcceptanceUrl(new URL(window.location.href));
@@ -24,28 +18,6 @@ function scrubVisibleUrl(): void {
   window.history.replaceState(window.history.state, "", next);
 }
 
-function takeFragmentToken(): string | null {
-  const hash = window.location.hash;
-  const fromFragment = readFragmentToken(hash);
-  if (fromFragment !== null) {
-    retainedFragmentToken = fromFragment;
-    scrubVisibleUrl();
-    return fromFragment;
-  }
-  if (hash !== "") {
-    retainedFragmentToken = null;
-  }
-  scrubVisibleUrl();
-  if (
-    hash === "" &&
-    retainedFragmentToken !== undefined &&
-    retainedFragmentToken !== null
-  ) {
-    return retainedFragmentToken;
-  }
-  return null;
-}
-
 export function AcceptInvitationHandoff({
   action,
   notFoundMessage,
@@ -53,18 +25,27 @@ export function AcceptInvitationHandoff({
   action: AcceptAction;
   notFoundMessage: string;
 }) {
+  const capturedToken = useRef<string | null | undefined>(undefined);
   const [token, setToken] = useState<string | null>(null);
   const [ready, setReady] = useState(false);
 
   useLayoutEffect(() => {
-    const syncFromFragment = () => {
-      setToken(takeFragmentToken());
-      setReady(true);
+    if (capturedToken.current === undefined) {
+      capturedToken.current = readFragmentToken(window.location.hash);
+    }
+    scrubVisibleUrl();
+    setToken(capturedToken.current);
+    setReady(true);
+
+    const onHashChange = () => {
+      const nextToken = readFragmentToken(window.location.hash);
+      capturedToken.current = nextToken;
+      setToken(nextToken);
+      scrubVisibleUrl();
     };
-    syncFromFragment();
-    window.addEventListener("hashchange", syncFromFragment);
+    window.addEventListener("hashchange", onHashChange);
     return () => {
-      window.removeEventListener("hashchange", syncFromFragment);
+      window.removeEventListener("hashchange", onHashChange);
     };
   }, []);
 

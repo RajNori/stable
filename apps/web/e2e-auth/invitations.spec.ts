@@ -1,7 +1,10 @@
 import { expect, test } from "@playwright/test";
 
 import {
+  clientRuntimeSurvived,
+  markClientRuntime,
   openInvitationAcceptance,
+  pushClientRoute,
   watchAcceptancePost,
 } from "./invitation-handoff";
 import { applyLocalSession } from "./local-session";
@@ -103,4 +106,45 @@ test("missing and malformed invitation fragments fail closed", async ({
   expect((await page.content()).includes(crafted)).toBe(false);
 
   await context.close();
+});
+
+test("a scrubbed invitation does not return after client navigation", async ({
+  browser,
+}) => {
+  test.setTimeout(90_000);
+  const suffix = Date.now().toString();
+  const firstName = `Return${suffix}`;
+  const memberContext = await browser.newContext();
+  await applyLocalSession(memberContext, MEMBER_EMAIL);
+  const member = await memberContext.newPage();
+  await member.goto("/players");
+
+  const add = member.getByRole("region", { name: "Add player" });
+  await add.getByLabel("Given name").fill(firstName);
+  await add.getByLabel("Surname").fill("Child");
+  await add.getByRole("button", { name: "Add player" }).click();
+
+  const item = member.getByRole("listitem").filter({ hasText: firstName });
+  await item.getByLabel("Invitation email").fill(OUTSIDER_EMAIL);
+  await item.getByRole("button", { name: "Create invitation" }).click();
+  const link = await item.getByLabel("Invitation link").inputValue();
+
+  const token = await openInvitationAcceptance(member, link);
+  await markClientRuntime(member);
+  await pushClientRoute(member, "/players");
+  await expect(member).toHaveURL(/\/players$/);
+  expect(await clientRuntimeSurvived(member)).toBe(true);
+
+  await pushClientRoute(member, "/invitations/accept");
+  await expect(member).toHaveURL(/\/invitations\/accept$/);
+  const region = member.getByRole("region", { name: "Accept invitation" });
+  await expect(region).toContainText("Invitation was not found.");
+  await expect(
+    region.getByRole("button", { name: "Accept invitation" }),
+  ).toHaveCount(0);
+  expect(member.url().includes(token)).toBe(false);
+  expect((await member.content()).includes(token)).toBe(false);
+  expect(await clientRuntimeSurvived(member)).toBe(true);
+
+  await memberContext.close();
 });

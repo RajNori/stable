@@ -89,3 +89,39 @@ export function watchAcceptancePost(page: Page, token: string): () => void {
     expect(page.url().includes(token)).toBe(false);
   };
 }
+
+const CLIENT_RUNTIME_MARKER = "__stableClientRuntime";
+
+export async function markClientRuntime(page: Page): Promise<void> {
+  await page.evaluate((marker) => {
+    Reflect.set(window, marker, "open");
+  }, CLIENT_RUNTIME_MARKER);
+}
+
+export async function clientRuntimeSurvived(page: Page): Promise<boolean> {
+  return page.evaluate((marker) => {
+    return Reflect.get(window, marker) === "open";
+  }, CLIENT_RUNTIME_MARKER);
+}
+
+export async function pushClientRoute(page: Page, href: string): Promise<void> {
+  await page.evaluate((path) => {
+    const nextHost: unknown = Reflect.get(window, "next");
+    if (
+      typeof nextHost !== "object" ||
+      nextHost === null ||
+      !("router" in nextHost)
+    ) {
+      throw new Error("Expected client navigation.");
+    }
+    const router: unknown = Reflect.get(nextHost, "router");
+    if (typeof router !== "object" || router === null || !("push" in router)) {
+      throw new Error("Expected client navigation.");
+    }
+    const push: unknown = Reflect.get(router, "push");
+    if (typeof push !== "function") {
+      throw new Error("Expected client navigation.");
+    }
+    Reflect.apply(push, router, [path]);
+  }, href);
+}

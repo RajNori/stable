@@ -8,16 +8,14 @@ import {
 } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import {
-  AcceptInvitationHandoff,
-  resetInvitationHandoffMemory,
-} from "./accept-invitation-handoff";
+import { StrictMode, useState } from "react";
+
+import { AcceptInvitationHandoff } from "./accept-invitation-handoff";
 
 const token = "cd".repeat(32);
 
 afterEach(() => {
   cleanup();
-  resetInvitationHandoffMemory();
   window.history.replaceState(null, "", "/invitations/accept");
   vi.restoreAllMocks();
 });
@@ -83,18 +81,27 @@ describe("accept invitation handoff", () => {
     }
   });
 
-  it("keeps the token only in memory across a strict remount", () => {
+  it("keeps a valid fragment through Strict Mode effect replay", () => {
     placeFragment(`#${token}`);
-    const { unmount } = render(
-      <AcceptInvitationHandoff
-        action={vi.fn()}
-        notFoundMessage={invitationMessages.notFound}
-      />,
-    );
-    expect(window.location.hash).toBe("");
-    unmount();
-
     render(
+      <StrictMode>
+        <AcceptInvitationHandoff
+          action={vi.fn()}
+          notFoundMessage={invitationMessages.notFound}
+        />
+      </StrictMode>,
+    );
+
+    expect(
+      screen.getByRole("button", { name: "Accept invitation" }),
+    ).toBeTruthy();
+    expect(window.location.hash).toBe("");
+    expect(window.location.href.includes(token)).toBe(false);
+  });
+
+  it("does not recover the token after the handoff unmounts", () => {
+    placeFragment(`#${token}`);
+    const first = render(
       <AcceptInvitationHandoff
         action={vi.fn()}
         notFoundMessage={invitationMessages.notFound}
@@ -103,6 +110,63 @@ describe("accept invitation handoff", () => {
     expect(
       screen.getByRole("button", { name: "Accept invitation" }),
     ).toBeTruthy();
+    expect(window.location.hash).toBe("");
+    first.unmount();
+
+    render(
+      <AcceptInvitationHandoff
+        action={vi.fn()}
+        notFoundMessage={invitationMessages.notFound}
+      />,
+    );
+    expect(screen.getByRole("alert").textContent).toBe(
+      invitationMessages.notFound,
+    );
+    expect(
+      screen.queryByRole("button", { name: "Accept invitation" }),
+    ).toBeNull();
+    expect(window.location.href.includes(token)).toBe(false);
+  });
+
+  it("does not recover the token when navigation returns without a fragment", () => {
+    function Visit({ showHandoff }: { showHandoff: boolean }) {
+      const [visible, setVisible] = useState(showHandoff);
+      return (
+        <div>
+          <button
+            type="button"
+            onClick={() => setVisible((current) => !current)}
+          >
+            Toggle visit
+          </button>
+          {visible ? (
+            <AcceptInvitationHandoff
+              action={vi.fn()}
+              notFoundMessage={invitationMessages.notFound}
+            />
+          ) : (
+            <p>Away</p>
+          )}
+        </div>
+      );
+    }
+
+    placeFragment(`#${token}`);
+    render(<Visit showHandoff />);
+    expect(
+      screen.getByRole("button", { name: "Accept invitation" }),
+    ).toBeTruthy();
+
+    fireEvent.click(screen.getByRole("button", { name: "Toggle visit" }));
+    expect(screen.getByText("Away")).toBeTruthy();
+
+    fireEvent.click(screen.getByRole("button", { name: "Toggle visit" }));
+    expect(screen.getByRole("alert").textContent).toBe(
+      invitationMessages.notFound,
+    );
+    expect(
+      screen.queryByRole("button", { name: "Accept invitation" }),
+    ).toBeNull();
     expect(window.location.href.includes(token)).toBe(false);
   });
 
@@ -146,17 +210,7 @@ describe("accept invitation handoff", () => {
     expect(window.location.href.includes(token)).toBe(false);
   });
 
-  it("fails closed when the fragment is missing after a reload", () => {
-    placeFragment(`#${token}`);
-    const first = render(
-      <AcceptInvitationHandoff
-        action={vi.fn()}
-        notFoundMessage={invitationMessages.notFound}
-      />,
-    );
-    first.unmount();
-    resetInvitationHandoffMemory();
-
+  it("fails closed when a reload has no fragment", () => {
     render(
       <AcceptInvitationHandoff
         action={vi.fn()}

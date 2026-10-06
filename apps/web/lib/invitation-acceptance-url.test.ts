@@ -94,5 +94,7 @@ describe("invitation acceptance url", () => {
     expect(combined.includes("Sentry")).toBe(false);
     expect(combined.includes("captureProductEvent")).toBe(false);
     expect(combined.includes("console.")).toBe(false);
+    expect(combined.includes("retainedFragmentToken")).toBe(false);
+    expect(combined.includes("resetInvitationHandoffMemory")).toBe(false);
   });
 });
