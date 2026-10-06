@@ -57,9 +57,7 @@ describe("game day snapshot", () => {
       savedAt: "2026-10-07T02:00:00.000Z",
     };
     await saveGameDaySnapshot(store, refreshed);
-    expect(await readGameDaySnapshot(store, userId, teamId)).toEqual(
-      refreshed,
-    );
+    expect(await readGameDaySnapshot(store, userId, teamId)).toEqual(refreshed);
   });
 
   it("marks an old snapshot stale", () => {

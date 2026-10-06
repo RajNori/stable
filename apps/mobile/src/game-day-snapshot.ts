@@ -67,7 +67,9 @@ function isNullableText(value: unknown): value is string | null {
 }
 
 function isCount(value: unknown): value is number | null {
-  return value === null || (typeof value === "number" && Number.isInteger(value));
+  return (
+    value === null || (typeof value === "number" && Number.isInteger(value))
+  );
 }
 
 function isSnapshot(value: unknown): value is GameDaySnapshot {
@@ -96,7 +98,8 @@ function isSnapshot(value: unknown): value is GameDaySnapshot {
     isNullableText(value["coachFocus"]) &&
     isText(value["ownRsvp"]) &&
     isNullableText(value["ownDutyLabel"]) &&
-    (value["ownDutyStatus"] === null || value["ownDutyStatus"] === "ASSIGNED") &&
+    (value["ownDutyStatus"] === null ||
+      value["ownDutyStatus"] === "ASSIGNED") &&
     isCount(value["attendingCount"]) &&
     isCount(value["unavailableCount"]) &&
     isCount(value["unsureCount"]) &&
