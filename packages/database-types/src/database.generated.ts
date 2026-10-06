@@ -673,6 +673,10 @@ export type Database = {
         Args: { p_club_id: string };
         Returns: string;
       };
+      assert_team_roster_reader: {
+        Args: { p_full: boolean; p_team_id: string };
+        Returns: string;
+      };
       assign_team_role: {
         Args: { p_role: string; p_team_id: string; p_user_id: string };
         Returns: {
@@ -693,6 +697,8 @@ export type Database = {
         };
       };
       caller_guards_player: { Args: { p_player_id: string }; Returns: boolean };
+      caller_is_club_admin: { Args: { p_club_id: string }; Returns: boolean };
+      caller_manages_team: { Args: { p_team_id: string }; Returns: boolean };
       create_club_competition: {
         Args: { p_club_id: string; p_name: string; p_season_id: string };
         Returns: {
@@ -872,6 +878,22 @@ export type Database = {
           player_id: string;
           revoked_at: string;
           status: string;
+          team_id: string;
+        }[];
+      };
+      list_team_roster_full: {
+        Args: { p_team_id: string };
+        Returns: {
+          player_id: string;
+          registered_name: string;
+          team_id: string;
+        }[];
+      };
+      list_team_roster_masked: {
+        Args: { p_team_id: string };
+        Returns: {
+          display_name: string;
+          player_id: string;
           team_id: string;
         }[];
       };

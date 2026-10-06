@@ -72,6 +72,7 @@ export function ClubStructurePanel({
             id: team.id,
             name: team.name,
             href: `/teams/${team.id}/staff`,
+            links: [{ href: `/teams/${team.id}/roster`, label: "Roster" }],
           }))}
         />
       </div>
@@ -130,7 +131,12 @@ function NameList({
   items,
 }: {
   title: string;
-  items: readonly { id: string; name: string; href?: string }[];
+  items: readonly {
+    id: string;
+    name: string;
+    href?: string;
+    links?: readonly { href: string; label: string }[];
+  }[];
 }) {
   const theme = themeFor("mustangs");
   return (
@@ -158,6 +164,11 @@ function NameList({
             ) : (
               <a href={item.href}>{item.name}</a>
             )}
+            {item.links?.map((link) => (
+              <a key={link.href} href={link.href}>
+                {link.label}
+              </a>
+            ))}
           </li>
         ))}
       </ul>

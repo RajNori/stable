@@ -51,6 +51,9 @@ describe("club structure panel", () => {
     expect(screen.getByRole("list", { name: "Teams" }).textContent).toContain(
       "U14 Boys",
     );
+    expect(
+      screen.getByRole("link", { name: "Roster" }).getAttribute("href"),
+    ).toBe("/teams/99999999-9999-4999-8999-999999999999/roster");
 
     fireEvent.change(screen.getByLabelText("Season name"), {
       target: { value: "Autumn" },

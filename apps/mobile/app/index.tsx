@@ -15,6 +15,9 @@ import {
 import { loadMobileBootEnv } from "../src/boot-env";
 import { CurrentClubContextScreen } from "../src/current-club-context-screen";
 import { loadMobileCurrentClubContext } from "../src/load-mobile-current-club-context";
+import { loadMobileTeamRoster } from "../src/load-mobile-team-roster";
+import { MobileDestinations } from "../src/mobile-destinations";
+import { TeamRosterScreen } from "../src/team-roster-screen";
 import { getMobileSupabaseClient } from "../src/supabase-client";
 
 const theme = themeFor("mustangs");
@@ -55,7 +58,15 @@ export default function CurrentClubContextRoute() {
         actions={actions}
         linking={linking}
         authenticated={() => (
-          <CurrentClubContextScreen loadContext={loadContext} />
+          <MobileDestinations
+            home={<CurrentClubContextScreen loadContext={loadContext} />}
+            team={
+              <TeamRosterScreen
+                loadContext={loadContext}
+                loadRoster={loadMobileTeamRoster}
+              />
+            }
+          />
         )}
       />
     </SafeAreaView>
