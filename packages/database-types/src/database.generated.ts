@@ -185,6 +185,131 @@ export type Database = {
           },
         ];
       };
+      guardian_relationships: {
+        Row: {
+          active: boolean;
+          club_id: string;
+          created_at: string;
+          id: string;
+          player_id: string;
+          updated_at: string;
+          user_id: string;
+        };
+        Insert: {
+          active?: boolean;
+          club_id: string;
+          created_at?: string;
+          id?: string;
+          player_id: string;
+          updated_at?: string;
+          user_id: string;
+        };
+        Update: {
+          active?: boolean;
+          club_id?: string;
+          created_at?: string;
+          id?: string;
+          player_id?: string;
+          updated_at?: string;
+          user_id?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "guardian_relationships_club_id_fkey";
+            columns: ["club_id"];
+            isOneToOne: false;
+            referencedRelation: "clubs";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "guardian_relationships_player_same_club";
+            columns: ["player_id", "club_id"];
+            isOneToOne: false;
+            referencedRelation: "players";
+            referencedColumns: ["id", "club_id"];
+          },
+        ];
+      };
+      player_source_identities: {
+        Row: {
+          club_id: string;
+          created_at: string;
+          id: string;
+          player_id: string;
+          source: string;
+          source_player_id: string;
+        };
+        Insert: {
+          club_id: string;
+          created_at?: string;
+          id?: string;
+          player_id: string;
+          source: string;
+          source_player_id: string;
+        };
+        Update: {
+          club_id?: string;
+          created_at?: string;
+          id?: string;
+          player_id?: string;
+          source?: string;
+          source_player_id?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "player_source_identities_club_id_fkey";
+            columns: ["club_id"];
+            isOneToOne: false;
+            referencedRelation: "clubs";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "player_source_identities_player_same_club";
+            columns: ["player_id", "club_id"];
+            isOneToOne: false;
+            referencedRelation: "players";
+            referencedColumns: ["id", "club_id"];
+          },
+        ];
+      };
+      players: {
+        Row: {
+          active: boolean;
+          club_id: string;
+          created_at: string;
+          first_name: string;
+          id: string;
+          last_name: string;
+          updated_at: string;
+        };
+        Insert: {
+          active?: boolean;
+          club_id: string;
+          created_at?: string;
+          first_name: string;
+          id?: string;
+          last_name: string;
+          updated_at?: string;
+        };
+        Update: {
+          active?: boolean;
+          club_id?: string;
+          created_at?: string;
+          first_name?: string;
+          id?: string;
+          last_name?: string;
+          updated_at?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "players_club_id_fkey";
+            columns: ["club_id"];
+            isOneToOne: false;
+            referencedRelation: "clubs";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
       profiles: {
         Row: {
           created_at: string;
@@ -450,7 +575,127 @@ export type Database = {
           isSetofReturn: false;
         };
       };
+      create_player: {
+        Args: { p_club_id: string; p_first_name: string; p_last_name: string };
+        Returns: {
+          active: boolean;
+          club_id: string;
+          created_at: string;
+          first_name: string;
+          id: string;
+          last_name: string;
+          updated_at: string;
+        };
+        SetofOptions: {
+          from: "*";
+          to: "players";
+          isOneToOne: true;
+          isSetofReturn: false;
+        };
+      };
+      deactivate_player: {
+        Args: { p_player_id: string };
+        Returns: {
+          active: boolean;
+          club_id: string;
+          created_at: string;
+          first_name: string;
+          id: string;
+          last_name: string;
+          updated_at: string;
+        };
+        SetofOptions: {
+          from: "*";
+          to: "players";
+          isOneToOne: true;
+          isSetofReturn: false;
+        };
+      };
+      import_players: {
+        Args: { p_club_id: string; p_rows: Json };
+        Returns: Json;
+      };
+      link_player_guardian: {
+        Args: { p_guardian_user_id: string; p_player_id: string };
+        Returns: {
+          active: boolean;
+          club_id: string;
+          created_at: string;
+          id: string;
+          player_id: string;
+          updated_at: string;
+          user_id: string;
+        };
+        SetofOptions: {
+          from: "*";
+          to: "guardian_relationships";
+          isOneToOne: true;
+          isSetofReturn: false;
+        };
+      };
+      list_club_adults: {
+        Args: { p_club_id: string };
+        Returns: {
+          display_name: string;
+          user_id: string;
+        }[];
+      };
+      lock_administered_player: {
+        Args: { p_player_id: string };
+        Returns: {
+          active: boolean;
+          club_id: string;
+          created_at: string;
+          first_name: string;
+          id: string;
+          last_name: string;
+          updated_at: string;
+        };
+        SetofOptions: {
+          from: "*";
+          to: "players";
+          isOneToOne: true;
+          isSetofReturn: false;
+        };
+      };
+      player_text: { Args: { p_value: string }; Returns: string };
+      reactivate_player: {
+        Args: { p_player_id: string };
+        Returns: {
+          active: boolean;
+          club_id: string;
+          created_at: string;
+          first_name: string;
+          id: string;
+          last_name: string;
+          updated_at: string;
+        };
+        SetofOptions: {
+          from: "*";
+          to: "players";
+          isOneToOne: true;
+          isSetofReturn: false;
+        };
+      };
       structure_name: { Args: { p_name: string }; Returns: string };
+      unlink_player_guardian: {
+        Args: { p_guardian_user_id: string; p_player_id: string };
+        Returns: {
+          active: boolean;
+          club_id: string;
+          created_at: string;
+          id: string;
+          player_id: string;
+          updated_at: string;
+          user_id: string;
+        };
+        SetofOptions: {
+          from: "*";
+          to: "guardian_relationships";
+          isOneToOne: true;
+          isSetofReturn: false;
+        };
+      };
       update_club_competition: {
         Args: { p_active: boolean; p_competition_id: string; p_name: string };
         Returns: {
@@ -519,6 +764,28 @@ export type Database = {
         SetofOptions: {
           from: "*";
           to: "venues";
+          isOneToOne: true;
+          isSetofReturn: false;
+        };
+      };
+      update_player_identity: {
+        Args: {
+          p_first_name: string;
+          p_last_name: string;
+          p_player_id: string;
+        };
+        Returns: {
+          active: boolean;
+          club_id: string;
+          created_at: string;
+          first_name: string;
+          id: string;
+          last_name: string;
+          updated_at: string;
+        };
+        SetofOptions: {
+          from: "*";
+          to: "players";
           isOneToOne: true;
           isSetofReturn: false;
         };

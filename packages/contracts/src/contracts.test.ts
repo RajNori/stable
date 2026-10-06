@@ -130,6 +130,10 @@ describe("frozen names", () => {
       "token",
       "otp",
       "playerName",
+      "firstName",
+      "lastName",
+      "first_name",
+      "last_name",
       "privateNote",
       "absenceNote",
     ]);

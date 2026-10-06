@@ -107,6 +107,11 @@ export function ClubAdminShell({
                 <a href="/club-structure">Club structure</a>
               </li>
             ) : null}
+            {presentation.status === "member" ? (
+              <li>
+                <a href="/players">Players</a>
+              </li>
+            ) : null}
             <li>
               <a href="/club-settings" hidden data-testid="admin-chrome-link">
                 Club settings
