@@ -4,15 +4,22 @@ import { themeFor } from "@stable/design-tokens";
 import type { GameDayProjection } from "@stable/game-day";
 import { gameDayMessages } from "@stable/game-day";
 import { useQuery } from "@tanstack/react-query";
-import React from "react";
+import React, { useEffect, useRef } from "react";
 import { StyleSheet, Text, View } from "react-native";
 
 import {
   gameDaySnapshotFromProjection,
-  readGameDaySnapshot,
-  saveGameDaySnapshot,
+  type GameDaySnapshot,
   type GameDaySnapshotStore,
 } from "./game-day-snapshot";
+import {
+  clearStoredOfflineGameDay,
+  contextPermitsTeam,
+  isOfflineAuthorizationFailure,
+  persistOfflineGameDay,
+  readOfflineGameDay,
+  removeObsoleteOfflineGameDay,
+} from "./offline-context";
 import { OfflineGameDayView } from "./offline-game-day-view";
 
 const theme = themeFor("mustangs");
@@ -45,39 +52,39 @@ export function TeamGameDayScreen({
   loadContext,
   loadGameDay,
   snapshotStore,
+  localUserId,
   online = true,
   now = Date.now(),
 }: {
   loadContext: () => Promise<CurrentClubContext>;
   loadGameDay: (teamId: string) => Promise<GameDayProjection | null>;
   snapshotStore?: GameDaySnapshotStore | undefined;
-  online?: boolean | undefined;
+  localUserId?: string | undefined;
+  online?: boolean | null | undefined;
   now?: number | undefined;
 }) {
+  const offlineEnabled =
+    snapshotStore !== undefined && localUserId !== undefined;
+  const offline = useQuery({
+    queryKey: ["offline-game-day", localUserId],
+    queryFn: () => {
+      if (snapshotStore === undefined || localUserId === undefined) {
+        return Promise.resolve(null);
+      }
+      return readOfflineGameDay(snapshotStore, localUserId);
+    },
+    enabled: offlineEnabled,
+    retry: false,
+  });
   const context = useQuery({
     queryKey: ["current-club-context"],
     queryFn: loadContext,
+    enabled: online === true,
     retry: false,
   });
   const teamId =
     context.data?.club === null ? null : (context.data?.activeTeam?.id ?? null);
   const userId = context.data?.userId;
-  const cached = useQuery({
-    queryKey: ["game-day-snapshot", userId, teamId],
-    queryFn: () => {
-      if (
-        snapshotStore === undefined ||
-        userId === undefined ||
-        teamId === null
-      ) {
-        return Promise.resolve(null);
-      }
-      return readGameDaySnapshot(snapshotStore, userId, teamId);
-    },
-    enabled:
-      snapshotStore !== undefined && userId !== undefined && teamId !== null,
-    retry: false,
-  });
   const gameDay = useQuery({
     queryKey: ["game-day", teamId],
     queryFn: async () => {
@@ -93,9 +100,10 @@ export function TeamGameDayScreen({
       if (
         projection !== null &&
         snapshotStore !== undefined &&
-        userId !== undefined
+        userId !== undefined &&
+        (localUserId === undefined || localUserId === userId)
       ) {
-        await saveGameDaySnapshot(
+        await persistOfflineGameDay(
           snapshotStore,
           gameDaySnapshotFromProjection({
             userId,
@@ -107,22 +115,76 @@ export function TeamGameDayScreen({
       }
       return projection;
     },
-    enabled: online && teamId !== null,
+    enabled: online === true && teamId !== null,
     retry: false,
   });
 
-  if (!online) {
-    if (teamId !== null && cached.isPending) {
-      return (
-        <View style={styles.screen}>
-          <Text style={styles.body}>Loading game day</Text>
-        </View>
+  useEffect(() => {
+    if (
+      snapshotStore === undefined ||
+      localUserId === undefined ||
+      online !== true
+    ) {
+      return;
+    }
+    if (context.isError && isOfflineAuthorizationFailure(context.error)) {
+      void clearStoredOfflineGameDay(snapshotStore, localUserId);
+      return;
+    }
+    if (context.data !== undefined && context.data.userId === localUserId) {
+      void removeObsoleteOfflineGameDay(
+        snapshotStore,
+        localUserId,
+        context.data,
       );
     }
-    return <OfflineGameDayView snapshot={cached.data ?? null} now={now} />;
+  }, [
+    context.data,
+    context.error,
+    context.isError,
+    localUserId,
+    online,
+    snapshotStore,
+  ]);
+
+  const sawOnline = useRef(false);
+  const refreshFloor = useRef(0);
+  if (online === true) {
+    if (!sawOnline.current) {
+      sawOnline.current = true;
+      refreshFloor.current = Date.now();
+    }
+  } else {
+    sawOnline.current = false;
+  }
+  const refreshLanded = gameDay.dataUpdatedAt >= refreshFloor.current;
+
+  const cached = offline.data ?? null;
+  const snapshot = visibleSnapshot({
+    cached,
+    localUserId,
+    online,
+    contextData: context.data,
+    contextError: context.error,
+    contextIsError: context.isError,
+  });
+
+  if (online === null || (offlineEnabled && offline.isLoading)) {
+    return (
+      <View style={styles.screen}>
+        <Text style={styles.body}>Loading game day</Text>
+      </View>
+    );
   }
 
-  if (context.isPending || (teamId !== null && gameDay.isPending)) {
+  if (online === false) {
+    return <OfflineGameDayView snapshot={snapshot} now={now} />;
+  }
+
+  if (context.isPending) {
+    if (snapshot !== null) {
+      return <OfflineGameDayView snapshot={snapshot} now={now} />;
+    }
     return (
       <View style={styles.screen}>
         <Text style={styles.body}>Loading game day</Text>
@@ -133,8 +195,18 @@ export function TeamGameDayScreen({
   if (
     context.isError ||
     context.data === undefined ||
-    context.data.club === null
+    context.data.club === null ||
+    (localUserId !== undefined &&
+      context.data !== undefined &&
+      context.data.userId !== localUserId)
   ) {
+    if (
+      context.isError &&
+      !isOfflineAuthorizationFailure(context.error) &&
+      snapshot !== null
+    ) {
+      return <OfflineGameDayView snapshot={snapshot} now={now} />;
+    }
     return (
       <View style={styles.screen}>
         <Text style={styles.title}>
@@ -145,6 +217,12 @@ export function TeamGameDayScreen({
   }
 
   if (context.data.activeTeam === null) {
+    if (
+      snapshot !== null &&
+      contextPermitsTeam(context.data, snapshot.teamId)
+    ) {
+      return <OfflineGameDayView snapshot={snapshot} now={now} />;
+    }
     return (
       <View style={styles.screen}>
         <Text style={styles.title}>Use a context with one team.</Text>
@@ -152,13 +230,20 @@ export function TeamGameDayScreen({
     );
   }
 
-  if (gameDay.isError || gameDay.data === undefined) {
-    if (cached.data !== undefined && cached.data !== null) {
-      return <OfflineGameDayView snapshot={cached.data} now={now} />;
+  if (!refreshLanded || gameDay.isError || gameDay.data === undefined) {
+    if (snapshot !== null && snapshot.teamId === context.data.activeTeam.id) {
+      return <OfflineGameDayView snapshot={snapshot} now={now} />;
+    }
+    if (gameDay.isError) {
+      return (
+        <View style={styles.screen}>
+          <Text style={styles.title}>{message(gameDay.error)}</Text>
+        </View>
+      );
     }
     return (
       <View style={styles.screen}>
-        <Text style={styles.title}>{message(gameDay.error)}</Text>
+        <Text style={styles.body}>Loading game day</Text>
       </View>
     );
   }
@@ -187,4 +272,43 @@ export function TeamGameDayScreen({
       )}
     </View>
   );
+}
+
+function visibleSnapshot(input: {
+  cached: GameDaySnapshot | null;
+  localUserId: string | undefined;
+  online: boolean | null;
+  contextData: CurrentClubContext | undefined;
+  contextError: unknown;
+  contextIsError: boolean;
+}): GameDaySnapshot | null {
+  const cached = input.cached;
+  if (cached === null || input.localUserId === undefined) {
+    return null;
+  }
+  if (cached.userId !== input.localUserId) {
+    return null;
+  }
+  if (
+    input.online === true &&
+    input.contextIsError &&
+    isOfflineAuthorizationFailure(input.contextError)
+  ) {
+    return null;
+  }
+  if (input.online === true && input.contextData !== undefined) {
+    if (input.contextData.userId !== input.localUserId) {
+      return null;
+    }
+    if (!contextPermitsTeam(input.contextData, cached.teamId)) {
+      return null;
+    }
+    if (
+      input.contextData.activeTeam !== null &&
+      input.contextData.activeTeam.id !== cached.teamId
+    ) {
+      return null;
+    }
+  }
+  return cached;
 }

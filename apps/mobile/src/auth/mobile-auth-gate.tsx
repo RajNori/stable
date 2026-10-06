@@ -30,7 +30,7 @@ type MobileAuthGateProps = {
   readonly signOut: () => Promise<AuthSessionSnapshot>;
   readonly actions: GateActions;
   readonly linking?: MobileLinking;
-  readonly authenticated: () => React.ReactNode;
+  readonly authenticated: (userId: string) => React.ReactNode;
 };
 
 export function MobileAuthGate({
@@ -120,7 +120,7 @@ export function MobileAuthGate({
         >
           <Text style={styles.signOutLabel}>Sign out</Text>
         </Pressable>
-        {authenticated()}
+        {authenticated(session.principal.userId)}
       </View>
     );
   }

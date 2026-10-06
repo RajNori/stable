@@ -19,7 +19,9 @@ import { loadMobileGameDay } from "../src/load-mobile-game-day";
 import { loadMobileTeamRoster } from "../src/load-mobile-team-roster";
 import { loadMobileTeamSchedule } from "../src/load-mobile-team-schedule";
 import { MobileDestinations } from "../src/mobile-destinations";
+import { expoNetworkMonitor } from "../src/expo-network-monitor";
 import { secureGameDaySnapshotStore } from "../src/game-day-snapshot";
+import { useMobileOnline } from "../src/mobile-connectivity";
 import { TeamGameDayScreen } from "../src/team-game-day-screen";
 import { TeamRosterScreen } from "../src/team-roster-screen";
 import { TeamScheduleScreen } from "../src/team-schedule-screen";
@@ -38,6 +40,9 @@ export default function CurrentClubContextRoute() {
       ),
     [],
   );
+  const monitor = useMemo(() => expoNetworkMonitor(), []);
+  const online = useMobileOnline(monitor);
+  const snapshotStore = useMemo(() => secureGameDaySnapshotStore(), []);
   const linking = useMemo(
     () => ({
       getInitialUrl: () => Linking.getInitialURL(),
@@ -62,7 +67,7 @@ export default function CurrentClubContextRoute() {
         signOut={signOutLiveMobileAuthSession}
         actions={actions}
         linking={linking}
-        authenticated={() => (
+        authenticated={(userId) => (
           <MobileDestinations
             home={<CurrentClubContextScreen loadContext={loadContext} />}
             schedule={
@@ -70,7 +75,9 @@ export default function CurrentClubContextRoute() {
                 <TeamGameDayScreen
                   loadContext={loadContext}
                   loadGameDay={loadMobileGameDay}
-                  snapshotStore={secureGameDaySnapshotStore()}
+                  snapshotStore={snapshotStore}
+                  localUserId={userId}
+                  online={online}
                 />
                 <TeamScheduleScreen
                   loadContext={loadContext}

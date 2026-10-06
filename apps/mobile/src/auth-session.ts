@@ -11,10 +11,8 @@ import type { AuthSessionSnapshot, LogoutScope } from "@stable/contracts";
 import { ENV } from "@stable/contracts";
 import type { SupabaseClient } from "@supabase/supabase-js";
 
-import {
-  clearUserGameDaySnapshots,
-  secureGameDaySnapshotStore,
-} from "./game-day-snapshot";
+import { secureGameDaySnapshotStore } from "./game-day-snapshot";
+import { clearStoredOfflineGameDay } from "./offline-context";
 import {
   getMobileSessionStorage,
   getMobileSupabaseClient,
@@ -257,7 +255,7 @@ export async function signOutLiveMobileAuthSession(): Promise<AuthSessionSnapsho
     "local",
   );
   if (userId !== undefined) {
-    await clearUserGameDaySnapshots(secureGameDaySnapshotStore(), userId);
+    await clearStoredOfflineGameDay(secureGameDaySnapshotStore(), userId);
   }
   return decision.snapshot;
 }
