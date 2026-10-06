@@ -3,6 +3,8 @@
 import { useState } from "react";
 import { TEAM_STAFF_ROLES } from "@stable/contracts";
 
+import { invitationAcceptanceUrl } from "../lib/invitation-acceptance-url";
+
 export type InvitationView = {
   id: string;
   status: "pending" | "expired" | "consumed" | "revoked";
@@ -75,7 +77,7 @@ export function InvitationPanel({
           }
           setError(null);
           setLink(
-            `${window.location.origin}/invitations/accept?token=${result.token}`,
+            invitationAcceptanceUrl(window.location.origin, result.token),
           );
         }}
       >

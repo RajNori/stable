@@ -1,5 +1,6 @@
 import { expect, test } from "@playwright/test";
 
+import { openInvitationAcceptance } from "./invitation-handoff";
 import { applyLocalSession } from "./local-session";
 
 const MEMBER_EMAIL = "member@local.stable.test";
@@ -62,7 +63,7 @@ test("roster names follow the caller's capability", async ({ browser }) => {
   await item.getByLabel("Invitation email").fill(OUTSIDER_EMAIL);
   await item.getByRole("button", { name: "Create invitation" }).click();
   const guardianLink = await item.getByLabel("Invitation link").inputValue();
-  await outsider.goto(guardianLink);
+  await openInvitationAcceptance(outsider, guardianLink);
   await outsider.getByRole("button", { name: "Accept invitation" }).click();
   await expect(
     outsider.getByRole("region", { name: "Accept invitation" }),
@@ -84,7 +85,7 @@ test("roster names follow the caller's capability", async ({ browser }) => {
     .selectOption({ label: "Head coach" });
   await member.getByRole("button", { name: "Create invitation" }).click();
   const staffLink = await member.getByLabel("Invitation link").inputValue();
-  await outsider.goto(staffLink);
+  await openInvitationAcceptance(outsider, staffLink);
   await outsider.getByRole("button", { name: "Accept invitation" }).click();
   await expect(
     outsider.getByRole("region", { name: "Accept invitation" }),
