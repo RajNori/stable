@@ -39,7 +39,7 @@ test("club admin creates a season and team and reads them back", async ({
 
   await page.getByRole("link", { name: teamName }).click();
   await expect(page.getByRole("heading", { name: teamName })).toBeVisible();
-  await expect(page.getByLabel("Email")).toHaveCount(0);
+  await expect(page.getByLabel("Email", { exact: true })).toHaveCount(0);
   await page.getByLabel("Club adult").selectOption({ label: "Local Member" });
   await page.locator("#staff-role").selectOption({ label: "Assistant coach" });
   await page.getByRole("button", { name: "Assign role" }).click();

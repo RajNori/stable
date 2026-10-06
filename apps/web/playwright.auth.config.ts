@@ -39,6 +39,7 @@ function webServerEnv(): Record<string, string> {
 export default defineConfig({
   testDir: "./e2e-auth",
   fullyParallel: false,
+  workers: 1,
   forbidOnly: process.env.CI === "true",
   retries: 0,
   use: {
