@@ -128,3 +128,11 @@ iOS can keep Keychain items after uninstall, including items that were written b
 A restored principal is presentation state. It is not `club.read` and it is not permission to write. Protected data still requires the current Supabase user, RLS, and contextual membership checks.
 
 Web session reads use `getUser` on the `@supabase/ssr` server client. Cookies stay inside that client. The publishable key is the only key that client receives. Callback completion still returns `AuthSessionSnapshot` and drops provider tokens.
+
+## Auth UX
+
+Mobile and Club Admin present the same adult sign-in on the existing operations: Australian mobile OTP, email OTP, and the email magic link. Players do not get an account. Google and Apple stay off the screen while `OAUTH_PROVIDER_SETTINGS` has `enabled: false`. The buttons are rendered only from that flag.
+
+The screens read `AuthSessionSnapshot` directly. `loading` is a branded check, `unauthenticated` and `expired` show sign-in, `recovery` pauses sign-in without pretending the adult signed out, and `authenticated` mounts the existing club surface. Club context is not loaded before that state. Sign-out uses the local scope and waits for the follow-up read.
+
+The web magic-link exchange is a Route Handler at `/auth/callback` so the session cookie can be written. The handler rebuilds the callback from the code only, checks the return path before exchange, and redirects failures to `/?auth=` plus a fixed flag. The page shows the matching catalog sentence and ignores any other query value. The local web callback remains `http://127.0.0.1:3000/auth/callback`. The local auth browser project serves that port so the frozen redirect can complete.

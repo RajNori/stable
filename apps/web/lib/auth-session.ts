@@ -63,6 +63,15 @@ function principalFromUser(
   return { userId: user.id, displayName, accessExpiresAt: expiresAt };
 }
 
+function missingSession(error: unknown): boolean {
+  return (
+    typeof error === "object" &&
+    error !== null &&
+    "name" in error &&
+    error.name === "AuthSessionMissingError"
+  );
+}
+
 function failureRead(error: unknown): PersistedSessionRead {
   if (error instanceof SyntaxError) {
     return { kind: "corrupt" };
@@ -78,12 +87,15 @@ export function createWebAuthSessionGateway(
     async readPersisted() {
       try {
         const { data, error } = await client.auth.getUser();
-        if (error !== null && error !== undefined) {
+        if (data.user === null) {
+          if (error === null || error === undefined || missingSession(error)) {
+            return { kind: "none" };
+          }
           return failureRead(error);
         }
 
-        if (data.user === null) {
-          return { kind: "none" };
+        if (error !== null && error !== undefined) {
+          return failureRead(error);
         }
 
         return {
@@ -230,6 +242,16 @@ export async function signOutWebAuthSession(
   const decision = await signOutAuthSession(
     createWebAuthSessionGateway(client),
     scope,
+  );
+  return decision.snapshot;
+}
+
+export async function signOutLiveWebAuthSession(
+  client: SupabaseClient,
+): Promise<AuthSessionSnapshot> {
+  const decision = await signOutAuthSession(
+    webAuthSessionGatewayFromSupabase(client),
+    "local",
   );
   return decision.snapshot;
 }

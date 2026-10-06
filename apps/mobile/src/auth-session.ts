@@ -237,6 +237,21 @@ export async function refreshMobileAuthSession(
   );
 }
 
+export async function restoreLiveMobileAuthSession(): Promise<AuthSessionSnapshot> {
+  const decision = await restoreAuthSession(
+    createLiveMobileAuthSessionGateway(),
+  );
+  return decision.snapshot;
+}
+
+export async function signOutLiveMobileAuthSession(): Promise<AuthSessionSnapshot> {
+  const decision = await signOutAuthSession(
+    createLiveMobileAuthSessionGateway(),
+    "local",
+  );
+  return decision.snapshot;
+}
+
 export async function signOutMobileAuthSession(
   input: MobileAuthSessionDependencies,
   scope: LogoutScope,

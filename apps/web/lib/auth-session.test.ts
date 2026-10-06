@@ -37,6 +37,24 @@ describe("web auth session", () => {
     expect(client.refreshCalls).toBe(0);
   });
 
+  it("returns unauthenticated when the browser has no auth session", async () => {
+    const client = fakeClient({
+      user: null,
+      readError: {
+        name: "AuthSessionMissingError",
+        status: 400,
+        message: "Auth session missing!",
+      },
+    });
+
+    const snapshot = await restoreWebAuthSession(client);
+
+    expect(snapshot).toEqual({ state: "unauthenticated" });
+    expect(JSON.stringify(snapshot).includes("Auth session missing")).toBe(
+      false,
+    );
+  });
+
   it("returns unauthenticated when getUser has no user", async () => {
     const client = fakeClient({ user: null });
 

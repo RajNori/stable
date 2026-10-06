@@ -1,6 +1,6 @@
 import { defineConfig, devices } from "@playwright/test";
 
-const port = 3108;
+const port = 3000;
 
 function required(name: string): string {
   const value = process.env[name];

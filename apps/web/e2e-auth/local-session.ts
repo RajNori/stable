@@ -84,7 +84,7 @@ export async function applyLocalSession(
     stored.map((cookie) => ({
       name: cookie.name,
       value: cookie.value,
-      url: "http://127.0.0.1:3108",
+      url: "http://127.0.0.1:3000",
       httpOnly: cookie.options.httpOnly === true,
       secure: false,
       sameSite: sameSite(cookie.options.sameSite),

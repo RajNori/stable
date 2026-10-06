@@ -7,12 +7,14 @@ type ClubAdminShellProps = {
   presentation: ClubContextPresentation;
   onRetry?: () => void;
   children?: ReactNode;
+  accessory?: ReactNode;
 };
 
 export function ClubAdminShell({
   presentation,
   onRetry,
   children,
+  accessory,
 }: ClubAdminShellProps) {
   const theme = themeFor("mustangs");
   const frameStyle: CSSProperties & { "--admin-gap": string } = {
@@ -112,6 +114,7 @@ export function ClubAdminShell({
             </li>
           </ul>
         </nav>
+        {accessory}
       </aside>
       <main style={mainStyle}>
         <ClubContextPanel
