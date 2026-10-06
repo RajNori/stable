@@ -45,9 +45,11 @@ const styles = StyleSheet.create({
 
 export function MobileDestinations({
   home,
+  schedule,
   team,
 }: {
   home: React.ReactNode;
+  schedule: React.ReactNode;
   team: React.ReactNode;
 }) {
   const [selected, setSelected] = useState<Destination>("Home");
@@ -71,10 +73,9 @@ export function MobileDestinations({
         ))}
       </View>
       {selected === "Home" ? home : null}
+      {selected === "Schedule" ? schedule : null}
       {selected === "Team" ? team : null}
-      {selected === "Schedule" ||
-      selected === "Updates" ||
-      selected === "Profile" ? (
+      {selected === "Updates" || selected === "Profile" ? (
         <Text accessibilityRole="header" style={styles.placeholder}>
           {`${selected} is not available yet.`}
         </Text>

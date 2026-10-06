@@ -9,6 +9,7 @@ describe("mobile destinations", () => {
     await render(
       <MobileDestinations
         home={<Text>Mentone Mustangs</Text>}
+        schedule={<Text>Training at Tuesday</Text>}
         team={<Text>Alexander R.</Text>}
       />,
     );
@@ -26,7 +27,7 @@ describe("mobile destinations", () => {
     expect(screen.queryByText("Mentone Mustangs")).toBeNull();
 
     await user.press(screen.getByRole("tab", { name: "Schedule" }));
-    expect(screen.getByText("Schedule is not available yet.")).toBeTruthy();
+    expect(screen.getByText("Training at Tuesday")).toBeTruthy();
     expect(screen.queryByText("Alexander R.")).toBeNull();
 
     await user.press(screen.getByRole("tab", { name: "Updates" }));

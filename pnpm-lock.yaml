@@ -250,6 +250,9 @@ importers:
       '@stable/roster':
         specifier: workspace:*
         version: link:../../packages/features/roster
+      '@stable/schedule':
+        specifier: workspace:*
+        version: link:../../packages/features/schedule
       '@supabase/supabase-js':
         specifier: ^2.117.2
         version: 2.117.2(@opentelemetry/api@1.9.1)
@@ -353,6 +356,9 @@ importers:
       '@stable/roster':
         specifier: workspace:*
         version: link:../../packages/features/roster
+      '@stable/schedule':
+        specifier: workspace:*
+        version: link:../../packages/features/schedule
       '@supabase/ssr':
         specifier: ^0.12.7
         version: 0.12.7(@supabase/supabase-js@2.117.2(@opentelemetry/api@1.9.1))
@@ -599,6 +605,31 @@ importers:
         version: 5.0.3(@opentelemetry/api@1.9.1)(@types/node@26.6.4)(@vitest/coverage-v8@5.0.3)(jsdom@20.0.3(supports-color@8.1.1))(vite@8.3.2(@types/node@26.6.4)(terser@5.51.2)(yaml@2.9.1))
 
   packages/features/roster:
+    dependencies:
+      '@stable/contracts':
+        specifier: workspace:*
+        version: link:../../contracts
+      '@stable/permissions':
+        specifier: workspace:*
+        version: link:../../permissions
+      '@supabase/supabase-js':
+        specifier: ^2.117.2
+        version: 2.117.2(@opentelemetry/api@1.9.1)
+      zod:
+        specifier: 'catalog:'
+        version: 4.6.5
+    devDependencies:
+      '@vitest/coverage-v8':
+        specifier: 'catalog:'
+        version: 5.0.3(vitest@5.0.3)
+      typescript:
+        specifier: 'catalog:'
+        version: 6.0.3
+      vitest:
+        specifier: 'catalog:'
+        version: 5.0.3(@opentelemetry/api@1.9.1)(@types/node@26.6.4)(@vitest/coverage-v8@5.0.3)(jsdom@20.0.3(supports-color@8.1.1))(vite@8.3.2(@types/node@26.6.4)(terser@5.51.2)(yaml@2.9.1))
+
+  packages/features/schedule:
     dependencies:
       '@stable/contracts':
         specifier: workspace:*

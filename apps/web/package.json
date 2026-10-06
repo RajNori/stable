@@ -17,6 +17,7 @@
     "@stable/observability": "workspace:*",
     "@stable/players": "workspace:*",
     "@stable/roster": "workspace:*",
+    "@stable/schedule": "workspace:*",
     "@supabase/ssr": "^0.12.7",
     "@supabase/supabase-js": "^2.117.2",
     "@tanstack/react-query": "^5.104.1",

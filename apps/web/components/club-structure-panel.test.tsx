@@ -57,6 +57,9 @@ describe("club structure panel", () => {
     expect(
       screen.getByRole("link", { name: "Fixtures" }).getAttribute("href"),
     ).toBe("/teams/99999999-9999-4999-8999-999999999999/fixtures");
+    expect(
+      screen.getByRole("link", { name: "Schedule" }).getAttribute("href"),
+    ).toBe("/teams/99999999-9999-4999-8999-999999999999/schedule");
 
     fireEvent.change(screen.getByLabelText("Season name"), {
       target: { value: "Autumn" },
