@@ -19,6 +19,7 @@ export type GameDaySnapshot = {
   ownRsvp: string;
   ownDutyLabel: string | null;
   ownDutyStatus: "ASSIGNED" | null;
+  fillInLabel: string | null;
   attendingCount: number | null;
   unavailableCount: number | null;
   unsureCount: number | null;
@@ -41,6 +42,7 @@ const SNAPSHOT_KEYS = [
   "ownRsvp",
   "ownDutyLabel",
   "ownDutyStatus",
+  "fillInLabel",
   "attendingCount",
   "unavailableCount",
   "unsureCount",
@@ -100,6 +102,7 @@ function isSnapshot(value: unknown): value is GameDaySnapshot {
     isNullableText(value["ownDutyLabel"]) &&
     (value["ownDutyStatus"] === null ||
       value["ownDutyStatus"] === "ASSIGNED") &&
+    isNullableText(value["fillInLabel"]) &&
     isCount(value["attendingCount"]) &&
     isCount(value["unavailableCount"]) &&
     isCount(value["unsureCount"]) &&
@@ -144,6 +147,7 @@ export function gameDaySnapshotFromProjection(input: {
     ownRsvp: input.projection.ownRsvp,
     ownDutyLabel: input.projection.ownDutyLabel,
     ownDutyStatus: input.projection.ownDutyStatus,
+    fillInLabel: input.projection.fillInLabel,
     attendingCount: input.projection.attendingCount,
     unavailableCount: input.projection.unavailableCount,
     unsureCount: input.projection.unsureCount,

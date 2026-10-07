@@ -12,6 +12,7 @@
     "@stable/contracts": "workspace:*",
     "@stable/current-club-context": "workspace:*",
     "@stable/design-tokens": "workspace:*",
+    "@stable/fill-ins": "workspace:*",
     "@stable/fixtures": "workspace:*",
     "@stable/game-day": "workspace:*",
     "@stable/permissions": "workspace:*",

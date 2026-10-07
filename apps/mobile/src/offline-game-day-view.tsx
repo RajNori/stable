@@ -53,6 +53,7 @@ export function OfflineGameDayView({
       ) : null}
       <Text style={styles.body}>RSVP {snapshot.ownRsvp}</Text>
       <Text style={styles.body}>Duty {snapshot.ownDutyLabel ?? "None"}</Text>
+      <Text style={styles.body}>Fill-in {snapshot.fillInLabel ?? "None"}</Text>
       {snapshot.attendingCount === null ? null : (
         <Text style={styles.body}>
           Attending {snapshot.attendingCount}, unanswered{" "}

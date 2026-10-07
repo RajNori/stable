@@ -16,6 +16,13 @@ import {
   requestDutySwap,
 } from "@stable/game-day";
 import { DUTY_TYPES } from "@stable/game-day";
+import {
+  confirmFillIn,
+  createSupabaseFillInGateway,
+  fillInMessages,
+  requestFillIn,
+  respondFillIn,
+} from "@stable/fill-ins";
 import { redirect } from "next/navigation";
 
 import { fixtureAccessFrom } from "../../../../../lib/fixture-access";
@@ -294,6 +301,102 @@ export async function acceptDutySwapAction(formData: FormData): Promise<void> {
   } catch (caught: unknown) {
     const message =
       caught instanceof Error ? caught.message : gameDayMessages.saveFailed;
+    redirect(withError(destination(loaded.teamId, loaded.eventId), message));
+  }
+  redirect(destination(loaded.teamId, loaded.eventId));
+}
+
+async function fillInAccess(formData: FormData) {
+  const loaded = await dutyAccess(formData);
+  const supabase = await createSupabaseServerClient();
+  return {
+    access: loaded.access,
+    clubId: loaded.clubId,
+    teamId: loaded.teamId,
+    eventId: loaded.eventId,
+    writer: createSupabaseFillInGateway(supabase),
+  };
+}
+
+export async function requestFillInAction(formData: FormData): Promise<void> {
+  const loaded = await fillInAccess(formData);
+  try {
+    await requestFillIn({
+      ...loaded.access,
+      clubId: loaded.clubId,
+      teamId: loaded.teamId,
+      eventId: loaded.eventId,
+      writer: loaded.writer,
+    });
+  } catch (caught: unknown) {
+    const message =
+      caught instanceof Error ? caught.message : fillInMessages.saveFailed;
+    redirect(withError(destination(loaded.teamId, loaded.eventId), message));
+  }
+  redirect(destination(loaded.teamId, loaded.eventId));
+}
+
+export async function respondFillInAction(formData: FormData): Promise<void> {
+  const loaded = await fillInAccess(formData);
+  const requestId = text(formData, "requestId");
+  const playerId = text(formData, "playerId");
+  if (
+    requestId === null ||
+    playerId === null ||
+    !UUID.test(requestId) ||
+    !UUID.test(playerId)
+  ) {
+    redirect(
+      withError(
+        destination(loaded.teamId, loaded.eventId),
+        fillInMessages.validationFailed,
+      ),
+    );
+  }
+  try {
+    await respondFillIn({
+      ...loaded.access,
+      requestId,
+      playerId,
+      writer: loaded.writer,
+    });
+  } catch (caught: unknown) {
+    const message =
+      caught instanceof Error ? caught.message : fillInMessages.saveFailed;
+    redirect(withError(destination(loaded.teamId, loaded.eventId), message));
+  }
+  redirect(destination(loaded.teamId, loaded.eventId));
+}
+
+export async function confirmFillInAction(formData: FormData): Promise<void> {
+  const loaded = await fillInAccess(formData);
+  const requestId = text(formData, "requestId");
+  const playerId = text(formData, "playerId");
+  if (
+    requestId === null ||
+    playerId === null ||
+    !UUID.test(requestId) ||
+    !UUID.test(playerId)
+  ) {
+    redirect(
+      withError(
+        destination(loaded.teamId, loaded.eventId),
+        fillInMessages.validationFailed,
+      ),
+    );
+  }
+  try {
+    await confirmFillIn({
+      ...loaded.access,
+      clubId: loaded.clubId,
+      teamId: loaded.teamId,
+      requestId,
+      playerId,
+      writer: loaded.writer,
+    });
+  } catch (caught: unknown) {
+    const message =
+      caught instanceof Error ? caught.message : fillInMessages.saveFailed;
     redirect(withError(destination(loaded.teamId, loaded.eventId), message));
   }
   redirect(destination(loaded.teamId, loaded.eventId));

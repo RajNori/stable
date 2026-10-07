@@ -56,6 +56,7 @@ function projection(counts: number | null): GameDayProjection {
     ownRsvp: "UNANSWERED",
     ownDutyLabel: "Scorebook",
     ownDutyStatus: "ASSIGNED",
+    fillInLabel: null,
     attendingCount: counts,
     unavailableCount: counts,
     unsureCount: counts,

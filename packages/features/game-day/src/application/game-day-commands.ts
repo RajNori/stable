@@ -39,6 +39,7 @@ export const gameDayProjectionSchema = z.strictObject({
   ownRsvp: z.enum(RSVP_STATUSES),
   ownDutyLabel: z.string().nullable(),
   ownDutyStatus: z.literal("ASSIGNED").nullable(),
+  fillInLabel: z.string().nullable(),
   attendingCount: countSchema,
   unavailableCount: countSchema,
   unsureCount: countSchema,

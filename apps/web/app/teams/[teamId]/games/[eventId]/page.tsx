@@ -8,6 +8,12 @@ import {
   previewDutyAllocation,
   readGameDay,
 } from "@stable/game-day";
+import {
+  createSupabaseFillInGateway,
+  fillInMessages,
+  listFillInCandidates,
+  listGuardianFillInPlayers,
+} from "@stable/fill-ins";
 import { evaluateCapability } from "@stable/permissions";
 import { createSupabaseRosterGateway, listTeamRoster } from "@stable/roster";
 
@@ -24,7 +30,10 @@ import {
   commitDutyAllocationAction,
   createOpenDutyAction,
   recordAttendanceAction,
+  confirmFillInAction,
   requestDutySwapAction,
+  requestFillInAction,
+  respondFillInAction,
 } from "./actions";
 
 export const dynamic = "force-dynamic";
@@ -47,6 +56,13 @@ const visibleErrors = new Set<string>([
   gameDayMessages.validationFailed,
   gameDayMessages.saveFailed,
   gameDayMessages.readFailed,
+  fillInMessages.unauthenticated,
+  fillInMessages.forbidden,
+  fillInMessages.notFound,
+  fillInMessages.validationFailed,
+  fillInMessages.conflict,
+  fillInMessages.saveFailed,
+  fillInMessages.readFailed,
 ]);
 
 export default async function GameDayPage({
@@ -189,6 +205,47 @@ export default async function GameDayPage({
     }
   }
 
+  const canManageFillIns =
+    evaluateCapability({
+      ...access,
+      resource: { clubId: club.id, teamId: team.id, teamActive: team.active },
+      capability: "fillin.manage",
+    }) === "allow";
+  const fillGateway = createSupabaseFillInGateway(supabase);
+  let fillRequestId: string | null = null;
+  let fillCandidates: { playerId: string; displayName: string }[] = [];
+  let fillResponses: { playerId: string; displayName: string }[] = [];
+  let ownFillPlayers: { playerId: string; displayName: string }[] = [];
+  if (projection !== null) {
+    try {
+      ownFillPlayers = await listGuardianFillInPlayers({
+        ...access,
+        teamId: team.id,
+        writer: fillGateway,
+      });
+      if (canManageFillIns) {
+        fillCandidates = await listFillInCandidates({
+          ...access,
+          clubId: club.id,
+          teamId: team.id,
+          writer: fillGateway,
+        });
+      }
+      if (canManageFillIns || ownFillPlayers.length > 0) {
+        const open = await fillGateway.listEventFillIn(projection.eventId);
+        fillRequestId = open === null ? null : open.id;
+        if (canManageFillIns && fillRequestId !== null) {
+          fillResponses = await fillGateway.listFillInResponses(fillRequestId);
+        }
+      }
+    } catch (caught: unknown) {
+      error =
+        caught instanceof ApplicationError
+          ? caught.message
+          : fillInMessages.readFailed;
+    }
+  }
+
   return (
     <ClubAdminShell presentation={presentation}>
       <GameDayPanel
@@ -210,6 +267,19 @@ export default async function GameDayPage({
             }
           : {})}
         {...(canRespond ? { swaps, acceptSwap: acceptDutySwapAction } : {})}
+        fillRequestId={fillRequestId}
+        fillCandidates={fillCandidates}
+        fillResponses={fillResponses}
+        ownFillPlayers={ownFillPlayers}
+        {...(canManageFillIns
+          ? {
+              requestFillIn: requestFillInAction,
+              confirmFillIn: confirmFillInAction,
+            }
+          : {})}
+        {...(ownFillPlayers.length > 0
+          ? { respondFillIn: respondFillInAction }
+          : {})}
       />
     </ClubAdminShell>
   );

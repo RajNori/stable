@@ -25,6 +25,7 @@ function row() {
     own_rsvp: "UNANSWERED",
     own_duty_label: null,
     own_duty_status: null,
+    fill_in_label: null,
     attending_count: null,
     unavailable_count: null,
     unsure_count: null,

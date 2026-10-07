@@ -38,6 +38,7 @@ const projection: GameDayProjection = {
   ownRsvp: "UNANSWERED",
   ownDutyLabel: null,
   ownDutyStatus: null,
+  fillInLabel: null,
   attendingCount: null,
   unavailableCount: null,
   unsureCount: null,

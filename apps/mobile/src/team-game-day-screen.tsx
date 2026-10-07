@@ -264,6 +264,9 @@ export function TeamGameDayScreen({
       </Text>
       <Text style={styles.body}>RSVP {projection.ownRsvp}</Text>
       <Text style={styles.body}>Duty {projection.ownDutyLabel ?? "None"}</Text>
+      <Text style={styles.body}>
+        Fill-in {projection.fillInLabel ?? "None"}
+      </Text>
       {projection.attendingCount === null ? null : (
         <Text style={styles.body}>
           Attending {projection.attendingCount}, unanswered{" "}
