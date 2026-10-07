@@ -17,7 +17,7 @@ const gameStatSchema = z.strictObject({
   assists: z.number().int().min(0).max(100),
   steals: z.number().int().min(0).max(100),
   fouls: z.number().int().min(0).max(20),
-  approximateMinutes: z.number().int().min(0).max(120),
+  approximateMinutes: z.number().int().nonnegative(),
 });
 
 export type GamePlayerStatValues = z.infer<typeof gameStatSchema>;

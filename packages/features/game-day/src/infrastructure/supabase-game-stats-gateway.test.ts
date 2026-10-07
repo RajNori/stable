@@ -118,7 +118,7 @@ describe("Supabase game stats gateway", () => {
       after_assists: 1,
       after_steals: 0,
       after_fouls: 1,
-      after_approximate_minutes: 30,
+      after_approximate_minutes: 121,
     };
     const rpc = vi.fn(async () => ({ data: [correction], error: null }));
     const gateway = createSupabaseGameStatsGateway({ rpc });
@@ -142,7 +142,7 @@ describe("Supabase game stats gateway", () => {
           assists: 1,
           steals: 0,
           fouls: 1,
-          approximateMinutes: 30,
+          approximateMinutes: 121,
         },
       },
     ]);

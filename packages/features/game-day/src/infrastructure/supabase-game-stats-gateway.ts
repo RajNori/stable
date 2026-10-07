@@ -51,13 +51,13 @@ const rawCorrectionSchema = z.strictObject({
   before_assists: z.number().int().min(0).max(100),
   before_steals: z.number().int().min(0).max(100),
   before_fouls: z.number().int().min(0).max(20),
-  before_approximate_minutes: z.number().int().min(0).max(120),
+  before_approximate_minutes: z.number().int().nonnegative(),
   after_points: z.number().int().min(0).max(100),
   after_rebounds: z.number().int().min(0).max(100),
   after_assists: z.number().int().min(0).max(100),
   after_steals: z.number().int().min(0).max(100),
   after_fouls: z.number().int().min(0).max(20),
-  after_approximate_minutes: z.number().int().min(0).max(120),
+  after_approximate_minutes: z.number().int().nonnegative(),
 });
 
 function statFromRow(

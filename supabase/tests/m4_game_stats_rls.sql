@@ -59,13 +59,15 @@ insert into public.player_team_registrations(club_id,team_id,player_id,active) v
 insert into public.events(id,club_id,team_id,event_type,starts_at,ends_at,status) values
  ('71410000-0000-4000-8000-000000000030','71410000-0000-4000-8000-000000000010','71410000-0000-4000-8000-000000000012','GAME','2026-09-01 09:00:00+00','2026-09-01 09:40:00+00','COMPLETED'),
  ('71410000-0000-4000-8000-000000000031','71410000-0000-4000-8000-000000000010','71410000-0000-4000-8000-000000000012','GAME','2026-09-02 09:00:00+00',null,'COMPLETED'),
- ('71410000-0000-4000-8000-000000000032','71410000-0000-4000-8000-000000000010','71410000-0000-4000-8000-000000000013','GAME','2026-09-03 09:00:00+00','2026-09-03 09:40:00+00','COMPLETED');
+ ('71410000-0000-4000-8000-000000000032','71410000-0000-4000-8000-000000000010','71410000-0000-4000-8000-000000000013','GAME','2026-09-03 09:00:00+00','2026-09-03 09:40:00+00','COMPLETED'),
+ ('71410000-0000-4000-8000-000000000033','71410000-0000-4000-8000-000000000010','71410000-0000-4000-8000-000000000012','GAME','2026-09-04 09:00:00+00','2026-09-04 12:00:00+00','COMPLETED');
 insert into public.games(event_id,club_id,opponent_name,source,official_start_at,fixture_status,external_id) values
  ('71410000-0000-4000-8000-000000000030','71410000-0000-4000-8000-000000000010','Opponent','MANUAL','2026-09-01 09:00:00+00','COMPLETED',null),
  ('71410000-0000-4000-8000-000000000031','71410000-0000-4000-8000-000000000010','Imported Opponent','IMPORT','2026-09-02 09:00:00+00','COMPLETED','external-31'),
- ('71410000-0000-4000-8000-000000000032','71410000-0000-4000-8000-000000000010','Other Team Opponent','MANUAL','2026-09-03 09:00:00+00','COMPLETED',null);
+ ('71410000-0000-4000-8000-000000000032','71410000-0000-4000-8000-000000000010','Other Team Opponent','MANUAL','2026-09-03 09:00:00+00','COMPLETED',null),
+ ('71410000-0000-4000-8000-000000000033','71410000-0000-4000-8000-000000000010','Long Scheduled Game','MANUAL','2026-09-04 09:00:00+00','COMPLETED',null);
 insert into public.game_team_overlay(game_event_id) values
- ('71410000-0000-4000-8000-000000000030'),('71410000-0000-4000-8000-000000000031'),('71410000-0000-4000-8000-000000000032');
+ ('71410000-0000-4000-8000-000000000030'),('71410000-0000-4000-8000-000000000031'),('71410000-0000-4000-8000-000000000032'),('71410000-0000-4000-8000-000000000033');
 
 select no_plan();
 select has_table('public','game_player_stats','Stable-owned player stats table exists');
@@ -87,6 +89,8 @@ select is((select recorded_by from public.game_player_stats where game_event_id=
 select is((select updated_by from public.game_player_stats where game_event_id='71410000-0000-4000-8000-000000000030' and player_id='71410000-0000-4000-8000-000000000020'),'71410000-0000-4000-8000-000000000003'::uuid,'new stat line records its current actor as updater');
 set local role authenticated;
 select is(pg_temp.sqlerrm_of($$select public.save_game_player_stat('71410000-0000-4000-8000-000000000030','71410000-0000-4000-8000-000000000021',1,0,0,0,0,41)$$),'VALIDATION_FAILED','known scheduled duration caps minutes');
+select lives_ok($$select public.save_game_player_stat('71410000-0000-4000-8000-000000000033','71410000-0000-4000-8000-000000000020',1,0,0,0,0,121)$$,'scheduled 180-minute game accepts 121 approximate minutes');
+select is(pg_temp.sqlerrm_of($$select public.save_game_player_stat('71410000-0000-4000-8000-000000000031','71410000-0000-4000-8000-000000000020',1,0,0,0,0,121)$$),'VALIDATION_FAILED','unknown scheduled duration keeps the 120-minute cap');
 select lives_ok($$select * from public.read_game_player_stat_history('71410000-0000-4000-8000-000000000030')$$,'active assistant coach may read scoped correction history');
 reset role;
 

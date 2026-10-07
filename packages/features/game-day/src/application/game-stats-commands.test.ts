@@ -399,6 +399,40 @@ describe("M4 game result and player stat commands", () => {
     ).rejects.toBeInstanceOf(ApplicationError);
   });
 
+  it("allows minutes above 120 when the scheduled game duration permits them", async () => {
+    const target = writer();
+    vi.mocked(target.readGameCoachingStats).mockResolvedValueOnce({
+      eventId,
+      clubId,
+      teamId,
+      source: "MANUAL",
+      teamScore: null,
+      opponentScore: null,
+      resultStatus: null,
+      scheduledMinutes: 180,
+      players: [],
+    });
+    await expect(
+      saveGamePlayerStat({
+        ...access("HEAD_COACH"),
+        clubId,
+        teamId,
+        eventId,
+        playerId,
+        points: 0,
+        rebounds: 0,
+        assists: 0,
+        steals: 0,
+        fouls: 0,
+        approximateMinutes: 121,
+        writer: target,
+      }),
+    ).resolves.toBeUndefined();
+    expect(target.saveGamePlayerStat).toHaveBeenCalledWith(
+      expect.objectContaining({ approximateMinutes: 121 }),
+    );
+  });
+
   it("uses 120 minutes when scheduled duration is unavailable", async () => {
     const target = writer();
     vi.mocked(target.readGameCoachingStats).mockResolvedValueOnce({
