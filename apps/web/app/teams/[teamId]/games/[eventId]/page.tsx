@@ -86,7 +86,19 @@ const visibleErrors = new Set<string>([
   gameStatsMessages.validationFailed,
   gameStatsMessages.readFailed,
   gameStatsMessages.saveFailed,
+  "UNAUTHENTICATED",
+  "FORBIDDEN",
+  "NOT_FOUND",
+  "VALIDATION_FAILED",
+  "CONFLICT",
 ]);
+const reviewErrorMessages: Record<string, string> = {
+  UNAUTHENTICATED: "Sign in again before saving the team review.",
+  FORBIDDEN: "You do not have permission to save this team review.",
+  NOT_FOUND: "This game is no longer available.",
+  VALIDATION_FAILED: "Check the review fields and try again.",
+  CONFLICT: "The review changed while you were editing. Reload and try again.",
+};
 
 export default async function GameDayPage({
   params,
@@ -125,7 +137,7 @@ export default async function GameDayPage({
   let projection = null;
   let error =
     requestedError !== undefined && visibleErrors.has(requestedError)
-      ? requestedError
+      ? (reviewErrorMessages[requestedError] ?? requestedError)
       : undefined;
   try {
     projection = await readGameDay({

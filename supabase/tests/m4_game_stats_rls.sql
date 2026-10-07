@@ -84,6 +84,8 @@ select lives_ok($$select public.save_manual_game_result('71410000-0000-4000-8000
 select is(pg_temp.sqlerrm_of($$select public.save_manual_game_result('71410000-0000-4000-8000-000000000030', 251, 68)$$),'VALIDATION_FAILED','score is bounded to 250');
 select is(pg_temp.sqlerrm_of($$select public.save_manual_game_result('71410000-0000-4000-8000-000000000031', 72, 68)$$),'FORBIDDEN','manual score command refuses imported official result');
 select lives_ok($$select public.save_game_player_stat('71410000-0000-4000-8000-000000000030','71410000-0000-4000-8000-000000000020',12,5,3,1,2,40)$$,'assistant coach may create registered player stat line');
+set local role service_role;
+select is(pg_temp.sqlerrm_of($$update public.events set ends_at=starts_at + interval '39 minutes' where id='71410000-0000-4000-8000-000000000030'$$),'VALIDATION_FAILED','schedule cannot be shortened below an existing stat minutes value');
 reset role;
 select is((select recorded_by from public.game_player_stats where game_event_id='71410000-0000-4000-8000-000000000030' and player_id='71410000-0000-4000-8000-000000000020'),'71410000-0000-4000-8000-000000000003'::uuid,'stat line retains its original recorder');
 select is((select updated_by from public.game_player_stats where game_event_id='71410000-0000-4000-8000-000000000030' and player_id='71410000-0000-4000-8000-000000000020'),'71410000-0000-4000-8000-000000000003'::uuid,'new stat line records its current actor as updater');
