@@ -82,6 +82,10 @@ select lives_ok($$select public.save_manual_game_result('71410000-0000-4000-8000
 select is(pg_temp.sqlerrm_of($$select public.save_manual_game_result('71410000-0000-4000-8000-000000000030', 251, 68)$$),'VALIDATION_FAILED','score is bounded to 250');
 select is(pg_temp.sqlerrm_of($$select public.save_manual_game_result('71410000-0000-4000-8000-000000000031', 72, 68)$$),'FORBIDDEN','manual score command refuses imported official result');
 select lives_ok($$select public.save_game_player_stat('71410000-0000-4000-8000-000000000030','71410000-0000-4000-8000-000000000020',12,5,3,1,2,40)$$,'assistant coach may create registered player stat line');
+reset role;
+select is((select recorded_by from public.game_player_stats where game_event_id='71410000-0000-4000-8000-000000000030' and player_id='71410000-0000-4000-8000-000000000020'),'71410000-0000-4000-8000-000000000003'::uuid,'stat line retains its original recorder');
+select is((select updated_by from public.game_player_stats where game_event_id='71410000-0000-4000-8000-000000000030' and player_id='71410000-0000-4000-8000-000000000020'),'71410000-0000-4000-8000-000000000003'::uuid,'new stat line records its current actor as updater');
+set local role authenticated;
 select is(pg_temp.sqlerrm_of($$select public.save_game_player_stat('71410000-0000-4000-8000-000000000030','71410000-0000-4000-8000-000000000021',1,0,0,0,0,41)$$),'VALIDATION_FAILED','known scheduled duration caps minutes');
 select lives_ok($$select * from public.read_game_player_stat_history('71410000-0000-4000-8000-000000000030')$$,'active assistant coach may read scoped correction history');
 reset role;
@@ -130,6 +134,10 @@ select is(
 do $$ begin perform pg_temp.assume_user('71410000-0000-4000-8000-000000000001'); end $$;
 set local role authenticated;
 select lives_ok($$select public.save_game_player_stat('71410000-0000-4000-8000-000000000030','71410000-0000-4000-8000-000000000020',14,5,3,1,2,38)$$,'Club Admin retains authorized correction access after transfer');
+reset role;
+select is((select recorded_by from public.game_player_stats where game_event_id='71410000-0000-4000-8000-000000000030' and player_id='71410000-0000-4000-8000-000000000020'),'71410000-0000-4000-8000-000000000003'::uuid,'corrections preserve the original recorder');
+select is((select updated_by from public.game_player_stats where game_event_id='71410000-0000-4000-8000-000000000030' and player_id='71410000-0000-4000-8000-000000000020'),'71410000-0000-4000-8000-000000000001'::uuid,'correction records the most recent actor');
+set local role authenticated;
 select is((select count(*) from public.read_game_player_stat_history('71410000-0000-4000-8000-000000000030')),2::bigint,'Club Admin reads correction history via capability matrix');
 reset role;
 
