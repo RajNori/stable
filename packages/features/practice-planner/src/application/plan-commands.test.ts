@@ -246,6 +246,20 @@ describe("practice planner commands", () => {
       }),
     ).resolves.toBe(sourceId);
     expect(gateway.save).toHaveBeenCalledOnce();
+
+    await expect(
+      savePracticePlan({
+        ...access(),
+        clubId,
+        teamId,
+        draft: {
+          ...draft,
+          blocks: [{ ...firstBlock, durationMinutes: 241 }],
+        },
+        writer: gateway,
+      }),
+    ).resolves.toBe(sourceId);
+    expect(gateway.save).toHaveBeenCalledTimes(2);
   });
   it("copies from a source snapshot to an event or template", async () => {
     const gateway = writer();
