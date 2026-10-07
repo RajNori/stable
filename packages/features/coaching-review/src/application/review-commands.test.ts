@@ -1,9 +1,12 @@
 import { describe, expect, it, vi } from "vitest";
 
 import {
+  listPrivatePlayerNotes,
   readPostGameReview,
-  savePostGameReview,
+  readPrivatePlayerNote,
+  removePlayerRecognition,
   savePlayerRecognition,
+  savePostGameReview,
   savePrivatePlayerNote,
   type CoachingReviewAccess,
   type CoachingReviewWriter,
@@ -37,57 +40,110 @@ function setup(overrides: Partial<CoachingReviewWriter> = {}) {
     savePlayerRecognition: vi.fn().mockResolvedValue(undefined),
     removePlayerRecognition: vi.fn().mockResolvedValue(undefined),
     savePrivatePlayerNote: vi.fn().mockResolvedValue(undefined),
-    readPrivatePlayerNote: vi.fn().mockResolvedValue(null),
-    listPrivatePlayerNotes: vi.fn().mockResolvedValue([]),
+    readPrivatePlayerNote: vi.fn().mockResolvedValue("Private note"),
+    listPrivatePlayerNotes: vi.fn().mockResolvedValue([{ playerId, note: "Private note" }]),
     ...overrides,
   };
   return { writer };
 }
 
+const manager = {
+  ...base,
+  teamMemberships: [{ clubId, teamId, role: "TEAM_MANAGER" as const, active: true, teamActive: true }],
+};
+
 describe("post-game review commands", () => {
-  it("reads a review only after the review capability is allowed", async () => {
+  it("reads a review only after the review capability is allowed and verifies resource ownership", async () => {
     const { writer } = setup();
     await expect(readPostGameReview({ ...base, clubId, teamId, eventId, writer })).resolves.toEqual(review);
     await expect(readPostGameReview({ ...base, teamMemberships: [], clubId, teamId, eventId, writer })).rejects.toMatchObject({ code: "FORBIDDEN" });
-    const manager = { ...base, teamMemberships: [{ clubId, teamId, role: "TEAM_MANAGER" as const, active: true, teamActive: true }] };
     await expect(readPostGameReview({ ...manager, clubId, teamId, eventId, writer })).rejects.toMatchObject({ code: "FORBIDDEN" });
+    await expect(readPostGameReview({ ...base, principal: null, clubId, teamId, eventId, writer })).rejects.toMatchObject({ code: "UNAUTHENTICATED" });
+
+    for (const mismatched of [
+      { ...review, eventId: "66666666-6666-4666-8666-666666666666" },
+      { ...review, clubId: "66666666-6666-4666-8666-666666666666" },
+      { ...review, teamId: "66666666-6666-4666-8666-666666666666" },
+    ]) {
+      const mismatchedWriter = setup({ readPostGameReview: vi.fn().mockResolvedValue(mismatched) }).writer;
+      await expect(readPostGameReview({ ...base, clubId, teamId, eventId, writer: mismatchedWriter })).rejects.toMatchObject({ code: "NOT_FOUND" });
+    }
+    expect(writer.readPostGameReview).toHaveBeenCalledOnce();
   });
 
-  it("validates focus cardinality and forwards explicit completion", async () => {
+  it("validates review text, focus choices, identifiers, and forwards explicit draft or completion state", async () => {
     const { writer } = setup();
     await savePostGameReview({ ...base, clubId, teamId, eventId, whatWorked: " Good passing\nTalk early ", needsImprovement: "Box out", focusCodes: ["PASSING", "DEFENCE"], complete: true, writer });
-    expect(writer.savePostGameReview).toHaveBeenCalledWith(expect.objectContaining({ whatWorked: "Good passing\nTalk early", complete: true }));
-    await expect(savePostGameReview({ ...base, clubId, teamId, eventId, whatWorked: "", needsImprovement: "", focusCodes: ["PASSING", "PASSING"], complete: false, writer })).rejects.toMatchObject({ code: "VALIDATION_FAILED" });
-    await expect(savePostGameReview({ ...base, clubId, teamId, eventId, whatWorked: "x".repeat(2001), needsImprovement: "", focusCodes: [], complete: false, writer })).rejects.toMatchObject({ code: "VALIDATION_FAILED" });
+    expect(writer.savePostGameReview).toHaveBeenCalledWith({ eventId, whatWorked: "Good passing\nTalk early", needsImprovement: "Box out", focusCodes: ["PASSING", "DEFENCE"], complete: true });
+    await savePostGameReview({ ...base, clubId, teamId, eventId, whatWorked: "", needsImprovement: "", focusCodes: [], complete: false, writer });
+
+    const invalid = [
+      { whatWorked: "", needsImprovement: "", focusCodes: ["PASSING", "PASSING"], eventId },
+      { whatWorked: "", needsImprovement: "", focusCodes: ["BOGUS"], eventId },
+      { whatWorked: "x".repeat(2001), needsImprovement: "", focusCodes: [], eventId },
+      { whatWorked: "bad\ttext", needsImprovement: "", focusCodes: [], eventId },
+      { whatWorked: "", needsImprovement: "", focusCodes: ["PASSING", "DEFENCE", "TEAMWORK", "TRANSITION", "SHOOTING", "REBOUNDING"], eventId },
+      { whatWorked: "", needsImprovement: "", focusCodes: [], eventId: "invalid" },
+    ];
+    for (const command of invalid) {
+      await expect(savePostGameReview({ ...base, clubId, teamId, ...command, complete: false, writer } as never)).rejects.toMatchObject({ code: "VALIDATION_FAILED" });
+    }
+    await expect(savePostGameReview({ ...base, clubId: "invalid", teamId, eventId, whatWorked: "", needsImprovement: "", focusCodes: [], complete: false, writer })).rejects.toMatchObject({ code: "VALIDATION_FAILED" });
+    await expect(savePostGameReview({ ...manager, clubId, teamId, eventId, whatWorked: "", needsImprovement: "", focusCodes: [], complete: false, writer })).rejects.toMatchObject({ code: "FORBIDDEN" });
+    expect(writer.savePostGameReview).toHaveBeenCalledTimes(2);
   });
 
-  it("allows a dual-role club admin private note only through the active coach membership", async () => {
-    const { writer } = setup();
-    const dualRole = { ...base, clubMemberships: [{ clubId, role: "CLUB_ADMIN" as const, active: true }] };
-    await savePrivatePlayerNote({ ...dualRole, clubId, teamId, eventId, playerId, note: "Needs confidence", writer });
-    await expect(savePrivatePlayerNote({ ...dualRole, teamMemberships: [], clubId, teamId, eventId, playerId, note: "Hidden", writer })).rejects.toMatchObject({ code: "FORBIDDEN" });
-  });
-
-  it("denies a guardian private-note write and never asks the review writer for note text", async () => {
-    const { writer } = setup();
-    const guardian = { ...base, teamMemberships: [], guardianLinks: [{ clubId, playerId, active: true, playerActive: true }], registrations: [{ clubId, teamId, playerId, active: true, teamActive: true }] };
-    await expect(savePrivatePlayerNote({ ...guardian, clubId, teamId, eventId, playerId, note: "private", writer })).rejects.toMatchObject({ code: "FORBIDDEN" });
-    expect(writer.readPostGameReview).not.toHaveBeenCalled();
-  });
-
-  it("validates recognition categories and note bounds before writing", async () => {
+  it("validates recognition, checks writer access, and forwards save and removal", async () => {
     const { writer } = setup();
     await savePlayerRecognition({ ...base, clubId, teamId, eventId, playerId, category: "MVP", note: null, writer });
-    expect(writer.savePlayerRecognition).toHaveBeenCalledWith(expect.objectContaining({ category: "MVP", note: null }));
-    await expect(savePlayerRecognition({ ...base, clubId, teamId, eventId, playerId, category: "OTHER" as never, note: "", writer })).rejects.toMatchObject({ code: "VALIDATION_FAILED" });
-    await expect(savePlayerRecognition({ ...base, clubId, teamId, eventId, playerId, category: "TEAMWORK", note: "x".repeat(501), writer })).rejects.toMatchObject({ code: "VALIDATION_FAILED" });
-    const manager = { ...base, teamMemberships: [{ clubId, teamId, role: "TEAM_MANAGER" as const, active: true, teamActive: true }] };
+    expect(writer.savePlayerRecognition).toHaveBeenCalledWith({ eventId, playerId, category: "MVP", note: null });
+    await removePlayerRecognition({ ...base, clubId, teamId, eventId, playerId, category: "HUSTLE", writer });
+    expect(writer.removePlayerRecognition).toHaveBeenCalledWith(eventId, playerId, "HUSTLE");
+
+    const invalid = [
+      { playerId, category: "OTHER", note: null },
+      { playerId: "invalid", category: "MVP", note: null },
+      { playerId, category: "TEAMWORK", note: "x".repeat(501) },
+      { playerId, category: "DEFENCE", note: "bad\u0001text" },
+      { playerId, category: "HUSTLE", note: 10 },
+    ];
+    for (const command of invalid) {
+      await expect(savePlayerRecognition({ ...base, clubId, teamId, eventId, ...command, writer } as never)).rejects.toMatchObject({ code: "VALIDATION_FAILED" });
+    }
+    await expect(savePlayerRecognition({ ...base, clubId, teamId, eventId: "invalid", playerId, category: "MVP", note: null, writer })).rejects.toMatchObject({ code: "VALIDATION_FAILED" });
     await expect(savePlayerRecognition({ ...manager, clubId, teamId, eventId, playerId, category: "TEAMWORK", note: null, writer })).rejects.toMatchObject({ code: "FORBIDDEN" });
+    await expect(removePlayerRecognition({ ...base, clubId, teamId, eventId, playerId: "invalid", category: "MVP", writer })).rejects.toMatchObject({ code: "VALIDATION_FAILED" });
+    await expect(removePlayerRecognition({ ...base, clubId, teamId, eventId, playerId, category: "INVALID" as never, writer })).rejects.toMatchObject({ code: "VALIDATION_FAILED" });
+    await expect(removePlayerRecognition({ ...manager, clubId, teamId, eventId, playerId, category: "MVP", writer })).rejects.toMatchObject({ code: "FORBIDDEN" });
+    expect(writer.savePlayerRecognition).toHaveBeenCalledOnce();
+    expect(writer.removePlayerRecognition).toHaveBeenCalledOnce();
   });
 
-  it("validates private note length before the private gateway is called", async () => {
+  it("keeps private notes on dedicated read, list, save, and clear writer paths", async () => {
     const { writer } = setup();
+    await expect(readPrivatePlayerNote({ ...base, clubId, teamId, eventId, playerId, writer })).resolves.toBe("Private note");
+    await expect(listPrivatePlayerNotes({ ...base, clubId, teamId, eventId, writer })).resolves.toEqual([{ playerId, note: "Private note" }]);
+    await savePrivatePlayerNote({ ...base, clubId, teamId, eventId, playerId, note: "Needs confidence", writer });
+    await savePrivatePlayerNote({ ...base, clubId, teamId, eventId, playerId, note: null, writer });
+    expect(writer.readPrivatePlayerNote).toHaveBeenCalledWith(eventId, playerId);
+    expect(writer.listPrivatePlayerNotes).toHaveBeenCalledWith(eventId);
+    expect(writer.savePrivatePlayerNote).toHaveBeenNthCalledWith(1, { eventId, playerId, note: "Needs confidence" });
+    expect(writer.savePrivatePlayerNote).toHaveBeenNthCalledWith(2, { eventId, playerId, note: null });
+
+    const dualRole = { ...base, clubMemberships: [{ clubId, role: "CLUB_ADMIN" as const, active: true }] };
+    await savePrivatePlayerNote({ ...dualRole, clubId, teamId, eventId, playerId, note: "Coach membership grants access", writer });
+    await expect(savePrivatePlayerNote({ ...dualRole, teamMemberships: [], clubId, teamId, eventId, playerId, note: "Hidden", writer })).rejects.toMatchObject({ code: "FORBIDDEN" });
+    const guardian = { ...base, teamMemberships: [], guardianLinks: [{ clubId, playerId, active: true, playerActive: true }], registrations: [{ clubId, teamId, playerId, active: true, teamActive: true }] };
+    await expect(savePrivatePlayerNote({ ...guardian, clubId, teamId, eventId, playerId, note: "private", writer })).rejects.toMatchObject({ code: "FORBIDDEN" });
+    await expect(readPrivatePlayerNote({ ...manager, clubId, teamId, eventId, playerId, writer })).rejects.toMatchObject({ code: "FORBIDDEN" });
+    await expect(listPrivatePlayerNotes({ ...manager, clubId, teamId, eventId, writer })).rejects.toMatchObject({ code: "FORBIDDEN" });
+
+    await expect(readPrivatePlayerNote({ ...base, clubId, teamId, eventId, playerId: "invalid", writer })).rejects.toMatchObject({ code: "VALIDATION_FAILED" });
+    await expect(savePrivatePlayerNote({ ...base, clubId, teamId, eventId, playerId: "invalid", note: null, writer })).rejects.toMatchObject({ code: "VALIDATION_FAILED" });
     await expect(savePrivatePlayerNote({ ...base, clubId, teamId, eventId, playerId, note: "x".repeat(2001), writer })).rejects.toMatchObject({ code: "VALIDATION_FAILED" });
-    expect(writer.savePrivatePlayerNote).not.toHaveBeenCalled();
+    await expect(savePrivatePlayerNote({ ...base, clubId, teamId, eventId, playerId, note: "bad\u007ftext", writer })).rejects.toMatchObject({ code: "VALIDATION_FAILED" });
+    await expect(listPrivatePlayerNotes({ ...base, clubId: "invalid", teamId, eventId, writer })).rejects.toMatchObject({ code: "VALIDATION_FAILED" });
+    expect(writer.readPrivatePlayerNote).toHaveBeenCalledTimes(1);
+    expect(writer.listPrivatePlayerNotes).toHaveBeenCalledTimes(1);
   });
 });
