@@ -218,9 +218,13 @@ select is(
 );
 
 select ok(
-  (select payload::text not like '%Child%'
+  not exists (
+    select 1
     from public.notification_requests
-    where notification_type = 'FILL_IN_REQUESTED'),
+    where notification_type = 'FILL_IN_REQUESTED'
+      and source_id = (select request_id from issued_request)
+      and payload::text like '%Child%'
+  ),
   'the request payload has no child name'
 );
 
@@ -289,8 +293,27 @@ where user_id = '4f4f4f4f-4f4f-44f4-84f4-4f4f4f4f4f03';
 do $$ begin perform pg_temp.assume_user('4f4f4f4f-4f4f-44f4-84f4-4f4f4f4f4f01'); end $$;
 set local role authenticated;
 
+select is(
+  pg_temp.sqlerrm_of($sql$
+    select public.request_fill_in((select event_id from issued_event))
+  $sql$),
+  'CONFLICT',
+  'a confirmed game cannot take another fill-in request'
+);
+
+create temp table second_event on commit drop as
+select public.create_manual_fixture(
+  '4a4a4a4a-4a4a-44a4-84a4-4a4a4a4a4a4a',
+  '4d4d4d4d-4d4d-44d4-84d4-4d4d4d4d4d4d',
+  '2026-10-17 18:30:00+11',
+  null, null, null, null, 'Round 2',
+  'Later Visitors',
+  '2026-10-17 18:30:00+11',
+  'Court Two', 'Court B', 'HOME'
+) as event_id;
+
 insert into later_request (request_id)
-select public.request_fill_in((select event_id from issued_event));
+select public.request_fill_in((select event_id from second_event));
 
 reset role;
 do $$ begin perform pg_temp.assume_user('4f4f4f4f-4f4f-44f4-84f4-4f4f4f4f4f03'); end $$;
@@ -321,14 +344,15 @@ select is(
   'a withdrawn request cannot be confirmed'
 );
 
-select public.request_fill_in((select event_id from issued_event));
+select public.request_fill_in((select event_id from second_event));
 
 reset role;
 
 insert into closed_request (request_id)
 select id
 from public.fill_in_requests
-where status = 'OPEN';
+where status = 'OPEN'
+  and event_id = (select event_id from second_event);
 
 do $$ begin perform pg_temp.assume_user('4f4f4f4f-4f4f-44f4-84f4-4f4f4f4f4f03'); end $$;
 set local role authenticated;
