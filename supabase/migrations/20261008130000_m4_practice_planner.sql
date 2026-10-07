@@ -225,7 +225,7 @@ declare actor uuid := (select auth.uid()); team_row public.teams; source_row pub
 begin
   perform public.assert_practice_plan_actor(p_team_id);
   select team.* into team_row from public.teams team where team.id = p_team_id and team.active;
-  select plan.* into source_row from public.practice_plans plan where plan.id = p_source_plan_id and plan.team_id = team_row.id and plan.club_id = team_row.club_id;
+  select plan.* into source_row from public.practice_plans plan where plan.id = p_source_plan_id and plan.team_id = team_row.id and plan.club_id = team_row.club_id for update;
   if not found then raise exception 'NOT_FOUND' using errcode = 'P0002'; end if;
   if p_as_template is null or (p_as_template and p_training_event_id is not null) or (not p_as_template and p_training_event_id is null) then raise exception 'VALIDATION_FAILED' using errcode = '23514'; end if;
   if p_training_event_id is not null then
