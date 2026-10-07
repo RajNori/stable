@@ -468,3 +468,48 @@ No distinct new finding beyond the still-open M3-DELTA-MED-01 upgrade-path condi
 **PASS WITH CONDITIONS**
 
 All six original findings are CLOSED and clean-reset gates pass. Freeze is conditional on applying a forward migration (or proving no existing database has applied the earlier version of `20261007220000`) so the single-open-request lifecycle fix reaches upgraded databases and any pre-existing sibling OPEN requests are reconciled safely.
+
+# Milestone 3 Forward Migration Delta Review
+
+## Reviewed range
+
+- Prior reviewed HEAD: `c510fc5abf2846bb9898aba20eb7b29e3718fb6a`.
+- Current HEAD: `96668853a861b70e6eab5bd4a18bbeda426b9522`.
+- Product delta: `9666885` adds forward migration `20261007260000_restore_fill_in_open_request_invariant.sql` and `m3_fill_in_open_upgrade_rls.sql`. `d121370` is documentation-only. Worktree was clean at review start; `git diff --check c510fc5..HEAD` passed.
+- Review only. No product edits, push, tag, or hosted database access.
+
+## Upgrade and history checks
+
+**Old installations receive the fix — CLOSED.** The forward migration runs after `20261007250000`; it does not rely on the edited `20261007220000` being replayed. It restores `fill_in_requests_one_open` and replaces `request_fill_in` with the current OPEN/CONFIRMED check, scheduled GAME/game-row checks, authorization, event lock, audit, and generic conflict behavior. The upgrade regression drops the old index, invokes the migration helper, verifies the invariant/index and updated function, then checks duplicate requests are denied while withdrawn requests still allow a new request.
+
+**Conflicting historical rows abort safely — CLOSED.** The migration checks that the one-confirmation indexes exist, then counts duplicate OPEN requests before creating the restored index. Conflicts raise `FILL_IN_OPEN_REQUEST_HISTORY_CONFLICT` with event IDs/counts and require operator reconciliation. It does not choose, withdraw, delete, or audit-rewrite historical rows. The regression asserts both conflicting requests remain, the index is not created, and no audit rows were written. The existing `20261007220000` preflight similarly rejects duplicate historical confirmations before its unique confirmation index is created.
+
+**Fresh installs work — VERIFIED.** `pnpm exec supabase db reset --local` applied all migrations through `20261007260000_restore_fill_in_open_request_invariant.sql`; the full database suite passed afterward.
+
+## Previous Milestone 3 findings
+
+- M3-HIGH-01: **CLOSED**.
+- M3-MED-01: **CLOSED**.
+- M3-MED-02: **CLOSED**.
+- M3-MED-03: **CLOSED**.
+- M3-MED-04: **CLOSED**.
+- M3-MED-05: **CLOSED**.
+- M3-DELTA-MED-01 (sibling OPEN requests on already-upgraded databases): **CLOSED** by the forward migration and its upgrade/conflict regression.
+- M3-DELTA-UNCERTAIN-01 (historical duplicate confirmations): **CLOSED** by the explicit preflight in `20261007220000`; it preserves rows and aborts for reconciliation rather than silently selecting a winner.
+
+The product delta is limited to the fill-in request invariant. Source review found no change to the other closed M3 paths. No new finding was identified.
+
+## Test evidence
+
+Classification: **RERUN** for clean reset, pgTAP, and diff check; **SOURCE REVIEW** for migration sequencing, exception/transaction behavior, and prior findings; **REPORTED ONLY** for earlier format/lint/typecheck and focused unit gates, which were not rerun for this SQL-only delta.
+
+- `pnpm exec supabase db reset --local`: PASS; fresh local installation applied migration `20261007260000`.
+- `pnpm exec supabase test db`: PASS, 20 files / 751 pgTAP tests.
+- `git diff --check c510fc5..HEAD`: PASS.
+- No hosted database was inspected or changed.
+
+## Milestone 3 freeze recommendation
+
+**PASS**
+
+The forward-upgrade path, explicit conflict abort, and fresh-install path are verified. All six original M3 findings and both prior delta conditions are closed; no new issue was found.
