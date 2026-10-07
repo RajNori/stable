@@ -192,7 +192,7 @@ select is(
 );
 reset role;
 select is(
-  (select count(*) from public.audit_events where action = 'fixture.created'),
+  (select count(*) from public.audit_events where action = 'fixture.created' and actor_user_id = '2f2f2f2f-2f2f-42f2-82f2-2f2f2f2f2f1a'),
   0::bigint,
   'a denied official write does not audit'
 );
@@ -553,9 +553,29 @@ select is(
 );
 select is(
   (select team_score from public.games where event_id = (select event_id from issued_fixtures where label = 'early')),
-  12,
-  'scores stay on the official game row'
+  null,
+  'legacy metadata update cannot set the team score'
 );
+
+do $$ begin perform pg_temp.assume_user('2f2f2f2f-2f2f-42f2-82f2-2f2f2f2f2f1c'); end $$;
+set local role authenticated;
+select is(
+  pg_temp.sqlerrm_of(
+    format(
+      $$select public.update_official_fixture(
+        '2a2a2a2a-2a2a-42a2-82a2-2a2a2a2a2a2a',
+        '2d2d2d2d-2d2d-42d2-82d2-2d2d2d2d2d2d',
+        '2026-10-17 19:00:00+11', null, null, null, null, 'Round 2',
+        'Imported changed', '2026-10-17 19:00:00+11', null, null, 'HOME',
+        %L, 'COMPLETED', null, null, null
+      )$$,
+      (select event_id from issued_fixtures where label = 'imported')
+    )
+  ),
+  'FORBIDDEN',
+  'legacy metadata update cannot mutate imported provider-owned fields'
+);
+reset role;
 
 do $$ begin perform pg_temp.assume_user('2f2f2f2f-2f2f-42f2-82f2-2f2f2f2f2f1d'); end $$;
 set local role authenticated;

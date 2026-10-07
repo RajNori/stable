@@ -3,10 +3,13 @@ import { attendanceMessages } from "@stable/attendance";
 import { getCurrentClubContext } from "@stable/current-club-context";
 import { createSupabaseFixtureGateway } from "@stable/fixtures";
 import {
+  createSupabaseGameStatsGateway,
   createSupabaseGameDayGateway,
   gameDayMessages,
+  gameStatsMessages,
   previewDutyAllocation,
   readGameDay,
+  readGameCoachingStats,
 } from "@stable/game-day";
 import {
   createSupabaseFillInGateway,
@@ -19,6 +22,7 @@ import { createSupabaseRosterGateway, listTeamRoster } from "@stable/roster";
 
 import { ClubAdminShell } from "../../../../../components/club-admin-shell";
 import { GameDayPanel } from "../../../../../components/game-day-panel";
+import { GameStatsPanel } from "../../../../../components/game-stats-panel";
 import { fixtureAccessFrom } from "../../../../../lib/fixture-access";
 import { loadLiveClubContext } from "../../../../../lib/load-live-club-context";
 import { principalFromSupabase } from "../../../../../lib/principal";
@@ -33,6 +37,8 @@ import {
   confirmFillInAction,
   requestDutySwapAction,
   requestFillInAction,
+  saveGamePlayerStatAction,
+  saveManualGameResultAction,
   respondFillInAction,
 } from "./actions";
 
@@ -63,6 +69,12 @@ const visibleErrors = new Set<string>([
   fillInMessages.conflict,
   fillInMessages.saveFailed,
   fillInMessages.readFailed,
+  gameStatsMessages.unauthenticated,
+  gameStatsMessages.forbidden,
+  gameStatsMessages.notFound,
+  gameStatsMessages.validationFailed,
+  gameStatsMessages.readFailed,
+  gameStatsMessages.saveFailed,
 ]);
 
 export default async function GameDayPage({
@@ -117,6 +129,36 @@ export default async function GameDayPage({
       caught instanceof ApplicationError
         ? caught.message
         : gameDayMessages.readFailed;
+  }
+
+  const canReadCoachingStats =
+    evaluateCapability({
+      ...access,
+      resource: { clubId: club.id, teamId: team.id, teamActive: team.active },
+      capability: "coaching_stats.read",
+    }) === "allow";
+  const canWriteCoachingStats =
+    evaluateCapability({
+      ...access,
+      resource: { clubId: club.id, teamId: team.id, teamActive: team.active },
+      capability: "coaching_stats.write",
+    }) === "allow";
+  let coachingStats = null;
+  if (canReadCoachingStats && projection !== null) {
+    try {
+      coachingStats = await readGameCoachingStats({
+        ...access,
+        clubId: club.id,
+        teamId: team.id,
+        eventId: projection.eventId,
+        writer: createSupabaseGameStatsGateway(supabase),
+      });
+    } catch (caught: unknown) {
+      error =
+        caught instanceof ApplicationError
+          ? caught.message
+          : gameStatsMessages.readFailed;
+    }
   }
 
   const managed = new Set(
@@ -281,6 +323,15 @@ export default async function GameDayPage({
           ? { respondFillIn: respondFillInAction }
           : {})}
       />
+      {coachingStats !== null ? (
+        <GameStatsPanel
+          stats={coachingStats}
+          teamId={team.id}
+          canWrite={canWriteCoachingStats}
+          scoreAction={saveManualGameResultAction}
+          playerStatAction={saveGamePlayerStatAction}
+        />
+      ) : null}
     </ClubAdminShell>
   );
 }

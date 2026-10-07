@@ -37,3 +37,20 @@ export type {
 } from "./application/duty-allocation.js";
 export { createSupabaseGameDayGateway } from "./infrastructure/supabase-game-day-gateway.js";
 export type { GameDayGateway } from "./infrastructure/supabase-game-day-gateway.js";
+export {
+  readGameCoachingStats,
+  saveGamePlayerStat,
+  saveManualGameResult,
+  saveGamePlayerStatSchema,
+  saveManualGameResultSchema,
+} from "./application/game-stats-commands.js";
+export type {
+  GameCoachingStats,
+  GamePlayerStatValues,
+  GameStatsAccess,
+  GameStatsWriter,
+  SaveGamePlayerStat,
+  SaveManualGameResult,
+} from "./application/game-stats-commands.js";
+export { gameStatsMessages } from "./application/game-stats-messages.js";
+export { createSupabaseGameStatsGateway } from "./infrastructure/supabase-game-stats-gateway.js";
