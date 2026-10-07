@@ -206,6 +206,71 @@ describe("practice planner commands", () => {
     ).rejects.toMatchObject({ code: "VALIDATION_FAILED" });
     expect(gateway.save).not.toHaveBeenCalled();
   });
+  it("rejects duplicate identities, duplicate focus, invalid blocks and unsafe text", async () => {
+    const gateway = writer();
+    const stableId = "90000000-0000-4000-8000-000000000001";
+    const pair = [
+      { ...firstBlock, blockId: stableId, order: 1 },
+      { ...firstBlock, blockId: stableId, order: 2 },
+    ];
+    const invalidDrafts: PracticePlanDraft[] = [
+      { ...draft, blocks: [firstBlock, { ...firstBlock, order: 1 }] },
+      { ...draft, blocks: pair },
+      {
+        ...draft,
+        blocks: [{ ...firstBlock, drillId: sourceId }],
+      },
+      {
+        ...draft,
+        blocks: [{ ...firstBlock, title: null }],
+      },
+      { ...draft, title: "   " },
+      { ...draft, notes: "x".repeat(2001) },
+      {
+        ...draft,
+        blocks: [{ ...firstBlock, instructions: `unsafe\u0001text` }],
+      },
+      { ...draft, focus: [firstFocus, { ...firstFocus }] },
+    ];
+    for (const invalidDraft of invalidDrafts) {
+      await expect(
+        savePracticePlan({
+          ...access(),
+          clubId,
+          teamId,
+          draft: invalidDraft,
+          writer: gateway,
+        }),
+      ).rejects.toMatchObject({ code: "VALIDATION_FAILED" });
+    }
+    expect(gateway.save).not.toHaveBeenCalled();
+  });
+  it("requires an authenticated principal and allows a 240-minute template", async () => {
+    const gateway = writer();
+    await expect(
+      readPracticePlanner({
+        ...access(),
+        principal: null,
+        clubId,
+        teamId,
+        writer: gateway,
+      }),
+    ).rejects.toMatchObject({ code: "UNAUTHENTICATED" });
+    const template: PracticePlanDraft = {
+      ...draft,
+      trainingEventId: null,
+      blocks: [{ ...firstBlock, durationMinutes: 240 }],
+    };
+    await expect(
+      savePracticePlan({
+        ...access(),
+        clubId,
+        teamId,
+        draft: template,
+        writer: gateway,
+      }),
+    ).resolves.toBe(sourceId);
+  });
   it("caps reusable templates at 240 total minutes", async () => {
     const gateway = writer();
     const template = {
@@ -317,6 +382,64 @@ describe("practice planner commands", () => {
         name: "x".repeat(121),
         instructions: "",
         defaultDurationMinutes: 12,
+        writer: gateway,
+      }),
+    ).rejects.toMatchObject({ code: "VALIDATION_FAILED" });
+  });
+  it("validates drill duration and supports a nullable suggested duration", async () => {
+    const gateway = writer();
+    await expect(
+      savePracticeDrill({
+        ...access(),
+        clubId,
+        teamId,
+        name: "  Shell drill  ",
+        instructions: "  Close out  ",
+        defaultDurationMinutes: null,
+        writer: gateway,
+      }),
+    ).resolves.toBe(sourceId);
+    expect(gateway.saveDrill).toHaveBeenCalledWith(
+      "Shell drill",
+      "Close out",
+      null,
+    );
+    for (const defaultDurationMinutes of [0, 1.5, 241]) {
+      await expect(
+        savePracticeDrill({
+          ...access(),
+          clubId,
+          teamId,
+          name: "Shell drill",
+          instructions: "Close out",
+          defaultDurationMinutes,
+          writer: gateway,
+        }),
+      ).rejects.toMatchObject({ code: "VALIDATION_FAILED" });
+    }
+  });
+  it("validates copy IDs and permits explicit template copies", async () => {
+    const gateway = writer();
+    await expect(
+      copyPracticePlan({
+        ...access(),
+        clubId,
+        teamId,
+        sourcePlanId: sourceId,
+        trainingEventId: null,
+        asTemplate: true,
+        writer: gateway,
+      }),
+    ).resolves.toBe(sourceId);
+    expect(gateway.copy).toHaveBeenCalledWith(sourceId, null, true);
+    await expect(
+      copyPracticePlan({
+        ...access(),
+        clubId,
+        teamId,
+        sourcePlanId: "not-a-uuid",
+        trainingEventId: eventId,
+        asTemplate: false,
         writer: gateway,
       }),
     ).rejects.toMatchObject({ code: "VALIDATION_FAILED" });
