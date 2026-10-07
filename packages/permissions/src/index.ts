@@ -190,6 +190,13 @@ export const evaluateCapability: EvaluateCapability = (input) => {
     return teamScoped(input, clubId);
   }
 
+  if (
+    input.capability === "private_player_note.read" ||
+    input.capability === "private_player_note.write"
+  ) {
+    return coachOnlyTeamScoped(input, clubId);
+  }
+
   if (input.capability === "attendance.manage_managed_player") {
     return playerScoped(input, clubId);
   }
@@ -205,7 +212,14 @@ export const evaluateCapability: EvaluateCapability = (input) => {
     input.capability === "announcement.ack" ||
     input.capability === "duty.manage" ||
     input.capability === "duty.respond" ||
-    input.capability === "fillin.manage"
+    input.capability === "fillin.manage" ||
+    input.capability === "coaching_stats.read" ||
+    input.capability === "coaching_stats.write" ||
+    input.capability === "post_game_review.read" ||
+    input.capability === "post_game_review.write" ||
+    input.capability === "recognition.read" ||
+    input.capability === "recognition.write" ||
+    input.capability === "practice_plan.manage"
   ) {
     return teamEventScoped(input, clubId);
   }
@@ -229,6 +243,12 @@ function teamEventScoped(
     clubId,
     teamId,
     HEAD_COACH_ROLES,
+  );
+  const coach = activeStaff(
+    input.teamMemberships,
+    clubId,
+    teamId,
+    COACH_ROLES,
   );
   const manager = activeStaff(
     input.teamMemberships,
@@ -257,6 +277,17 @@ function teamEventScoped(
     return admin || staff ? "allow" : "deny";
   }
   if (
+    input.capability === "coaching_stats.read" ||
+    input.capability === "coaching_stats.write" ||
+    input.capability === "post_game_review.read" ||
+    input.capability === "post_game_review.write" ||
+    input.capability === "recognition.read" ||
+    input.capability === "recognition.write" ||
+    input.capability === "practice_plan.manage"
+  ) {
+    return admin || coach ? "allow" : "deny";
+  }
+  if (
     input.capability === "announcement.read" ||
     input.capability === "announcement.ack" ||
     input.capability === "duty.respond"
@@ -276,4 +307,18 @@ function teamEventScoped(
     return admin || headCoach || manager ? "allow" : "deny";
   }
   return "deny";
+}
+
+function coachOnlyTeamScoped(
+  input: Parameters<EvaluateCapability>[0],
+  clubId: string,
+): "allow" | "deny" {
+  const teamId = input.resource.teamId;
+  if (teamId === undefined || input.resource.teamActive !== true) {
+    return "deny";
+  }
+
+  return activeStaff(input.teamMemberships, clubId, teamId, COACH_ROLES)
+    ? "allow"
+    : "deny";
 }

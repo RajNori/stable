@@ -667,4 +667,89 @@ describe("evaluateCapability", () => {
     ).toBe("deny");
     expect(decide("fillin.manage", ownTeam, guardian)).toBe("deny");
   });
+
+  it("applies the frozen Milestone 4 coaching capability matrix", () => {
+    const ownTeam = { clubId, teamId: teamA, teamActive: true };
+    const otherTeam = { clubId, teamId: teamB, teamActive: true };
+    const inactiveTeam = { clubId, teamId: teamA, teamActive: false };
+    const adminCoachingCapabilities = [
+      "coaching_stats.read",
+      "coaching_stats.write",
+      "post_game_review.read",
+      "post_game_review.write",
+      "recognition.read",
+      "recognition.write",
+      "practice_plan.manage",
+    ];
+    const privateNoteCapabilities = [
+      "private_player_note.read",
+      "private_player_note.write",
+    ];
+    const coachingCapabilities = [
+      ...adminCoachingCapabilities,
+      ...privateNoteCapabilities,
+    ];
+
+    for (const capability of adminCoachingCapabilities) {
+      expect(
+        decide(capability, ownTeam, { clubMemberships: [admin()] }),
+        `${capability} allows an active Club Admin for an active team`,
+      ).toBe("allow");
+      expect(
+        decide(capability, ownTeam, { clubMemberships: [admin(false)] }),
+      ).toBe("deny");
+      expect(
+        decide(capability, ownTeam, {
+          clubMemberships: [admin(true, otherClubId)],
+        }),
+      ).toBe("deny");
+    }
+
+    for (const capability of coachingCapabilities) {
+      for (const role of ["HEAD_COACH", "ASSISTANT_COACH"] as const) {
+        const facts = { teamMemberships: [staff(role)] };
+        expect(decide(capability, ownTeam, facts)).toBe("allow");
+        expect(decide(capability, otherTeam, facts)).toBe("deny");
+        expect(
+          decide(capability, ownTeam, {
+            teamMemberships: [staff(role, teamA, false)],
+          }),
+        ).toBe("deny");
+        expect(
+          decide(capability, ownTeam, {
+            teamMemberships: [staff(role, teamA, true, false)],
+          }),
+        ).toBe("deny");
+        expect(
+          decide(capability, inactiveTeam, {
+            teamMemberships: [staff(role)],
+          }),
+        ).toBe("deny");
+      }
+
+      expect(
+        decide(capability, ownTeam, {
+          teamMemberships: [staff("TEAM_MANAGER")],
+        }),
+      ).toBe("deny");
+      expect(
+        decide(capability, ownTeam, {
+          guardianLinks: [link()],
+          registrations: [registration()],
+        }),
+      ).toBe("deny");
+    }
+
+    for (const capability of privateNoteCapabilities) {
+      expect(
+        decide(capability, ownTeam, { clubMemberships: [admin()] }),
+      ).toBe("deny");
+      expect(
+        decide(capability, ownTeam, {
+          clubMemberships: [admin()],
+          teamMemberships: [staff("ASSISTANT_COACH")],
+        }),
+      ).toBe("allow");
+    }
+  });
 });

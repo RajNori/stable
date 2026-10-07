@@ -40,6 +40,15 @@ export const TEAM_CAPABILITIES = [
   "duty.manage",
   "duty.respond",
   "fillin.manage",
+  "coaching_stats.read",
+  "coaching_stats.write",
+  "post_game_review.read",
+  "post_game_review.write",
+  "recognition.read",
+  "recognition.write",
+  "private_player_note.read",
+  "private_player_note.write",
+  "practice_plan.manage",
 ] as const;
 
 export const PLAYER_CAPABILITIES = [
