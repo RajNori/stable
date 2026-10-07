@@ -3,6 +3,10 @@ import type { PostgrestError } from "@supabase/supabase-js";
 import { z } from "zod";
 
 import type { DutyAllocationWriter } from "../application/duty-commands.js";
+import type {
+  DutySwapRecord,
+  DutySwapWriter,
+} from "../application/duty-swap-commands.js";
 import {
   gameDayProjectionSchema,
   type AssignDuty,
@@ -78,7 +82,16 @@ const allocationInputSchema = z.strictObject({
   ),
 });
 
-export type GameDayGateway = GameDayReader & DutyAllocationWriter;
+const swapRowSchema = z.strictObject({
+  id: z.string().uuid(),
+  label: z.string(),
+  requester_user_id: z.string().uuid(),
+  target_user_id: z.string().uuid().nullable(),
+});
+
+export type GameDayGateway = GameDayReader &
+  DutyAllocationWriter &
+  DutySwapWriter;
 
 export function createSupabaseGameDayGateway(client: unknown): GameDayGateway {
   const db = client as GameDayClient;
@@ -90,6 +103,13 @@ export function createSupabaseGameDayGateway(client: unknown): GameDayGateway {
     commitDutyAllocation: (eventId, fingerprint) =>
       commitDutyAllocation(db, eventId, fingerprint),
     acknowledgeOwnDuty: (eventId) => acknowledgeOwnDuty(db, eventId),
+    requestDutySwap: (eventId, targetUserId) =>
+      requestDutySwap(db, eventId, targetUserId),
+    acceptDutySwap: (requestId) => acceptDutySwap(db, requestId),
+    cancelDutySwap: (requestId) => cancelDutySwap(db, requestId),
+    enqueueDutySwapAccepted: (requestId) =>
+      enqueueDutySwapAccepted(db, requestId),
+    listOpenDutySwaps: (eventId) => listOpenDutySwaps(db, eventId),
   };
 }
 
@@ -189,6 +209,67 @@ async function acknowledgeOwnDuty(
     throw new ApplicationError("INTERNAL", gameDayMessages.saveFailed);
   }
   return parsed.data;
+}
+
+async function requestDutySwap(
+  db: GameDayClient,
+  eventId: string,
+  targetUserId: string | null,
+): Promise<{ requestId: string }> {
+  const data = await call(db, "request_duty_swap", {
+    p_event_id: eventId,
+    p_target_user_id: targetUserId,
+  });
+  const value = Array.isArray(data) ? data[0] : data;
+  const parsed = z.string().uuid().safeParse(value);
+  if (!parsed.success) {
+    throw new ApplicationError("INTERNAL", gameDayMessages.saveFailed);
+  }
+  return { requestId: parsed.data };
+}
+
+async function acceptDutySwap(
+  db: GameDayClient,
+  requestId: string,
+): Promise<{ requestId: string }> {
+  const data = await call(db, "accept_duty_swap", { p_request_id: requestId });
+  const value = Array.isArray(data) ? data[0] : data;
+  const parsed = z.string().uuid().safeParse(value);
+  if (!parsed.success) {
+    throw new ApplicationError("INTERNAL", gameDayMessages.saveFailed);
+  }
+  return { requestId: parsed.data };
+}
+
+async function cancelDutySwap(
+  db: GameDayClient,
+  requestId: string,
+): Promise<void> {
+  await call(db, "cancel_duty_swap", { p_request_id: requestId });
+}
+
+async function enqueueDutySwapAccepted(
+  db: GameDayClient,
+  requestId: string,
+): Promise<void> {
+  await call(db, "enqueue_duty_swap_accepted", { p_request_id: requestId });
+}
+
+async function listOpenDutySwaps(
+  db: GameDayClient,
+  eventId: string,
+): Promise<DutySwapRecord[]> {
+  const data = await call(db, "list_open_duty_swaps", { p_event_id: eventId });
+  const parsed = z.array(swapRowSchema).safeParse(data ?? []);
+  if (!parsed.success) {
+    throw new ApplicationError("INTERNAL", gameDayMessages.readFailed);
+  }
+  return parsed.data.map((row) => ({
+    id: row.id,
+    label: row.label,
+    requesterUserId: row.requester_user_id,
+    targetUserId: row.target_user_id,
+  }));
 }
 
 async function call(

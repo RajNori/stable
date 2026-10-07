@@ -9,6 +9,9 @@ export function GameDayPanel({
   createDuty,
   commitDuty,
   acknowledgeDuty,
+  swaps,
+  requestSwap,
+  acceptSwap,
 }: {
   projection: GameDayProjection | null;
   error?: string | undefined;
@@ -18,6 +21,9 @@ export function GameDayPanel({
   createDuty?: ((formData: FormData) => Promise<void>) | undefined;
   commitDuty?: ((formData: FormData) => Promise<void>) | undefined;
   acknowledgeDuty?: ((formData: FormData) => Promise<void>) | undefined;
+  swaps?: { id: string; label: string }[] | undefined;
+  requestSwap?: ((formData: FormData) => Promise<void>) | undefined;
+  acceptSwap?: ((formData: FormData) => Promise<void>) | undefined;
 }) {
   return (
     <section aria-label="Game day">
@@ -44,6 +50,42 @@ export function GameDayPanel({
               <button type="submit">Acknowledge duty</button>
             </form>
           ) : null}
+          {requestSwap !== undefined && projection.ownDutyLabel !== null ? (
+            <form action={requestSwap}>
+              <input type="hidden" name="clubId" value={projection.clubId} />
+              <input type="hidden" name="teamId" value={projection.teamId} />
+              <input type="hidden" name="eventId" value={projection.eventId} />
+              <label>
+                Offer to
+                <input name="targetUserId" />
+              </label>
+              <button type="submit">Request duty swap</button>
+            </form>
+          ) : null}
+          {acceptSwap !== undefined && swaps !== undefined
+            ? swaps.map((swap) => (
+                <form action={acceptSwap} key={swap.id}>
+                  <input
+                    type="hidden"
+                    name="clubId"
+                    value={projection.clubId}
+                  />
+                  <input
+                    type="hidden"
+                    name="teamId"
+                    value={projection.teamId}
+                  />
+                  <input
+                    type="hidden"
+                    name="eventId"
+                    value={projection.eventId}
+                  />
+                  <input type="hidden" name="requestId" value={swap.id} />
+                  <p>Open swap {swap.label}</p>
+                  <button type="submit">Accept swap</button>
+                </form>
+              ))
+            : null}
           {dutyProposal === undefined
             ? null
             : dutyProposal.lines.map((line) => <p key={line}>{line}</p>)}

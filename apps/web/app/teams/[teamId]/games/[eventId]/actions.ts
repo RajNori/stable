@@ -7,11 +7,13 @@ import {
   recordAttendance,
 } from "@stable/attendance";
 import {
+  acceptDutySwap,
   acknowledgeGameDuty,
   commitDutyAllocation,
   createOpenGameDuty,
   createSupabaseGameDayGateway,
   gameDayMessages,
+  requestDutySwap,
 } from "@stable/game-day";
 import { DUTY_TYPES } from "@stable/game-day";
 import { redirect } from "next/navigation";
@@ -240,6 +242,53 @@ export async function acknowledgeDutyAction(formData: FormData): Promise<void> {
       clubId: loaded.clubId,
       teamId: loaded.teamId,
       eventId: loaded.eventId,
+      writer: loaded.writer,
+    });
+  } catch (caught: unknown) {
+    const message =
+      caught instanceof Error ? caught.message : gameDayMessages.saveFailed;
+    redirect(withError(destination(loaded.teamId, loaded.eventId), message));
+  }
+  redirect(destination(loaded.teamId, loaded.eventId));
+}
+
+export async function requestDutySwapAction(formData: FormData): Promise<void> {
+  const loaded = await dutyAccess(formData);
+  const target = text(formData, "targetUserId");
+  try {
+    await requestDutySwap({
+      ...loaded.access,
+      clubId: loaded.clubId,
+      teamId: loaded.teamId,
+      eventId: loaded.eventId,
+      targetUserId: target,
+      writer: loaded.writer,
+    });
+  } catch (caught: unknown) {
+    const message =
+      caught instanceof Error ? caught.message : gameDayMessages.saveFailed;
+    redirect(withError(destination(loaded.teamId, loaded.eventId), message));
+  }
+  redirect(destination(loaded.teamId, loaded.eventId));
+}
+
+export async function acceptDutySwapAction(formData: FormData): Promise<void> {
+  const loaded = await dutyAccess(formData);
+  const requestId = text(formData, "requestId");
+  if (requestId === null || !UUID.test(requestId)) {
+    redirect(
+      withError(
+        destination(loaded.teamId, loaded.eventId),
+        gameDayMessages.validationFailed,
+      ),
+    );
+  }
+  try {
+    await acceptDutySwap({
+      ...loaded.access,
+      clubId: loaded.clubId,
+      teamId: loaded.teamId,
+      requestId,
       writer: loaded.writer,
     });
   } catch (caught: unknown) {

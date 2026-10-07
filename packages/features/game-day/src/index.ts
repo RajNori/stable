@@ -22,6 +22,11 @@ export {
   previewDutyAllocation,
 } from "./application/duty-commands.js";
 export {
+  acceptDutySwap,
+  requestDutySwap,
+} from "./application/duty-swap-commands.js";
+export type { DutySwapRecord } from "./application/duty-swap-commands.js";
+export {
   compareDutyCandidates,
   proposeDutyAllocation,
 } from "./application/duty-allocation.js";

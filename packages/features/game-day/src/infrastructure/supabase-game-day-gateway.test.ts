@@ -162,4 +162,57 @@ describe("game day gateway", () => {
       createSupabaseGameDayGateway(client("nope")).acknowledgeOwnDuty(eventId),
     ).rejects.toMatchObject({ code: "INTERNAL" });
   });
+
+  it("requests and accepts a duty swap", async () => {
+    const gateway = createSupabaseGameDayGateway(client(dutyId));
+    await expect(gateway.requestDutySwap(eventId, null)).resolves.toEqual({
+      requestId: dutyId,
+    });
+    await expect(gateway.acceptDutySwap(dutyId)).resolves.toEqual({
+      requestId: dutyId,
+    });
+    await expect(gateway.cancelDutySwap(dutyId)).resolves.toBeUndefined();
+    await expect(
+      gateway.enqueueDutySwapAccepted(dutyId),
+    ).resolves.toBeUndefined();
+    const listed = createSupabaseGameDayGateway(
+      client([
+        {
+          id: dutyId,
+          label: "Canteen",
+          requester_user_id: userId,
+          target_user_id: null,
+        },
+      ]),
+    );
+    await expect(
+      createSupabaseGameDayGateway(client("nope")).requestDutySwap(
+        eventId,
+        null,
+      ),
+    ).rejects.toMatchObject({ code: "INTERNAL" });
+    await expect(
+      createSupabaseGameDayGateway(client("nope")).acceptDutySwap(dutyId),
+    ).rejects.toMatchObject({ code: "INTERNAL" });
+    await expect(
+      createSupabaseGameDayGateway(client("nope")).createOpenDuty({
+        eventId,
+        dutyType: "SCORER",
+        label: "Score",
+      }),
+    ).rejects.toMatchObject({ code: "INTERNAL" });
+    await expect(
+      createSupabaseGameDayGateway(client([{ id: "nope" }])).listOpenDutySwaps(
+        eventId,
+      ),
+    ).rejects.toMatchObject({ code: "INTERNAL" });
+    await expect(listed.listOpenDutySwaps(eventId)).resolves.toEqual([
+      {
+        id: dutyId,
+        label: "Canteen",
+        requesterUserId: userId,
+        targetUserId: null,
+      },
+    ]);
+  });
 });

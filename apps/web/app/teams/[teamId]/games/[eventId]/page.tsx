@@ -19,10 +19,12 @@ import { principalFromSupabase } from "../../../../../lib/principal";
 import { createRuntimeClubContextReader } from "../../../../../lib/runtime-club-context-reader";
 import { createSupabaseServerClient } from "../../../../../lib/supabase/server";
 import {
+  acceptDutySwapAction,
   acknowledgeDutyAction,
   commitDutyAllocationAction,
   createOpenDutyAction,
   recordAttendanceAction,
+  requestDutySwapAction,
 } from "./actions";
 
 export const dynamic = "force-dynamic";
@@ -137,6 +139,25 @@ export default async function GameDayPage({
     }
   }
 
+  const canRespond =
+    evaluateCapability({
+      ...access,
+      resource: { clubId: club.id, teamId: team.id, teamActive: team.active },
+      capability: "duty.respond",
+    }) === "allow";
+  let swaps: { id: string; label: string }[] = [];
+  if (canRespond && projection !== null) {
+    try {
+      swaps = await createSupabaseGameDayGateway(supabase).listOpenDutySwaps(
+        projection.eventId,
+      );
+    } catch (caught: unknown) {
+      error =
+        caught instanceof ApplicationError
+          ? caught.message
+          : gameDayMessages.readFailed;
+    }
+  }
   const canManageDuties =
     evaluateCapability({
       ...access,
@@ -183,8 +204,12 @@ export default async function GameDayPage({
             }
           : {})}
         {...(projection?.ownDutyLabel !== null && projection !== null
-          ? { acknowledgeDuty: acknowledgeDutyAction }
+          ? {
+              acknowledgeDuty: acknowledgeDutyAction,
+              requestSwap: requestDutySwapAction,
+            }
           : {})}
+        {...(canRespond ? { swaps, acceptSwap: acceptDutySwapAction } : {})}
       />
     </ClubAdminShell>
   );

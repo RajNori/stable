@@ -137,5 +137,45 @@ describe("duty commands", () => {
         writer: calls,
       }),
     ).resolves.toBe(1);
+    await expect(
+      createOpenGameDuty({
+        ...manager(),
+        clubId: "nope",
+        teamId,
+        eventId,
+        dutyType: "SCORER",
+        label: "Score",
+        writer: calls,
+      }),
+    ).rejects.toMatchObject({ code: "VALIDATION_FAILED" });
+    await expect(
+      previewDutyAllocation({
+        ...manager(),
+        principal: null,
+        clubId,
+        teamId,
+        eventId,
+        writer: calls,
+      }),
+    ).rejects.toMatchObject({ code: "UNAUTHENTICATED" });
+    await expect(
+      commitDutyAllocation({
+        ...manager(),
+        clubId,
+        teamId,
+        eventId,
+        fingerprint: " ",
+        writer: calls,
+      }),
+    ).rejects.toMatchObject({ code: "VALIDATION_FAILED" });
+    await expect(
+      acknowledgeGameDuty({
+        ...manager(),
+        clubId,
+        teamId,
+        eventId: "nope",
+        writer: calls,
+      }),
+    ).rejects.toMatchObject({ code: "VALIDATION_FAILED" });
   });
 });
