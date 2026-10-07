@@ -1,35 +1,48 @@
-# Pull request gates only. No deploy, no EAS build, and no production promotion.
+# Pull request gate, plus post-merge verification on main.
+# No deploy, no EAS build, no production promotion, and no hosted Supabase mutation.
+#
+# Job ids and names are the GitHub status-check names. Rename them only
+# together with the required checks listed in planning/TESTING.md.
 name: ci
 
 on:
   pull_request:
+  push:
+    branches:
+      - main
 
 permissions:
   contents: read
 
 concurrency:
-  group: ci-${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: true
+  # A newer pull request commit cancels the older run for that pull request.
+  # Each main push gets its own group so every merged commit is verified.
+  group: ci-${{ github.workflow }}-${{ github.event_name == 'pull_request' && github.ref || github.sha }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
   quality:
-    name: format, lint, typecheck, test
+    name: quality
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          persist-credentials: false
 
       - name: Setup pnpm
         uses: pnpm/action-setup@v4
-        with:
-          version: 12.9.1
 
       - name: Setup Node
         uses: actions/setup-node@v4
         with:
-          node-version: "24.21.0"
+          node-version-file: .nvmrc
+          # pnpm store only. Do not cache Supabase, auth, or Playwright state.
           cache: pnpm
+
+      - name: Check toolchain pins
+        run: bash .github/workflows/check-toolchain.sh
 
       - name: Install
         run: pnpm install --frozen-lockfile
@@ -47,28 +60,32 @@ jobs:
         run: pnpm test
 
   dependency-audit:
-    name: dependency audit exception
+    name: dependency-audit
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          persist-credentials: false
 
       - name: Setup pnpm
         uses: pnpm/action-setup@v4
-        with:
-          version: 12.9.1
 
       - name: Setup Node
         uses: actions/setup-node@v4
         with:
-          node-version: "24.21.0"
+          node-version-file: .nvmrc
           cache: pnpm
+
+      - name: Check toolchain pins
+        run: bash .github/workflows/check-toolchain.sh
 
       - name: Install
         run: pnpm install --frozen-lockfile
 
       # Accepted upstream highs warn and exit 0. Any other high or critical fails.
+      # An empty or incomplete audit report also fails.
       # Production release stays blocked while the exception file says BLOCKED.
       - name: Compare audit with the residual-risk exception
         run: |
@@ -76,26 +93,32 @@ jobs:
           node --experimental-strip-types --import ./scripts/register-workspace-ts.mjs scripts/check-dependency-exceptions.ts /tmp/pnpm-audit.json
 
   supabase:
-    name: supabase db tests
+    name: supabase
     runs-on: ubuntu-latest
     timeout-minutes: 50
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          persist-credentials: false
 
       - name: Setup pnpm
         uses: pnpm/action-setup@v4
-        with:
-          version: 12.9.1
 
       - name: Setup Node
         uses: actions/setup-node@v4
         with:
-          node-version: "24.21.0"
+          node-version-file: .nvmrc
           cache: pnpm
+
+      - name: Check toolchain pins
+        run: bash .github/workflows/check-toolchain.sh
 
       - name: Install
         run: pnpm install --frozen-lockfile
+
+      - name: Refuse hosted Supabase credentials
+        run: bash .github/workflows/refuse-hosted-supabase.sh
 
       - name: Require Docker
         run: docker info
@@ -114,117 +137,17 @@ jobs:
       - name: Bootstrap local auth
         run: node --experimental-strip-types --import ./scripts/register-workspace-ts.mjs scripts/bootstrap-local-auth.ts
 
+      - name: Run database tests after auth bootstrap
+        run: pnpm exec supabase test db
+
+      - name: Export loopback Supabase env
+        run: node --experimental-strip-types --import ./scripts/register-workspace-ts.mjs scripts/ci-local-supabase-env.ts
+
       - name: Run club context integration test
-        run: |
-          node --input-type=module <<'EOF'
-          import { spawnSync } from "node:child_process";
+        run: pnpm --filter @stable/current-club-context exec vitest run src/infrastructure/supabase-club-context-reader.integration.test.ts
 
-          const status = spawnSync(
-            "pnpm",
-            ["exec", "supabase", "status", "-o", "env"],
-            { encoding: "utf8" },
-          );
-          if (status.status !== 0) {
-            process.stderr.write("supabase status failed\n");
-            process.exit(status.status ?? 1);
-          }
-
-          const statusEnv = {};
-          for (const line of status.stdout.split("\n")) {
-            const index = line.indexOf("=");
-            if (index < 1) {
-              continue;
-            }
-            const key = line.slice(0, index);
-            let value = line.slice(index + 1);
-            if (value.startsWith('"') && value.endsWith('"')) {
-              value = value.slice(1, -1);
-            }
-            statusEnv[key] = value;
-          }
-
-          const env = { ...process.env };
-          env.SUPABASE_URL = statusEnv.API_URL ?? "";
-          env.SUPABASE_PUBLISHABLE_KEY = statusEnv.PUBLISHABLE_KEY ?? "";
-
-          const test = spawnSync(
-            "pnpm",
-            [
-              "--filter",
-              "@stable/current-club-context",
-              "exec",
-              "vitest",
-              "run",
-              "src/infrastructure/supabase-club-context-reader.integration.test.ts",
-            ],
-            { env, stdio: "inherit" },
-          );
-          process.exit(test.status ?? 1);
-          EOF
-
-      - name: Install Google Chrome
-        run: |
-          wget -q -O /tmp/google-chrome.deb https://dl.google.com/linux/direct/google-chrome-stable_current_amd64.deb
-          sudo apt-get update
-          sudo apt-get install -y /tmp/google-chrome.deb
-
-      - name: Run local auth Playwright
-        run: |
-          node --input-type=module <<'EOF'
-          import { spawnSync } from "node:child_process";
-
-          const status = spawnSync(
-            "pnpm",
-            ["exec", "supabase", "status", "-o", "env"],
-            { encoding: "utf8" },
-          );
-          if (status.status !== 0) {
-            process.stderr.write("supabase status failed\n");
-            process.exit(status.status ?? 1);
-          }
-
-          const statusEnv = {};
-          for (const line of status.stdout.split("\n")) {
-            const index = line.indexOf("=");
-            if (index < 1) {
-              continue;
-            }
-            const key = line.slice(0, index);
-            let value = line.slice(index + 1);
-            if (value.startsWith('"') && value.endsWith('"')) {
-              value = value.slice(1, -1);
-            }
-            statusEnv[key] = value;
-          }
-
-          const env = { ...process.env };
-          env.SUPABASE_URL = statusEnv.API_URL ?? "";
-          env.SUPABASE_PUBLISHABLE_KEY = statusEnv.PUBLISHABLE_KEY ?? "";
-          env.NEXT_PUBLIC_APP_ENV = "local";
-          env.NEXT_PUBLIC_SUPABASE_URL = env.SUPABASE_URL;
-          env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY = env.SUPABASE_PUBLISHABLE_KEY;
-          delete env.SUPABASE_SECRET_KEY;
-          delete env.SECRET_KEY;
-          delete env.SERVICE_ROLE_KEY;
-
-          const test = spawnSync(
-            "pnpm",
-            [
-              "--filter",
-              "@stable/web",
-              "exec",
-              "playwright",
-              "test",
-              "--config",
-              "playwright.auth.config.ts",
-            ],
-            { env, stdio: "inherit" },
-          );
-          process.exit(test.status ?? 1);
-          EOF
-
-  web:
-    name: web build
+  web-build:
+    name: web-build
     runs-on: ubuntu-latest
     timeout-minutes: 20
     env:
@@ -234,17 +157,20 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          persist-credentials: false
 
       - name: Setup pnpm
         uses: pnpm/action-setup@v4
-        with:
-          version: 12.9.1
 
       - name: Setup Node
         uses: actions/setup-node@v4
         with:
-          node-version: "24.21.0"
+          node-version-file: .nvmrc
           cache: pnpm
+
+      - name: Check toolchain pins
+        run: bash .github/workflows/check-toolchain.sh
 
       - name: Install
         run: pnpm install --frozen-lockfile
@@ -253,23 +179,26 @@ jobs:
         run: pnpm --filter @stable/web build
 
   expo:
-    name: expo config
+    name: expo
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          persist-credentials: false
 
       - name: Setup pnpm
         uses: pnpm/action-setup@v4
-        with:
-          version: 12.9.1
 
       - name: Setup Node
         uses: actions/setup-node@v4
         with:
-          node-version: "24.21.0"
+          node-version-file: .nvmrc
           cache: pnpm
+
+      - name: Check toolchain pins
+        run: bash .github/workflows/check-toolchain.sh
 
       - name: Install
         run: pnpm install --frozen-lockfile
@@ -287,80 +216,105 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          persist-credentials: false
 
       - name: Setup pnpm
         uses: pnpm/action-setup@v4
-        with:
-          version: 12.9.1
 
       - name: Setup Node
         uses: actions/setup-node@v4
         with:
-          node-version: "24.21.0"
+          node-version-file: .nvmrc
           cache: pnpm
+
+      - name: Check toolchain pins
+        run: bash .github/workflows/check-toolchain.sh
 
       - name: Install
         run: pnpm install --frozen-lockfile
 
       - name: Install Google Chrome
-        run: |
-          wget -q -O /tmp/google-chrome.deb https://dl.google.com/linux/direct/google-chrome-stable_current_amd64.deb
-          sudo apt-get update
-          sudo apt-get install -y /tmp/google-chrome.deb
+        run: bash .github/workflows/install-google-chrome.sh
 
       - name: Run Playwright
         run: pnpm --filter @stable/web exec playwright test
 
+  playwright-auth:
+    name: playwright-auth
+    runs-on: ubuntu-latest
+    timeout-minutes: 50
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+
+      - name: Check toolchain pins
+        run: bash .github/workflows/check-toolchain.sh
+
+      - name: Install
+        run: pnpm install --frozen-lockfile
+
+      - name: Refuse hosted Supabase credentials
+        run: bash .github/workflows/refuse-hosted-supabase.sh
+
+      - name: Require Docker
+        run: docker info
+
+      - name: Start local Supabase
+        run: pnpm exec supabase start
+
+      - name: Reset local database
+        run: pnpm exec supabase db reset --local
+
+      - name: Bootstrap local auth
+        run: node --experimental-strip-types --import ./scripts/register-workspace-ts.mjs scripts/bootstrap-local-auth.ts
+
+      - name: Export loopback Supabase env
+        run: node --experimental-strip-types --import ./scripts/register-workspace-ts.mjs scripts/ci-local-supabase-env.ts
+
+      - name: Install Google Chrome
+        run: bash .github/workflows/install-google-chrome.sh
+
+      - name: Run local auth Playwright
+        run: |
+          export NEXT_PUBLIC_APP_ENV=local
+          export NEXT_PUBLIC_SUPABASE_URL="$SUPABASE_URL"
+          export NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY="$SUPABASE_PUBLISHABLE_KEY"
+          unset SUPABASE_SECRET_KEY SECRET_KEY SERVICE_ROLE_KEY
+          pnpm --filter @stable/web exec playwright test --config playwright.auth.config.ts
+
   maestro:
-    name: maestro flow parse
+    name: maestro
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          persist-credentials: false
 
       - name: Setup Node
         uses: actions/setup-node@v4
         with:
-          node-version: "24.21.0"
+          node-version-file: .nvmrc
 
-      # Device-farm Maestro is not installed. This only parses the committed flow.
-      - name: Parse Maestro flow
+      - name: Check Node pin
         run: |
-          node --input-type=module <<'EOF'
-          import { readFileSync } from "node:fs";
+          expected="$(tr -d '[:space:]' < .nvmrc)"
+          test "$(node -v)" = "v${expected}"
+          test "$(node -p 'require("./package.json").engines.node')" = "${expected}"
 
-          const file = "apps/mobile/maestro/current-club-context.yaml";
-          const text = readFileSync(file, "utf8");
-          if (text.trim().length === 0) {
-            throw new Error(`${file} is empty`);
-          }
-
-          let appId = "";
-          let sawSeparator = false;
-          const commands = [];
-          for (const line of text.split(/\r?\n/)) {
-            if (line.startsWith("appId:")) {
-              appId = line.slice("appId:".length).trim();
-            }
-            if (line.trim() === "---") {
-              sawSeparator = true;
-            }
-            const command = /^- (\w+)/.exec(line);
-            if (command?.[1] !== undefined) {
-              commands.push(command[1]);
-            }
-          }
-
-          if (appId !== "app.stable.mobile") {
-            throw new Error(`${file} must declare appId app.stable.mobile`);
-          }
-          if (!sawSeparator) {
-            throw new Error(`${file} must contain a YAML document separator`);
-          }
-          if (!commands.includes("launchApp")) {
-            throw new Error(`${file} must launch the app`);
-          }
-
-          console.log(`parsed ${file}: appId=${appId} commands=${commands.join(",")}`);
-          EOF
+      # Device-farm Maestro is not installed. This validates every committed flow.
+      - name: Validate committed Maestro flows
+        run: node --experimental-strip-types scripts/check-maestro-flows.ts
