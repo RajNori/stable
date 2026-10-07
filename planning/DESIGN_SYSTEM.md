@@ -741,14 +741,15 @@ Must show a subtle but explicit privacy cue:
 Do not use frightening warning styling.
 
 ## Recognition
-Supports:
-- MVP / Player of the Game;
+Milestone 4 categories are exactly:
+- MVP / Player of the Game (one recipient per game);
 - Hustle;
 - Defence;
-- Teamwork;
-- other approved coaching categories.
+- Teamwork.
 
-Recognition is not a public leaderboard.
+A player may receive each non-MVP category at most once per game. Recognition is not a public leaderboard.
+
+Milestone 4 development focus codes are bounded to Shooting, Ball Handling, Passing, Rebounding, Defence, Communication, Teamwork and Transition. A review may carry up to five unique focus codes. A coach explicitly selects focus into a same-team practice plan; that selection remains a snapshot if the source review later changes.
 
 ---
 

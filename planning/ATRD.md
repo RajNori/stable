@@ -57,7 +57,7 @@ Authenticated adult who manages one or more Player profiles and may simultaneous
 Team-level role with coaching capabilities.
 
 ### Assistant Coach
-Team-level role with delegated coaching capabilities.
+Team-level role. For Milestone 4, an active Assistant Coach has the same coaching capabilities as a Head Coach for the assigned team; no delegation mechanism is used. Access ends immediately when that team membership is revoked. Other milestone capabilities remain governed by their own permission rows.
 
 ### Team Manager
 Team-level operational role.

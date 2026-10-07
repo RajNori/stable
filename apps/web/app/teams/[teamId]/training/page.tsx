@@ -3,6 +3,10 @@ import { getCurrentClubContext } from "@stable/current-club-context";
 import { createSupabaseFixtureGateway } from "@stable/fixtures";
 import { evaluateCapability } from "@stable/permissions";
 import {
+  createSupabasePracticePlannerGateway,
+  readPracticePlanner,
+} from "@stable/practice-planner";
+import {
   agendaRange,
   createSupabaseScheduleGateway,
   listTeamSchedule,
@@ -12,6 +16,7 @@ import { trainingMessages } from "@stable/training";
 
 import { ClubAdminShell } from "../../../../components/club-admin-shell";
 import { TrainingPanel } from "../../../../components/training-panel";
+import { PracticePlannerPanel } from "../../../../components/practice-planner-panel";
 import { fixtureAccessFrom } from "../../../../lib/fixture-access";
 import { loadLiveClubContext } from "../../../../lib/load-live-club-context";
 import { principalFromSupabase } from "../../../../lib/principal";
@@ -21,6 +26,9 @@ import {
   checkInTrainingAction,
   createTrainingSeriesAction,
   createTrainingSessionAction,
+  savePracticePlanAction,
+  copyPracticePlanAction,
+  savePracticeDrillAction,
 } from "./actions";
 
 export const dynamic = "force-dynamic";
@@ -83,12 +91,36 @@ export default async function TrainingPage({
       resource,
       capability: "coach_checkin",
     }) === "allow";
+  const canManagePracticePlan =
+    evaluateCapability({
+      ...access,
+      resource,
+      capability: "practice_plan.manage",
+    }) === "allow";
   const range = agendaRange(new Date());
   let sessions: { eventId: string; startsAt: string }[] = [];
   let error =
     requestedError !== undefined && visibleErrors.has(requestedError)
       ? requestedError
       : undefined;
+  let plannerData: Awaited<ReturnType<typeof readPracticePlanner>> = {
+    trainings: [],
+    templates: [],
+    focusOptions: [],
+    drills: [],
+  };
+  if (canManagePracticePlan) {
+    try {
+      plannerData = await readPracticePlanner({
+        ...access,
+        clubId: club.id,
+        teamId: team.id,
+        writer: createSupabasePracticePlannerGateway(supabase, team.id),
+      });
+    } catch {
+      error = trainingMessages.readFailed;
+    }
+  }
   try {
     const agenda = await listTeamSchedule({
       ...access,
@@ -123,6 +155,19 @@ export default async function TrainingPage({
         createSession={createTrainingSessionAction}
         createSeries={createTrainingSeriesAction}
         checkIn={checkInTrainingAction}
+      />
+      <PracticePlannerPanel
+        clubId={club.id}
+        teamId={team.id}
+        trainings={plannerData.trainings}
+        templates={plannerData.templates}
+        focusOptions={plannerData.focusOptions}
+        drills={plannerData.drills}
+        canManage={canManagePracticePlan}
+        error={error}
+        save={savePracticePlanAction}
+        copy={copyPracticePlanAction}
+        createDrill={savePracticeDrillAction}
       />
     </ClubAdminShell>
   );

@@ -3,10 +3,19 @@ import { attendanceMessages } from "@stable/attendance";
 import { getCurrentClubContext } from "@stable/current-club-context";
 import { createSupabaseFixtureGateway } from "@stable/fixtures";
 import {
+  createSupabaseReviewGateway,
+  listPrivatePlayerNotes,
+  readPostGameReview,
+} from "@stable/coaching-review";
+import {
+  createSupabaseGameStatsGateway,
   createSupabaseGameDayGateway,
   gameDayMessages,
+  gameStatsMessages,
   previewDutyAllocation,
   readGameDay,
+  readGameCoachingStats,
+  readGamePlayerStatHistory,
 } from "@stable/game-day";
 import {
   createSupabaseFillInGateway,
@@ -19,6 +28,8 @@ import { createSupabaseRosterGateway, listTeamRoster } from "@stable/roster";
 
 import { ClubAdminShell } from "../../../../../components/club-admin-shell";
 import { GameDayPanel } from "../../../../../components/game-day-panel";
+import { GameStatsPanel } from "../../../../../components/game-stats-panel";
+import { PostGameReviewPanel } from "../../../../../components/post-game-review-panel";
 import { fixtureAccessFrom } from "../../../../../lib/fixture-access";
 import { loadLiveClubContext } from "../../../../../lib/load-live-club-context";
 import { principalFromSupabase } from "../../../../../lib/principal";
@@ -33,6 +44,12 @@ import {
   confirmFillInAction,
   requestDutySwapAction,
   requestFillInAction,
+  saveGamePlayerStatAction,
+  saveManualGameResultAction,
+  savePostGameReviewAction,
+  savePlayerRecognitionAction,
+  removePlayerRecognitionAction,
+  savePrivatePlayerNoteAction,
   respondFillInAction,
 } from "./actions";
 
@@ -63,7 +80,25 @@ const visibleErrors = new Set<string>([
   fillInMessages.conflict,
   fillInMessages.saveFailed,
   fillInMessages.readFailed,
+  gameStatsMessages.unauthenticated,
+  gameStatsMessages.forbidden,
+  gameStatsMessages.notFound,
+  gameStatsMessages.validationFailed,
+  gameStatsMessages.readFailed,
+  gameStatsMessages.saveFailed,
+  "UNAUTHENTICATED",
+  "FORBIDDEN",
+  "NOT_FOUND",
+  "VALIDATION_FAILED",
+  "CONFLICT",
 ]);
+const reviewErrorMessages: Record<string, string> = {
+  UNAUTHENTICATED: "Sign in again before saving the team review.",
+  FORBIDDEN: "You do not have permission to save this team review.",
+  NOT_FOUND: "This game is no longer available.",
+  VALIDATION_FAILED: "Check the review fields and try again.",
+  CONFLICT: "The review changed while you were editing. Reload and try again.",
+};
 
 export default async function GameDayPage({
   params,
@@ -102,7 +137,7 @@ export default async function GameDayPage({
   let projection = null;
   let error =
     requestedError !== undefined && visibleErrors.has(requestedError)
-      ? requestedError
+      ? (reviewErrorMessages[requestedError] ?? requestedError)
       : undefined;
   try {
     projection = await readGameDay({
@@ -118,6 +153,104 @@ export default async function GameDayPage({
         ? caught.message
         : gameDayMessages.readFailed;
   }
+
+  const canReadCoachingStats =
+    evaluateCapability({
+      ...access,
+      resource: { clubId: club.id, teamId: team.id, teamActive: team.active },
+      capability: "coaching_stats.read",
+    }) === "allow";
+  const canWriteCoachingStats =
+    evaluateCapability({
+      ...access,
+      resource: { clubId: club.id, teamId: team.id, teamActive: team.active },
+      capability: "coaching_stats.write",
+    }) === "allow";
+  let coachingStats = null;
+  let statCorrections: Awaited<ReturnType<typeof readGamePlayerStatHistory>> =
+    [];
+  if (canReadCoachingStats && projection !== null) {
+    try {
+      const gameStatsGateway = createSupabaseGameStatsGateway(supabase);
+      coachingStats = await readGameCoachingStats({
+        ...access,
+        clubId: club.id,
+        teamId: team.id,
+        eventId: projection.eventId,
+        writer: gameStatsGateway,
+      });
+      statCorrections = await readGamePlayerStatHistory({
+        ...access,
+        clubId: club.id,
+        teamId: team.id,
+        eventId: projection.eventId,
+        writer: gameStatsGateway,
+      });
+    } catch (caught: unknown) {
+      error =
+        caught instanceof ApplicationError
+          ? caught.message
+          : gameStatsMessages.readFailed;
+    }
+  }
+
+  const reviewResource = {
+    clubId: club.id,
+    teamId: team.id,
+    teamActive: team.active,
+  };
+  const canReadReview =
+    evaluateCapability({
+      ...access,
+      resource: reviewResource,
+      capability: "post_game_review.read",
+    }) === "allow";
+  const canWriteReview =
+    evaluateCapability({
+      ...access,
+      resource: reviewResource,
+      capability: "post_game_review.write",
+    }) === "allow";
+  const canWritePrivateNotes =
+    evaluateCapability({
+      ...access,
+      resource: reviewResource,
+      capability: "private_player_note.write",
+    }) === "allow";
+  let postGameReview = null;
+  let privateNotes = new Map<string, string>();
+  if (canReadReview && projection !== null) {
+    try {
+      const reviewGateway = createSupabaseReviewGateway(supabase);
+      postGameReview = await readPostGameReview({
+        ...access,
+        clubId: club.id,
+        teamId: team.id,
+        eventId: projection.eventId,
+        writer: reviewGateway,
+      });
+      if (canWritePrivateNotes) {
+        const noteRows = await listPrivatePlayerNotes({
+          ...access,
+          clubId: club.id,
+          teamId: team.id,
+          eventId: projection.eventId,
+          writer: reviewGateway,
+        });
+        privateNotes = new Map(noteRows.map((row) => [row.playerId, row.note]));
+      }
+    } catch (caught: unknown) {
+      error =
+        caught instanceof ApplicationError
+          ? caught.message
+          : "Post-game review could not be loaded.";
+    }
+  }
+  const reviewPlayers =
+    coachingStats?.players.map((player) => ({
+      playerId: player.playerId,
+      label: player.displayName,
+    })) ?? [];
 
   const managed = new Set(
     facts.registrations
@@ -281,6 +414,29 @@ export default async function GameDayPage({
           ? { respondFillIn: respondFillInAction }
           : {})}
       />
+      {coachingStats !== null ? (
+        <GameStatsPanel
+          stats={coachingStats}
+          corrections={statCorrections}
+          teamId={team.id}
+          canWrite={canWriteCoachingStats}
+          scoreAction={saveManualGameResultAction}
+          playerStatAction={saveGamePlayerStatAction}
+        />
+      ) : null}
+      {postGameReview !== null ? (
+        <PostGameReviewPanel
+          review={postGameReview}
+          players={reviewPlayers}
+          privateNotes={privateNotes}
+          canWrite={canWriteReview}
+          canWritePrivateNotes={canWritePrivateNotes}
+          saveReviewAction={savePostGameReviewAction}
+          saveRecognitionAction={savePlayerRecognitionAction}
+          removeRecognitionAction={removePlayerRecognitionAction}
+          savePrivateNoteAction={savePrivatePlayerNoteAction}
+        />
+      ) : null}
     </ClubAdminShell>
   );
 }
