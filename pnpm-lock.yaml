@@ -250,6 +250,9 @@ importers:
       '@stable/game-day':
         specifier: workspace:*
         version: link:../../packages/features/game-day
+      '@stable/notifications':
+        specifier: workspace:*
+        version: link:../../packages/features/notifications
       '@stable/observability':
         specifier: workspace:*
         version: link:../../packages/observability
@@ -362,6 +365,9 @@ importers:
       '@stable/membership':
         specifier: workspace:*
         version: link:../../packages/features/membership
+      '@stable/notifications':
+        specifier: workspace:*
+        version: link:../../packages/features/notifications
       '@stable/observability':
         specifier: workspace:*
         version: link:../../packages/observability
@@ -660,6 +666,28 @@ importers:
         version: 5.0.3(@opentelemetry/api@1.9.1)(@types/node@26.6.4)(@vitest/coverage-v8@5.0.3)(jsdom@20.0.3(supports-color@8.1.1))(vite@8.3.2(@types/node@26.6.4)(terser@5.51.2)(yaml@2.9.1))
 
   packages/features/membership:
+    dependencies:
+      '@stable/contracts':
+        specifier: workspace:*
+        version: link:../../contracts
+      '@supabase/supabase-js':
+        specifier: ^2.117.2
+        version: 2.117.2(@opentelemetry/api@1.9.1)
+      zod:
+        specifier: 'catalog:'
+        version: 4.6.5
+    devDependencies:
+      '@vitest/coverage-v8':
+        specifier: 'catalog:'
+        version: 5.0.3(vitest@5.0.3)
+      typescript:
+        specifier: 'catalog:'
+        version: 6.0.3
+      vitest:
+        specifier: 'catalog:'
+        version: 5.0.3(@opentelemetry/api@1.9.1)(@types/node@26.6.4)(@vitest/coverage-v8@5.0.3)(jsdom@20.0.3(supports-color@8.1.1))(vite@8.3.2(@types/node@26.6.4)(terser@5.51.2)(yaml@2.9.1))
+
+  packages/features/notifications:
     dependencies:
       '@stable/contracts':
         specifier: workspace:*

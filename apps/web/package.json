@@ -17,6 +17,7 @@
     "@stable/permissions": "workspace:*",
     "@stable/invitations": "workspace:*",
     "@stable/membership": "workspace:*",
+    "@stable/notifications": "workspace:*",
     "@stable/observability": "workspace:*",
     "@stable/players": "workspace:*",
     "@stable/roster": "workspace:*",

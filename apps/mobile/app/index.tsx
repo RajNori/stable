@@ -21,6 +21,10 @@ import {
   markMobileAnnouncementRead,
 } from "../src/load-mobile-announcements";
 import { loadMobileGameDay } from "../src/load-mobile-game-day";
+import {
+  registerMobileDevice,
+  removeMobileDevice,
+} from "../src/load-mobile-notifications";
 import { loadMobileTeamRoster } from "../src/load-mobile-team-roster";
 import { loadMobileTeamSchedule } from "../src/load-mobile-team-schedule";
 import { MobileDestinations } from "../src/mobile-destinations";
@@ -103,6 +107,8 @@ export default function CurrentClubContextRoute() {
                 loadAnnouncements={loadMobileAnnouncements}
                 acknowledge={acknowledgeMobileAnnouncement}
                 markRead={markMobileAnnouncementRead}
+                registerDevice={registerMobileDevice}
+                removeDevice={removeMobileDevice}
               />
             }
           />

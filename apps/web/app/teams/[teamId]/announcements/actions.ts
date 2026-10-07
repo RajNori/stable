@@ -12,6 +12,10 @@ import {
   type AnnouncementCategory,
   type AnnouncementImportance,
 } from "@stable/announcements";
+import {
+  createSupabaseNotificationGateway,
+  enqueueAnnouncementPublished,
+} from "@stable/notifications";
 import { redirect } from "next/navigation";
 
 import { fixtureAccessFrom } from "../../../../lib/fixture-access";
@@ -120,6 +124,15 @@ export async function publishAnnouncementAction(
       body,
       acknowledgementRequired: formData.get("acknowledgementRequired") === "on",
       writer: createSupabaseAnnouncementGateway(loaded.supabase),
+      notify: {
+        announcementPublished: async (published) => {
+          await enqueueAnnouncementPublished({
+            principal: loaded.access.principal,
+            announcementId: published.announcementId,
+            writer: createSupabaseNotificationGateway(loaded.supabase),
+          });
+        },
+      },
     });
   } catch (caught: unknown) {
     const message =

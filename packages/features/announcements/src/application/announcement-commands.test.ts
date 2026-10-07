@@ -120,6 +120,34 @@ describe("announcements", () => {
     );
     expect(managerWriter.calls).toEqual(["publish:Bring water"]);
 
+    const notified: string[] = [];
+    await publishAnnouncement({
+      ...access("HEAD_COACH"),
+      ...draft,
+      writer: writer(),
+      notify: {
+        announcementPublished: (published) => {
+          notified.push(published.announcementId);
+          return Promise.resolve();
+        },
+      },
+    });
+    expect(notified).toEqual(["55555555-5555-4555-8555-555555555555"]);
+
+    const failedNotify = writer();
+    const stillPublished = await publishAnnouncement({
+      ...access("TEAM_MANAGER"),
+      ...draft,
+      writer: failedNotify,
+      notify: {
+        announcementPublished: () => Promise.reject(new Error("push down")),
+      },
+    });
+    expect(stillPublished.announcementId).toBe(
+      "55555555-5555-4555-8555-555555555555",
+    );
+    expect(failedNotify.calls).toEqual(["publish:Bring water"]);
+
     await expect(
       publishAnnouncement({
         ...access("ASSISTANT_COACH"),

@@ -67,4 +67,40 @@ describe("team announcements", () => {
     );
     expect(acknowledged).toEqual([announcement.id]);
   });
+
+  it("registers and removes the token in the device field", async () => {
+    const registered: string[] = [];
+    const removed: string[] = [];
+    const queryClient = new QueryClient({
+      defaultOptions: { queries: { retry: false } },
+    });
+    await render(
+      <QueryClientProvider client={queryClient}>
+        <TeamAnnouncementsScreen
+          loadContext={() => Promise.resolve(context)}
+          loadAnnouncements={() => Promise.resolve([])}
+          acknowledge={() => Promise.resolve()}
+          markRead={() => Promise.resolve()}
+          registerDevice={(token) => {
+            registered.push(token);
+            return Promise.resolve();
+          }}
+          removeDevice={(token) => {
+            removed.push(token);
+            return Promise.resolve();
+          }}
+        />
+      </QueryClientProvider>,
+    );
+    const user = userEvent.setup();
+    expect(await screen.findByText("No announcements.")).toBeTruthy();
+    await user.type(
+      screen.getByLabelText("Device token"),
+      "ExponentPushToken[phone]",
+    );
+    await user.press(screen.getByRole("button", { name: "Register device" }));
+    await user.press(screen.getByRole("button", { name: "Remove device" }));
+    expect(registered).toEqual(["ExponentPushToken[phone]"]);
+    expect(removed).toEqual(["ExponentPushToken[phone]"]);
+  });
 });

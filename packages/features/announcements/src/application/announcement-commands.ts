@@ -140,7 +140,16 @@ function assertAllowed(
 
 export async function publishAnnouncement(
   input: AnnouncementAccess &
-    AnnouncementDraft & { writer: AnnouncementWriter },
+    AnnouncementDraft & {
+      writer: AnnouncementWriter;
+      notify?: {
+        announcementPublished(published: {
+          announcementId: string;
+          clubId: string;
+          teamId: string;
+        }): Promise<void>;
+      };
+    },
 ): Promise<{ announcementId: string }> {
   const command = announcementDraftSchema.safeParse({
     clubId: input.clubId,
@@ -160,7 +169,19 @@ export async function publishAnnouncement(
     command.data.teamId,
     "announcement.publish",
   );
-  return input.writer.publishAnnouncement(command.data);
+  const published = await input.writer.publishAnnouncement(command.data);
+  if (input.notify !== undefined) {
+    try {
+      await input.notify.announcementPublished({
+        announcementId: published.announcementId,
+        clubId: command.data.clubId,
+        teamId: command.data.teamId,
+      });
+    } catch {
+      return published;
+    }
+  }
+  return published;
 }
 
 export async function editAnnouncement(
