@@ -251,3 +251,127 @@ The review began clean after the user-requested docs-only commit `eaee268`. All 
 ## Freeze recommendation
 
 **FAIL**
+
+# Milestone 3 Remediation Delta Review
+
+## Reviewed range
+
+- Prior integrated review commit: `cdbcf70` (`docs(milestone-3): record integrated Codex review`); it is an ancestor of HEAD.
+- Delta: `cdbcf70..503dd6de081d5c8092e13e4aa04857c9748f36b4`.
+- HEAD: `503dd6de081d5c8092e13e4aa04857c9748f36b4`.
+- Worktree was clean at review start. No Milestone 4 implementation was found. No push, tag, or hosted infrastructure access was performed.
+- Every changed file in the three remediation commits was inspected. `git diff --check cdbcf70..HEAD`: PASS.
+
+## Remediation commits
+
+- `b965551` — `fix(fill-ins): enforce one confirmed player per game`
+- `c8b56b2` — `fix(duties): revalidate acknowledgement eligibility`
+- `503dd6d` — `fix(notifications): prevent endpoint takeover and restore duty producers`
+
+The delta modifies three migrations and five pgTAP files. It contains no application UI changes.
+
+## M3-HIGH-01
+
+**CLOSED.** `fill_in_confirmations.event_id` is non-null and unique, and a composite FK binds each confirmation’s request to that same event. `request_fill_in` and `confirm_fill_in` lock the event row and check for an existing confirmation before proceeding. This serializes independent requests for one event; the unique index is a second database-level guard. A losing confirmation raises `CONFLICT` before its audit write, and its request cannot enqueue a confirmation notification. The Game Day query can no longer have multiple confirmed rows to conceal.
+
+The new pgTAP suite verifies sequential rejection, two simultaneous requests with exactly one winning confirmation, one confirmation audit, one winner notification, and no loser notification.
+
+## M3-MED-01
+
+**CLOSED.** `acknowledge_own_game_duty` now locks the event, requires a scheduled GAME and active team, checks current assignment ownership, and calls `caller_can_take_duty` before updating. The new pgTAP suite covers eligible staff and guardian acknowledgement, revoked staff and guardian denial, reassigned owner denial, cross-team denial, and idempotent replay without duplicate audit.
+
+## M3-MED-02
+
+**CLOSED.** Confirmation now requires a response whose `guardian_user_id` still has an active relationship to the candidate, and also verifies the player remains active and currently eligible. The historical response row remains intact. The regression test revokes the responding guardian before confirmation and asserts denial with no confirmation row.
+
+## M3-MED-03
+
+**CLOSED.** Request creation, response, and confirmation now check that the event is a scheduled GAME with an active team and a corresponding game row. Response and confirmation lock the event before the request. Tests cover cancellation before response, cancellation after response/before confirmation, a non-GAME event, inactive team, and missing game record. These checks fail closed.
+
+## M3-MED-04
+
+**CLOSED.** Re-registering one’s own token is safe and refreshes endpoint metadata. A different authenticated user cannot take over an active token; the function returns generic `CONFLICT`, leaves owner/platform unchanged, and does not reveal the owner. A deactivated token may be claimed at the next login. The concurrent insert path re-reads and locks the conflicting row before applying the same ownership rule. No alternate changed path reassigns an active token.
+
+## M3-MED-05
+
+**CLOSED.** Actual manual `assign_game_duty` and allocation commit now enqueue one `DUTY_ASSIGNED` request per assigned user. Preview remains read-only. Targeted swap creation enqueues `DUTY_SWAP_REQUESTED` only to the named target; an untargeted request invents no recipients. Mutation, audit, and enqueue are in the same database transaction. Event-key uniqueness suppresses duplicate enqueue for the same source, and tests verify recipient and PII-free payloads.
+
+## Fill-in concurrency
+
+The per-event row lock serializes requests and confirmations; `fill_in_confirmations_one_event` and the confirmed-request unique index enforce uniqueness at the database layer. The race test uses two sessions and different open requests, observes exactly one successful confirmation and one `CONFLICT`, and asserts one confirmation audit and one confirmation notification.
+
+**New finding M3-DELTA-MED-01 — sibling open requests remain live after a winner.** The remediation drops the previous `fill_in_requests_one_open` index so multiple open requests for one event can coexist. When one is confirmed, only that request is changed to `CONFIRMED`; sibling requests remain `OPEN`. `list_event_fill_in` still returns only one open row (`LIMIT 1`), and `enqueue_fill_in_requested` / delivery eligibility do not reject a sibling request because another request for that event is already confirmed. A user can therefore continue seeing an open request or receive a stale “fill-in requested” push after the event already has a confirmed candidate; a guardian response then fails because the event has a confirmation. This is an operational inconsistency introduced by the remediation’s newly allowed sibling requests.
+
+- **Severity:** MEDIUM
+- **Evidence:** `20261007220000_fill_in_one_confirmation.sql` drops `fill_in_requests_one_open` and does not close sibling requests; `20261007210000_create_fill_ins.sql:388–448` lists only one open request; `enqueue_fill_in_requested` accepts any open request, and the notification result path does not reject it based on another confirmation.
+- **Required remediation:** either retain a single-open-request invariant and adapt the cross-request test setup, or atomically retire sibling open requests and suppress their pending notifications when one request wins; keep reads and delivery eligibility consistent with the winning confirmation.
+
+## Duty acknowledgement
+
+Current eligibility is checked in SQL immediately before writes. A revoked actor, a former/reassigned assignee, or an actor outside the event team fails closed. A replay returns zero and does not add an audit row. The event lock serializes acknowledgement against duty ownership changes that use the same event lock.
+
+## Device ownership
+
+Token registration derives the user from `auth.uid()`; active cross-user takeover is rejected without exposing the existing owner. Same-owner replay is safe. Deactivated tokens can move to a new login. Table access remains service-role-only, and endpoint tokens are not included in notification payloads or audit metadata.
+
+## Notification producers
+
+The producers cover direct/manual assignments, allocation commits, and targeted swap requests. They use the mutation’s assignment/request IDs as source IDs and safe identifier-only payloads. Open swaps have no documented recipient, so they do not produce an arbitrary team-wide push. No preview path enqueues an assignment notification.
+
+## Regression review
+
+The delta is database-only. The reviewed migrations preserve the prior announcement, preference, endpoint-read, swap single-winner, candidate masking, fixture immutability, Game Day projection, offline snapshot, and contextual capability paths. The new event-level confirmation uniqueness prevents contradictory confirmation records. No Milestone 4 implementation was found.
+
+A conditional migration risk remains: `fill_in_confirmations_one_event` is created without reconciling historical duplicate confirmations. The prior implementation could create such rows. Applying this migration to a database that already contains two confirmation rows for one event will fail while creating the unique index. The clean-reset installation had no such historical rows, and no hosted database was inspected. Record this as **M3-DELTA-UNCERTAIN-01** pending a migration-data policy.
+
+## SQL security
+
+The changed client-facing functions (`request_fill_in`, `respond_fill_in`, `confirm_fill_in`, `acknowledge_own_game_duty`, `register_device_endpoint`, `assign_game_duty`, `commit_duty_allocation`, and `request_duty_swap`) remain `SECURITY DEFINER` with `SET search_path = ''`, qualified objects, and actors derived from `auth.uid()`. Replaced functions retain their established execute grants. `enqueue_duty_notification` is an internal definer helper with execution revoked from `PUBLIC`, `anon`, and `authenticated`; the provider-result function remains service-role-only. SQL performs current scope and eligibility checks. The mutation/audit/outbox writes occur in one transaction.
+
+## Clean database verification
+
+- `pnpm exec supabase db reset --local`: PASS. The CLI reported an unlinked local project using loopback endpoints; migrations through `20261007240000_notification_ownership_and_duty_producers.sql` applied successfully.
+- First `pnpm exec supabase test db` after reset: PASS, 19 files / 728 tests.
+- Repository-documented local Auth bootstrap (`node --experimental-strip-types --import ./scripts/register-workspace-ts.mjs scripts/bootstrap-local-auth.ts`): PASS.
+- Second `pnpm exec supabase test db` after bootstrap: PASS, 19 files / 728 tests.
+
+## Test evidence
+
+Classification: **RERUN** for the checks below; **SOURCE REVIEW** for migration, authorization, and delivery-flow conclusions; **REPORTED ONLY** for browser/build/Expo gates from the earlier integrated review that were not rerun in this delta.
+
+- Node `v24.21.0`; pnpm `12.9.1`.
+- `pnpm format:check`: PASS.
+- `pnpm lint`: PASS.
+- `pnpm typecheck`: PASS, 23 packages.
+- `pnpm --filter @stable/game-day test`: PASS, 5 files / 15 tests (duties, swaps, and Game Day feature package).
+- `pnpm --filter @stable/notifications test`: PASS, 3 files / 7 tests.
+- `pnpm --filter @stable/fill-ins test`: PASS, 2 files / 12 tests.
+- `git diff --check cdbcf70..HEAD`: PASS.
+- Playwright was not run: this delta changes only SQL migrations and pgTAP tests; no browser surface changed.
+- The prior full workspace/build/Expo/Playwright gates remain **REPORTED ONLY**.
+
+## New findings
+
+### M3-DELTA-MED-01 — Sibling open fill-in requests remain actionable after confirmation
+
+- **Severity:** MEDIUM
+- **Path/symbol:** `supabase/migrations/20261007220000_fill_in_one_confirmation.sql`, `request_fill_in`; existing `list_event_fill_in`, `enqueue_fill_in_requested`, and notification eligibility logic.
+- **Behavior:** multiple open requests can exist for one event; confirming one leaves the others open and deliverable, while the event reader returns only one open request.
+- **Impact:** stale request UI and push notifications after a candidate is already confirmed; later guardian responses fail against the now-confirmed event.
+- **Evidence:** the migration drops the single-open partial unique index without sibling cleanup; existing reader has `LIMIT 1`; request enqueue/delivery validates each request but not a confirmation on the same event.
+- **Remediation:** preserve one open request or retire sibling requests and suppress their pending request notifications atomically when a confirmation wins.
+
+### M3-DELTA-UNCERTAIN-01 — Existing duplicate confirmations can block migration upgrade
+
+- **Severity:** UNCERTAIN
+- **Path/symbol:** `supabase/migrations/20261007220000_fill_in_one_confirmation.sql`, `fill_in_confirmations_one_event`.
+- **Behavior:** creating the unique event index fails if the prior schema has already stored multiple confirmations for one event—the exact state enabled by M3-HIGH-01.
+- **Impact:** upgrade cannot complete on a database containing affected historical rows.
+- **Evidence:** the old schema permitted multiple confirmed requests per event; the new migration backfills `event_id` then creates the unique index without resolving duplicates. Clean reset does not exercise this data-dependent case.
+- **Remediation:** define and implement a safe historical reconciliation or explicitly preflight and require reconciliation before applying the constraint, preserving audit/history.
+
+## Milestone 3 final freeze recommendation
+
+**PASS WITH CONDITIONS**
+
+All six original findings are **CLOSED**, the clean-reset and post-bootstrap pgTAP suites both pass, and the required format/lint/typecheck and focused feature tests pass. Freeze remains conditional on resolving M3-DELTA-MED-01 and defining the historical-data upgrade policy for M3-DELTA-UNCERTAIN-01.
