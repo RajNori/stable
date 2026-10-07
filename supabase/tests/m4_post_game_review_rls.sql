@@ -33,7 +33,9 @@ insert into public.team_memberships(club_id,team_id,user_id,role,active) values
 insert into public.players(id,club_id,first_name,last_name,active) values
  ('72410000-0000-4000-8000-000000000020','72410000-0000-4000-8000-000000000010','Synthetic','Player One',true),
  ('72410000-0000-4000-8000-000000000021','72410000-0000-4000-8000-000000000010','Synthetic','Player Two',true);
-insert into public.guardian_relationships(club_id,player_id,user_id,active) values ('72410000-0000-4000-8000-000000000010','72410000-0000-4000-8000-000000000020','72410000-0000-4000-8000-000000000005',true);
+insert into public.guardian_relationships(club_id,player_id,user_id,active) values
+ ('72410000-0000-4000-8000-000000000010','72410000-0000-4000-8000-000000000020','72410000-0000-4000-8000-000000000005',true),
+ ('72410000-0000-4000-8000-000000000010','72410000-0000-4000-8000-000000000020','72410000-0000-4000-8000-000000000006',true);
 insert into public.player_team_registrations(club_id,team_id,player_id,active) values
  ('72410000-0000-4000-8000-000000000010','72410000-0000-4000-8000-000000000012','72410000-0000-4000-8000-000000000020',true),
  ('72410000-0000-4000-8000-000000000010','72410000-0000-4000-8000-000000000012','72410000-0000-4000-8000-000000000021',true);
@@ -48,6 +50,13 @@ insert into public.games(event_id,club_id,opponent_name,source,official_start_at
 select no_plan();
 select is((select relrowsecurity and relforcerowsecurity from pg_class where oid='public.post_game_reviews'::regclass),true,'review table forces RLS');
 select is((select relrowsecurity and relforcerowsecurity from pg_class where oid='public.private_player_game_notes'::regclass),true,'private notes force RLS');
+select ok(not has_function_privilege('anon','public.read_post_game_review(uuid)','EXECUTE'),'anonymous role cannot execute review RPC');
+select ok(not has_function_privilege('anon','public.read_private_player_game_note(uuid,uuid)','EXECUTE'),'anonymous role cannot execute private-note RPC');
+do $$ begin perform pg_temp.assume_user('72410000-0000-4000-8000-000000000007'); end $$;
+set local role authenticated;
+select is(pg_temp.sqlerrm_of($$select * from public.read_post_game_review('72410000-0000-4000-8000-000000000030')$$),'FORBIDDEN','authenticated outsider cannot read review');
+select is(pg_temp.sqlerrm_of($$select public.save_private_player_game_note('72410000-0000-4000-8000-000000000030','72410000-0000-4000-8000-000000000020','outsider')$$),'FORBIDDEN','authenticated outsider cannot write private notes');
+reset role;
 do $$ begin perform pg_temp.assume_user('72410000-0000-4000-8000-000000000002'); end $$;
 set local role authenticated;
 select ok(not has_table_privilege('authenticated','public.private_player_game_notes','select'),'coach cannot bypass note RPC');
@@ -81,13 +90,18 @@ reset role;
 
 do $$ begin perform pg_temp.assume_user('72410000-0000-4000-8000-000000000001'); end $$;
 set local role authenticated;
-select lives_ok($$select * from public.read_post_game_review('72410000-0000-4000-8000-000000000030')$$,'Club Admin reads team review');
+select is(pg_temp.sqlerrm_of($$select * from public.read_post_game_review('72410000-0000-4000-8000-000000000030')$$),'FORBIDDEN','Club Admin without coach membership cannot read team review');
+select is(pg_temp.sqlerrm_of($$select public.save_post_game_review('72410000-0000-4000-8000-000000000030','Admin attempt','','[]',false)$$),'FORBIDDEN','Club Admin without coach membership cannot write team review');
+select is(pg_temp.sqlerrm_of($$select public.save_player_game_recognition('72410000-0000-4000-8000-000000000030','72410000-0000-4000-8000-000000000020','HUSTLE',null)$$),'FORBIDDEN','Club Admin without coach membership cannot write recognition');
+select is(pg_temp.sqlerrm_of($$select public.remove_player_game_recognition('72410000-0000-4000-8000-000000000030','72410000-0000-4000-8000-000000000020','MVP')$$),'FORBIDDEN','Club Admin without coach membership cannot remove recognition');
 select is(pg_temp.sqlerrm_of($$select public.read_private_player_game_note('72410000-0000-4000-8000-000000000030','72410000-0000-4000-8000-000000000020')$$),'FORBIDDEN','Club Admin without coach membership cannot read private note');
 select is(pg_temp.sqlerrm_of($$select public.save_private_player_game_note('72410000-0000-4000-8000-000000000030','72410000-0000-4000-8000-000000000020','no')$$),'FORBIDDEN','Club Admin without coach membership cannot write private note');
 reset role;
 
 do $$ begin perform pg_temp.assume_user('72410000-0000-4000-8000-000000000006'); end $$;
 set local role authenticated;
+select lives_ok($$select * from public.read_post_game_review('72410000-0000-4000-8000-000000000030')$$,'dual-role Club Admin reads through active coach membership');
+select lives_ok($$select public.save_player_game_recognition('72410000-0000-4000-8000-000000000030','72410000-0000-4000-8000-000000000021','HUSTLE',null)$$,'dual-role Club Admin writes recognition through active coach membership');
 select is(public.read_private_player_game_note('72410000-0000-4000-8000-000000000030','72410000-0000-4000-8000-000000000020'),'Private confidence note','dual-role Club Admin with active coach membership may read private note');
 select lives_ok($$select public.save_private_player_game_note('72410000-0000-4000-8000-000000000030','72410000-0000-4000-8000-000000000020','Updated private confidence note')$$,'dual-role actor writes note through coach membership');
 select lives_ok($$select public.save_private_player_game_note('72410000-0000-4000-8000-000000000030','72410000-0000-4000-8000-000000000020',null)$$,'null explicitly clears private note');
@@ -115,6 +129,14 @@ do $$ begin perform pg_temp.assume_user('72410000-0000-4000-8000-000000000002');
 set local role authenticated;
 select is(pg_temp.sqlerrm_of($$select * from public.read_post_game_review('72410000-0000-4000-8000-000000000030')$$),'FORBIDDEN','revoked coach loses review access immediately');
 select is(pg_temp.sqlerrm_of($$select public.read_private_player_game_note('72410000-0000-4000-8000-000000000030','72410000-0000-4000-8000-000000000020')$$),'FORBIDDEN','revoked coach loses private-note access immediately');
+reset role;
+
+update public.team_memberships set active=false where user_id='72410000-0000-4000-8000-000000000006' and team_id='72410000-0000-4000-8000-000000000012';
+do $$ begin perform pg_temp.assume_user('72410000-0000-4000-8000-000000000006'); end $$;
+set local role authenticated;
+select is(pg_temp.sqlerrm_of($$select * from public.read_post_game_review('72410000-0000-4000-8000-000000000030')$$),'FORBIDDEN','dual-role Club Admin loses M4 review access after coach membership revocation');
+select is(pg_temp.sqlerrm_of($$select public.save_player_game_recognition('72410000-0000-4000-8000-000000000030','72410000-0000-4000-8000-000000000020','DEFENCE',null)$$),'FORBIDDEN','dual-role Club Admin loses recognition access after coach membership revocation');
+select is(pg_temp.sqlerrm_of($$select public.read_private_player_game_note('72410000-0000-4000-8000-000000000030','72410000-0000-4000-8000-000000000020')$$),'FORBIDDEN','dual-role Club Admin loses private-note access after coach membership revocation');
 reset role;
 
 select is((select count(*) from public.audit_events where action='post_game_review.completed'),2::bigint,'initial and repeated completion each write one lifecycle audit');

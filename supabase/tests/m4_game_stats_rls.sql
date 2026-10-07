@@ -43,7 +43,8 @@ insert into public.teams(id,club_id,season_id,name,active) values
  ('71410000-0000-4000-8000-000000000012','71410000-0000-4000-8000-000000000010','71410000-0000-4000-8000-000000000011','M4 Team',true),
  ('71410000-0000-4000-8000-000000000013','71410000-0000-4000-8000-000000000010','71410000-0000-4000-8000-000000000011','M4 Other Team',true);
 insert into public.club_memberships(club_id,user_id,role,active) values
- ('71410000-0000-4000-8000-000000000010','71410000-0000-4000-8000-000000000001','CLUB_ADMIN',true);
+ ('71410000-0000-4000-8000-000000000010','71410000-0000-4000-8000-000000000001','CLUB_ADMIN',true),
+ ('71410000-0000-4000-8000-000000000010','71410000-0000-4000-8000-000000000003','CLUB_ADMIN',true);
 insert into public.team_memberships(club_id,team_id,user_id,role,active) values
  ('71410000-0000-4000-8000-000000000010','71410000-0000-4000-8000-000000000012','71410000-0000-4000-8000-000000000002','HEAD_COACH',true),
  ('71410000-0000-4000-8000-000000000010','71410000-0000-4000-8000-000000000012','71410000-0000-4000-8000-000000000003','ASSISTANT_COACH',true),
@@ -73,9 +74,16 @@ select no_plan();
 select has_table('public','game_player_stats','Stable-owned player stats table exists');
 select is((select relrowsecurity and relforcerowsecurity from pg_class where oid='public.game_player_stats'::regclass),true,'stats table forces RLS');
 select is((select relrowsecurity and relforcerowsecurity from pg_class where oid='public.game_player_stat_revisions'::regclass),true,'restricted revision table forces RLS');
+select ok(not has_function_privilege('anon','public.read_game_coaching_stats(uuid)','EXECUTE'),'anonymous role cannot execute stats RPC');
+select ok(not has_function_privilege('anon','public.save_manual_game_result(uuid,integer,integer)','EXECUTE'),'anonymous role cannot execute score RPC');
 set local role authenticated;
 select is(pg_temp.sqlstate_of($$select * from public.game_player_stats$$),'42501','authenticated cannot read stats through the base table');
 select is(pg_temp.sqlstate_of($$select * from public.game_player_stat_revisions$$),'42501','authenticated cannot read restricted correction history');
+reset role;
+
+do $$ begin perform pg_temp.assume_user('71410000-0000-4000-8000-000000000099'); end $$;
+set local role authenticated;
+select is(pg_temp.sqlerrm_of($$select * from public.read_game_coaching_stats('71410000-0000-4000-8000-000000000030')$$),'FORBIDDEN','authenticated outsider cannot read coaching stats');
 reset role;
 
 do $$ begin perform pg_temp.assume_user('71410000-0000-4000-8000-000000000003'); end $$;
@@ -139,17 +147,16 @@ select is(
 
 do $$ begin perform pg_temp.assume_user('71410000-0000-4000-8000-000000000001'); end $$;
 set local role authenticated;
-select lives_ok($$select public.save_game_player_stat('71410000-0000-4000-8000-000000000030','71410000-0000-4000-8000-000000000020',14,5,3,1,2,38)$$,'Club Admin retains authorized correction access after transfer');
+select is(pg_temp.sqlerrm_of($$select * from public.read_game_coaching_stats('71410000-0000-4000-8000-000000000030')$$),'FORBIDDEN','Club Admin without coach membership cannot read coaching stats');
+select is(pg_temp.sqlerrm_of($$select public.save_game_player_stat('71410000-0000-4000-8000-000000000030','71410000-0000-4000-8000-000000000020',14,5,3,1,2,38)$$),'FORBIDDEN','Club Admin without coach membership cannot correct stats');
+select is(pg_temp.sqlerrm_of($$select * from public.read_game_player_stat_history('71410000-0000-4000-8000-000000000030')$$),'FORBIDDEN','Club Admin without coach membership cannot read correction history');
+select is(pg_temp.sqlerrm_of($$select public.save_manual_game_result('71410000-0000-4000-8000-000000000030',73,68)$$),'FORBIDDEN','Club Admin without coach membership cannot write coaching score');
 reset role;
 select is((select recorded_by from public.game_player_stats where game_event_id='71410000-0000-4000-8000-000000000030' and player_id='71410000-0000-4000-8000-000000000020'),'71410000-0000-4000-8000-000000000003'::uuid,'corrections preserve the original recorder');
-select is((select updated_by from public.game_player_stats where game_event_id='71410000-0000-4000-8000-000000000030' and player_id='71410000-0000-4000-8000-000000000020'),'71410000-0000-4000-8000-000000000001'::uuid,'correction records the most recent actor');
-set local role authenticated;
-select is((select count(*) from public.read_game_player_stat_history('71410000-0000-4000-8000-000000000030')),2::bigint,'Club Admin reads correction history via capability matrix');
-reset role;
-
+select is((select updated_by from public.game_player_stats where game_event_id='71410000-0000-4000-8000-000000000030' and player_id='71410000-0000-4000-8000-000000000020'),'71410000-0000-4000-8000-000000000002'::uuid,'correction records the most recent authorized coach');
 do $$ begin perform pg_temp.assume_user('71410000-0000-4000-8000-000000000003'); end $$;
 set local role authenticated;
-select is((select count(*) from public.read_game_player_stat_history('71410000-0000-4000-8000-000000000030')),2::bigint,'active assistant coach may read existing correction history');
+select is((select count(*) from public.read_game_player_stat_history('71410000-0000-4000-8000-000000000030')),1::bigint,'dual-role Club Admin reads history through active assistant membership');
 reset role;
 
 do $$ begin perform pg_temp.assume_user('71410000-0000-4000-8000-000000000004'); end $$;
@@ -183,7 +190,7 @@ select is(pg_temp.sqlerrm_of($$select * from public.read_game_player_stat_histor
 reset role;
 
 select is((select action from public.audit_events where action='game.result_saved' and target_id='71410000-0000-4000-8000-000000000030'),'game.result_saved','score save has opaque generic audit target');
-select is((select count(*) from public.audit_events where action='game_player_stats.corrected' and target_id='71410000-0000-4000-8000-000000000020'),2::bigint,'correction audits reference only opaque player id');
+select is((select count(*) from public.audit_events where action='game_player_stats.corrected' and target_id='71410000-0000-4000-8000-000000000020'),1::bigint,'correction audits reference only opaque player id');
 select is((select count(*) from information_schema.columns where table_schema='public' and table_name='game_player_stat_revisions' and column_name ilike '%name%'),0::bigint,'revision history has no name column');
 select is(pg_get_function_result('public.read_game_player_stat_history(uuid)'::regprocedure) ~* 'name',false,'history read RPC exposes no name field');
 select * from finish();

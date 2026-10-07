@@ -147,15 +147,14 @@ begin
     raise exception 'FORBIDDEN' using errcode = '42501';
   end if;
 
-  if not public.caller_is_club_admin(team_row.club_id)
-    and not exists (
-      select 1 from public.team_memberships as membership
-      where membership.team_id = team_row.id
-        and membership.club_id = team_row.club_id
-        and membership.user_id = actor
-        and membership.active
-        and membership.role in ('HEAD_COACH', 'ASSISTANT_COACH')
-    ) then
+  if not exists (
+    select 1 from public.team_memberships as membership
+    where membership.team_id = team_row.id
+      and membership.club_id = team_row.club_id
+      and membership.user_id = actor
+      and membership.active
+      and membership.role in ('HEAD_COACH', 'ASSISTANT_COACH')
+  ) then
     raise exception 'FORBIDDEN' using errcode = '42501';
   end if;
 

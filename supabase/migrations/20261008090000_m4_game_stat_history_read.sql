@@ -33,9 +33,8 @@ begin
     raise exception 'NOT_FOUND' using errcode = 'P0002';
   end if;
 
-  -- The shared M4 capability matrix grants Club Admin, Head Coach and
-  -- Assistant Coach access. This helper rejects managers, guardians, revoked
-  -- memberships, and callers outside the game team's active tenant scope.
+  -- Only an active Head or Assistant Coach on this exact team may read this
+  -- staff-only projection; Club Admin scope does not imply coaching access.
   perform public.assert_coaching_stats_team(event_row.team_id);
 
   return query

@@ -20,20 +20,28 @@ const sourceId = "50000000-0000-4000-8000-000000000001";
 const actorId = "60000000-0000-4000-8000-000000000001";
 
 function access(
-  role: "coach" | "admin" | "manager" | "guardian" | "revoked" = "coach",
+  role:
+    | "coach"
+    | "admin"
+    | "admin_coach"
+    | "manager"
+    | "guardian"
+    | "revoked" = "coach",
 ): PracticePlanAccess {
   return {
     principal: role === "guardian" ? { userId: actorId } : { userId: actorId },
     clubMemberships:
-      role === "admin" ? [{ clubId, role: "CLUB_ADMIN", active: true }] : [],
+      role === "admin" || role === "admin_coach"
+        ? [{ clubId, role: "CLUB_ADMIN", active: true }]
+        : [],
     teamMemberships:
-      role === "coach" || role === "revoked"
+      role === "coach" || role === "admin_coach" || role === "revoked"
         ? [
             {
               clubId,
               teamId,
               role: "ASSISTANT_COACH",
-              active: role === "coach",
+              active: role !== "revoked",
               teamActive: true,
             },
           ]
@@ -110,7 +118,7 @@ const firstBlock = first(draft.blocks);
 const firstFocus = first(draft.focus);
 
 describe("practice planner commands", () => {
-  it.each(["coach", "admin"] as const)("allows %s", async (role) => {
+  it.each(["coach", "admin_coach"] as const)("allows %s", async (role) => {
     const gateway = writer();
     await expect(
       savePracticePlan({
@@ -129,6 +137,26 @@ describe("practice planner commands", () => {
       focusOptions: [],
       drills: [],
     });
+  });
+  it("denies an admin without a coaching membership", async () => {
+    const gateway = writer();
+    await expect(
+      savePracticePlan({
+        ...access("admin"),
+        clubId,
+        teamId,
+        draft,
+        writer: gateway,
+      }),
+    ).rejects.toMatchObject({ code: "FORBIDDEN" });
+    await expect(
+      readPracticePlanner({
+        ...access("admin"),
+        clubId,
+        teamId,
+        writer: gateway,
+      }),
+    ).rejects.toMatchObject({ code: "FORBIDDEN" });
   });
   it.each(["manager", "guardian", "revoked"] as const)(
     "denies %s",

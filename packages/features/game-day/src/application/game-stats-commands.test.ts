@@ -95,7 +95,7 @@ describe("M4 game result and player stat commands", () => {
     },
   );
 
-  it("allows Club Admin history access through the capability matrix", async () => {
+  it("denies Club Admin history access without an active coach membership", async () => {
     const target = writer();
     await expect(
       readGamePlayerStatHistory({
@@ -105,6 +105,21 @@ describe("M4 game result and player stat commands", () => {
         guardianLinks: [],
         registrations: [],
         teamActive: true,
+        clubId,
+        teamId,
+        eventId,
+        writer: target,
+      }),
+    ).rejects.toMatchObject({ code: "FORBIDDEN" });
+    expect(target.readGamePlayerStatHistory).not.toHaveBeenCalled();
+  });
+
+  it("allows Club Admin history access through an active coach membership", async () => {
+    const target = writer();
+    await expect(
+      readGamePlayerStatHistory({
+        ...access("ASSISTANT_COACH"),
+        clubMemberships: [{ clubId, role: "CLUB_ADMIN", active: true }],
         clubId,
         teamId,
         eventId,
@@ -294,7 +309,7 @@ describe("M4 game result and player stat commands", () => {
     expect(target.saveManualGameResult).not.toHaveBeenCalled();
   });
 
-  it("preserves Club Admin stats capability for an existing historical line", async () => {
+  it("denies Club Admin stats capability for an existing historical line", async () => {
     const target = writer();
     await expect(
       saveGamePlayerStat({
@@ -316,8 +331,8 @@ describe("M4 game result and player stat commands", () => {
         approximateMinutes: 30,
         writer: target,
       }),
-    ).resolves.toBeUndefined();
-    expect(target.saveGamePlayerStat).toHaveBeenCalledOnce();
+    ).rejects.toMatchObject({ code: "FORBIDDEN" });
+    expect(target.saveGamePlayerStat).not.toHaveBeenCalled();
   });
 
   it("rejects a game projection that belongs to another team", async () => {

@@ -116,7 +116,7 @@ begin
   if actor is null then raise exception 'UNAUTHENTICATED' using errcode = '28000'; end if;
   select team.* into team_row from public.teams team where team.id = p_team_id and team.active;
   if not found then raise exception 'NOT_FOUND' using errcode = 'P0002'; end if;
-  if public.caller_is_club_admin(team_row.club_id) or exists (
+  if exists (
     select 1 from public.team_memberships membership where membership.team_id = team_row.id
       and membership.club_id = team_row.club_id and membership.user_id = actor and membership.active
       and membership.role in ('HEAD_COACH','ASSISTANT_COACH')

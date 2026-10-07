@@ -316,7 +316,7 @@ Protect tokens from broad reads.
 - updated_by
 - updated_at
 
-Unique `(game_event_id, player_id)` and tenant/team consistency are enforced. A new line requires the Player to be active and currently registered to the GAME team. A correction to an existing line is allowed to an authorized M4 `coaching_stats.write` actor scoped to that GAME team (active coach membership or Club Admin per the matrix), without rechecking current player registration. Do not add historical roster snapshots in M4.
+Unique `(game_event_id, player_id)` and tenant/team consistency are enforced. A new line requires the Player to be active and currently registered to the GAME team. A correction to an existing line is allowed to an authorized M4 `coaching_stats.write` actor with active Head/Assistant Coach membership for that exact GAME team, without rechecking current player registration. Club Admin authority alone is not coaching authority. Do not add historical roster snapshots in M4.
 
 ### game_player_stat_revisions
 - id

@@ -83,15 +83,15 @@ UI may hide unavailable actions, but authoritative enforcement must exist in app
 | duty.manage | yes | optional | no | yes | no |
 | duty.respond | yes if assigned | yes if assigned | yes if assigned | yes if assigned | yes if assigned |
 | fillin.manage | yes | yes | optional | yes | no |
-| coaching_stats.read | yes | yes | yes | no M4 | no M4 |
-| coaching_stats.write | yes | yes | yes | no M4 | no M4 |
-| post_game_review.read | yes | yes | yes | no M4 | no M4 |
-| post_game_review.write | yes | yes | yes | no M4 | no M4 |
-| recognition.read | yes | yes | yes | no M4 | no M4 |
-| recognition.write | yes | yes | yes | no M4 | no M4 |
-| private_player_note.read | only with active team coaching membership | yes | yes | no M4 | no M4 |
-| private_player_note.write | only with active team coaching membership | yes | yes | no M4 | no M4 |
-| practice_plan.manage | yes | yes | yes | no M4 | no M4 |
+| coaching_stats.read | no M4 | yes | yes | no M4 | no M4 |
+| coaching_stats.write | no M4 | yes | yes | no M4 | no M4 |
+| post_game_review.read | no M4 | yes | yes | no M4 | no M4 |
+| post_game_review.write | no M4 | yes | yes | no M4 | no M4 |
+| recognition.read | no M4 | yes | yes | no M4 | no M4 |
+| recognition.write | no M4 | yes | yes | no M4 | no M4 |
+| private_player_note.read | no M4 | yes | yes | no M4 | no M4 |
+| private_player_note.write | no M4 | yes | yes | no M4 | no M4 |
+| practice_plan.manage | no M4 | yes | yes | no M4 | no M4 |
 
 Any change to this table is a product/security change and should be reviewed.
 
@@ -100,7 +100,8 @@ Any change to this table is a product/security change and should be reviewed.
 - For M4 only, an active `ASSISTANT_COACH` membership has the same coaching capabilities as an active `HEAD_COACH` membership for that assigned team. No delegation mechanism is part of MVP.
 - All M4 team capabilities are checked against current active team membership on every request; revocation immediately denies subsequent requests.
 - `TEAM_MANAGER` receives no M4 coaching capabilities, including game score entry. Existing non-M4 fixture administration remains governed by `fixture.manage_manual`; that capability cannot be used to write or clear M4 scores.
-- `CLUB_ADMIN` may manage M4 stats, team reviews, recognition and practice plans under the existing club-admin scope. Club-admin authority alone never grants access to `STAFF_PRIVATE` player notes. `private_player_note.read/write` requires an active Head or Assistant Coach membership for the exact game team. A user holding both roles is allowed only through the active team coaching membership.
+- Every M4 coaching capability requires an active `HEAD_COACH` or `ASSISTANT_COACH` membership for the exact active team. `CLUB_ADMIN` authority alone grants none of these capabilities. A dual-role Club Admin succeeds only through the active team coaching membership, and loses M4 access immediately when that membership is revoked. This applies to all stats/history, reviews, recognition, private notes, and practice planning.
+- Ordinary fixture/game projection access remains governed by the existing non-M4 capabilities. A Club Admin may continue to see a final score there when that projection already exposes it; this does not grant `coaching_stats.read` or access to per-player stats/history.
 - Guardians have no MVP access to M4 stats, reviews, recognition, private notes, or plans. A Guardian who is also an active Coach is authorized only through the applicable coaching membership.
 - Score write RPCs require `coaching_stats.write`; legacy fixture metadata updates preserve scores and cannot mutate them. Imported/provider-owned official result fields remain provider-owned.
 

@@ -280,7 +280,7 @@ function teamEventScoped(
     input.capability === "recognition.write" ||
     input.capability === "practice_plan.manage"
   ) {
-    return admin || coach ? "allow" : "deny";
+    return coach ? "allow" : "deny";
   }
   if (
     input.capability === "announcement.read" ||

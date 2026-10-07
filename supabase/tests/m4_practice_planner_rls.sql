@@ -20,7 +20,9 @@ insert into public.seasons(id,club_id,name) values ('73410000-0000-4000-8000-000
 insert into public.teams(id,club_id,season_id,name,active) values
  ('73410000-0000-4000-8000-000000000012','73410000-0000-4000-8000-000000000010','73410000-0000-4000-8000-000000000011','Planner Team',true),
  ('73410000-0000-4000-8000-000000000013','73410000-0000-4000-8000-000000000010','73410000-0000-4000-8000-000000000011','Other Team',true);
-insert into public.club_memberships(club_id,user_id,role,active) values ('73410000-0000-4000-8000-000000000010','73410000-0000-4000-8000-000000000001','CLUB_ADMIN',true);
+insert into public.club_memberships(club_id,user_id,role,active) values
+ ('73410000-0000-4000-8000-000000000010','73410000-0000-4000-8000-000000000001','CLUB_ADMIN',true),
+ ('73410000-0000-4000-8000-000000000010','73410000-0000-4000-8000-000000000003','CLUB_ADMIN',true);
 insert into public.team_memberships(club_id,team_id,user_id,role,active) values
  ('73410000-0000-4000-8000-000000000010','73410000-0000-4000-8000-000000000012','73410000-0000-4000-8000-000000000002','HEAD_COACH',true),
  ('73410000-0000-4000-8000-000000000010','73410000-0000-4000-8000-000000000012','73410000-0000-4000-8000-000000000003','ASSISTANT_COACH',true),
@@ -49,6 +51,11 @@ select is((select relrowsecurity and relforcerowsecurity from pg_class where oid
 select is((select relrowsecurity and relforcerowsecurity from pg_class where oid='public.practice_blocks'::regclass),true,'blocks force RLS');
 select ok(not has_table_privilege('authenticated','public.practice_plans','select'),'authenticated cannot bypass the scoped planner RPC');
 select ok(not has_table_privilege('authenticated','public.private_player_game_notes','select'),'planner cannot read private player-note storage');
+select ok(not has_function_privilege('anon','public.read_practice_planner(uuid)','EXECUTE'),'anonymous role cannot execute planner RPC');
+do $$ begin perform pg_temp.assume_user('73410000-0000-4000-8000-000000000099'); end $$;
+set local role authenticated;
+select is(pg_temp.sqlerrm_of($$select public.read_practice_planner('73410000-0000-4000-8000-000000000012')$$),'FORBIDDEN','authenticated outsider cannot read planner');
+reset role;
 
 do $$ begin perform pg_temp.assume_user('73410000-0000-4000-8000-000000000003'); end $$;
 set local role authenticated;
@@ -100,7 +107,9 @@ select is((select count(*) from public.practice_plan_focus where source_review_i
 
 do $$ begin perform pg_temp.assume_user('73410000-0000-4000-8000-000000000001'); end $$;
 set local role authenticated;
-select lives_ok($$select public.read_practice_planner('73410000-0000-4000-8000-000000000012')$$,'Club Admin may read and manage practice plans');
+select is(pg_temp.sqlerrm_of($$select public.read_practice_planner('73410000-0000-4000-8000-000000000012')$$),'FORBIDDEN','Club Admin without coach membership cannot read planner data');
+select is(pg_temp.sqlerrm_of($$select public.save_practice_plan('73410000-0000-4000-8000-000000000012',null,null,'Admin template','','[]','[]')$$),'FORBIDDEN','Club Admin without coach membership cannot create a plan');
+select is(pg_temp.sqlerrm_of($$select public.save_practice_drill('73410000-0000-4000-8000-000000000012','Admin drill','',10)$$),'FORBIDDEN','Club Admin without coach membership cannot create a drill');
 reset role;
 do $$ begin perform pg_temp.assume_user('73410000-0000-4000-8000-000000000004'); end $$;
 set local role authenticated;

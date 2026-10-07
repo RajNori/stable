@@ -1,6 +1,6 @@
 # Milestone 4 Coaching Loop — Frozen Execution Contract
 
-**Status: CONTRACT-FROZEN.** Human decisions recorded 2026-10-07. Do not reopen unless implementation reveals a direct conflict with an accepted ADR or security invariant.
+**Status: CONTRACT-FROZEN.** Shared decisions recorded 2026-10-07; final coaching authorization boundary frozen 2026-10-08. Do not reopen unless implementation reveals a direct conflict with an accepted ADR or security invariant.
 
 ## Entry conditions
 
@@ -14,8 +14,9 @@
 - Players are child domain records, not authenticated users. Derive authorization from active contextual memberships and enforce it in application capabilities and SQL/RLS.
 - Current team membership is checked on each request; revoked membership immediately loses M4 access.
 - Active Head and Assistant Coaches have the same M4 coaching capabilities for their assigned team. No delegation mechanism in MVP.
-- Club Admin authority grants M4 stats, team review, recognition and practice-plan capabilities as listed in `PERMISSIONS.md`; Club Admin authority alone does not grant private-note access. An active Head/Assistant Coach membership for that team does.
+- Every M4 coaching capability requires active `HEAD_COACH` or `ASSISTANT_COACH` membership for the exact active team. `CLUB_ADMIN` authority alone grants no M4 coaching access. A dual-role Club Admin is authorized only through current team-coach membership; revoking it removes M4 access immediately.
 - Team Managers and Guardians receive no M4 coaching capability. Dual-role actors act only through the role/membership that grants the requested capability.
+- Ordinary fixture/game projection access remains unchanged. A Club Admin may see a final score if an existing non-M4 projection already exposes it; this does not grant `coaching_stats.read`, player-stat, or correction-history access.
 - Private player-note text never enters analytics, logs, notifications, generic audit metadata, broad game/fixture projections or offline snapshots. Correction history has opaque game/player IDs, actor/time and before/after numeric stats only; no names and no Guardian access.
 - M2 offline Game Day remains read-only. No AI coaching or public leaderboard.
 
@@ -33,7 +34,7 @@
 - One row per `(game_event_id, player_id)`, with game/team/club consistency derived in SQL. Stats are Stable-owned and can be recorded for a valid game regardless of fixture source.
 - `points`, `rebounds`, `assists`, `steals`: whole integers `[0, 100]`; `fouls`: whole integer `[0, 20]`.
 - `approximate_minutes`: whole non-negative integer; no greater than the scheduled event duration (`events.ends_at - events.starts_at`) in whole minutes when both timestamps exist; otherwise no greater than 120.
-- Creating a new stat line requires an active player currently registered to the game team. Correcting an existing line requires an authorized `coaching_stats.write` actor scoped to that game team (active coach membership or Club Admin per the matrix), but does not recheck registration; the row itself is historical evidence. Do not add roster snapshots or permit a new ineligible historical line.
+- Creating a new stat line requires an active player currently registered to the game team. Correcting an existing line requires an authorized `coaching_stats.write` actor with active Head/Assistant Coach membership scoped to that game team, but does not recheck registration; the row itself is historical evidence. Do not add roster snapshots or permit a new ineligible historical line.
 - Every actual correction appends an immutable restricted revision with opaque game/event and player IDs, actor ID, timestamp, before numeric values and after numeric values. No child names. Generic audit contains only opaque action/target metadata.
 
 ## Slice 4.2 — Post-game review
