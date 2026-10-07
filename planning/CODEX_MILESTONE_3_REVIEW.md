@@ -375,3 +375,96 @@ Classification: **RERUN** for the checks below; **SOURCE REVIEW** for migration,
 **PASS WITH CONDITIONS**
 
 All six original findings are **CLOSED**, the clean-reset and post-bootstrap pgTAP suites both pass, and the required format/lint/typecheck and focused feature tests pass. Freeze remains conditional on resolving M3-DELTA-MED-01 and defining the historical-data upgrade policy for M3-DELTA-UNCERTAIN-01.
+
+# Milestone 3 Remediation Delta Review
+
+## Reviewed range
+
+- Integrated review commit `cdbcf70` is an ancestor of reviewed HEAD `c510fc5abf2846bb9898aba20eb7b29e3718fb6a`.
+- Worktree was clean at review start (`main...origin/main [ahead 14]`). No product files were changed by this review. This review record is the only intended uncommitted change.
+- Remediation commits: `b965551` (fill-in confirmation invariant), `c8b56b2` (duty acknowledgement eligibility), `503dd6d` (device ownership and duty notification producers), and `c510fc5` (fill-in request lifecycle). `1c06a9b` is documentation-only.
+- Reviewed every changed migration and pgTAP file in the range. The delta is SQL migrations/tests and the review record; no Milestone 4 implementation was found. No push, tag, or hosted infrastructure action was performed.
+- `git diff --check cdbcf70..HEAD`: PASS.
+
+## M3-HIGH-01
+
+**CLOSED.** The current migration adds a unique index on `fill_in_confirmations.event_id`; request creation and confirmation lock the event and reject an existing confirmation. The confirmation transaction inserts the confirmation, transitions its request, then writes audit; notification enqueue is a separate authorized call for the winning request. The unique constraint and event lock prevent two requests from both committing a confirmation. Game Day reads the one confirmation row guaranteed by the constraint. Sequential requests after confirmation are denied. The clean-state database suite passes. The added concurrent test races two request creations (one winner); there is no explicit two-session confirmation race test, but the confirmation invariant is database-enforced and the confirmation function serializes on the event row.
+
+## M3-MED-01
+
+**CLOSED.** `acknowledge_own_game_duty` locks and validates the scheduled GAME and active team, verifies the current assignment, and calls `caller_can_take_duty` before writing. pgTAP covers eligible staff and guardian, revoked staff and guardian, reassigned assignee, cross-team denial, and idempotent replay without duplicate audit.
+
+## M3-MED-02
+
+**CLOSED.** Confirmation requires a response whose guardian still has an active relationship to the candidate, and verifies that the player remains active and eligible. pgTAP revokes the responding guardian before confirmation, expects denial, and confirms the historical response remains without a confirmation row.
+
+## M3-MED-03
+
+**CLOSED.** Response and confirmation revalidate the current event as a scheduled GAME, active team, and existing game row while holding the event lock. Tests cover cancellation before response, cancellation after response/before confirmation, non-GAME event, inactive team, and missing game record.
+
+## M3-MED-04
+
+**CLOSED.** Active token ownership cannot transfer to another authenticated user; the generic conflict leaves owner and platform unchanged. Same-owner registration is safe, and inactive-token reclaim remains supported. Both the initial lookup and unique-violation race path recheck and lock ownership. No alternate changed path reassigns active endpoints.
+
+## M3-MED-05
+
+**CLOSED.** Manual assignment and committed automatic allocation enqueue `DUTY_ASSIGNED` for the assigned recipient; preview does not enqueue. Targeted swap creation enqueues `DUTY_SWAP_REQUESTED` only for its intended target. An untargeted request has no invented recipient. The assignment/request, audit, and enqueue occur in one transaction; event-key uniqueness suppresses duplicate enqueue for a given source. Payloads contain IDs and notification type only, not child PII, contact data, or device tokens.
+
+## Fill-in concurrency
+
+Fresh installs enforce one open request per event and one confirmed request/confirmation per event with partial/unique indexes. `request_fill_in`, `respond_fill_in`, and `confirm_fill_in` lock the event and recheck state; competing confirmations cannot both pass the event lock and unique index. A losing confirmation raises conflict before success audit. The tests cover sequential denial, one confirmed projection, and a two-session request-creation race. The notification result path marks `FILL_IN_REQUESTED` skipped when the source is no longer OPEN or the event already has a confirmation.
+
+**M3-DELTA-MED-01 remains OPEN for databases that already applied the earlier version of migration `20261007220000`.** The remediation commit changes that previously committed migration to restore `fill_in_requests_one_open` and to block another OPEN request. Supabase does not rerun an already-recorded migration, and the new `20261007250000_fill_in_request_lifecycle.sql` does not recreate that index or replace the request function. A database that applied the earlier `b965551` version therefore keeps the dropped index and old function, which permits sibling OPEN requests; the new delivery logic does not retire those rows. A clean reset proves fresh-install behavior only. Add a forward migration that restores the invariant and handles existing sibling rows safely, or establish that no target database has applied the earlier migration before rollout.
+
+## Duty acknowledgement
+
+Source and pgTAP confirm current eligibility and assignment scope are checked before the acknowledgement mutation. Replays return zero and do not duplicate audit. Current eligible guardian/staff are accepted; revoked and former assignees and cross-team callers are denied.
+
+## Device ownership
+
+Source and pgTAP confirm token identity comes from `auth.uid()`, active cross-user claims receive a generic conflict, and ownership remains unchanged. Same-user replay updates safely. Table access remains service-role-only and token values do not enter notification payloads.
+
+## Notification producers
+
+Source and pgTAP cover manual and committed automatic assignments, read-only allocation preview, targeted swap requests, intended recipients, duplicate suppression, and payload minimization. Notification preference and current-recipient eligibility checks remain in the provider-result path. No worker or live provider exists in this repository, so actual push transport/retry behavior remains outside this review.
+
+## Regression review
+
+The product delta is database-only. Source review found no changes to announcement authorization, notification preference/device isolation, duty allocation fairness, swap single-winner behavior, candidate masking, official fixture immutability, Game Day privacy, offline behavior, or contextual capability checks. RLS remains enabled on exposed feature tables; changed privileged functions retain `SECURITY DEFINER`, empty search path, qualified objects, and SQL-side authorization. No analytics capability or Milestone 4 code was introduced.
+
+## SQL security
+
+Changed public mutation functions derive the actor from `auth.uid()`, validate authority in SQL, and use `SECURITY DEFINER SET search_path = ''` with schema-qualified references. The internal duty-notification helper is revoked from `PUBLIC`, `anon`, and `authenticated`; provider-result processing is service-role-only. Replaced functions preserve intended grants. Mutation, audit, and notification enqueue are transactionally coupled where specified. The migration history preflight helper is also revoked from application roles.
+
+## Clean database verification
+
+- `pnpm exec supabase db reset --local`: PASS; clean local reset applied all migrations through `20261007250000_fill_in_request_lifecycle.sql`.
+- First `pnpm exec supabase test db`: PASS, 19 files / 737 tests.
+- Repository-documented local Auth bootstrap (`node --experimental-strip-types --import ./scripts/register-workspace-ts.mjs scripts/bootstrap-local-auth.ts`): PASS.
+- Second `pnpm exec supabase test db`: PASS, 19 files / 737 tests.
+- These commands used local Supabase only. No hosted database was inspected or changed.
+
+## Test evidence
+
+Classification: **RERUN** for commands executed here; **SOURCE REVIEW** for SQL/concurrency/security conclusions and regression paths; **REPORTED ONLY** for earlier browser/build/Expo gates not rerun in this SQL-only delta.
+
+- Node `v24.21.0`; pnpm `12.9.1`.
+- `pnpm format:check`: PASS.
+- `pnpm lint`: PASS.
+- `pnpm typecheck`: PASS, 23 packages.
+- `pnpm --filter @stable/game-day test`: PASS, 5 files / 15 tests.
+- `pnpm --filter @stable/notifications test`: PASS, 3 files / 7 tests.
+- `pnpm --filter @stable/fill-ins test`: PASS, 2 files / 12 tests.
+- Both clean-state database runs: PASS, 19 files / 737 pgTAP tests each.
+- `git diff --check cdbcf70..HEAD`: PASS.
+- Playwright was not run because no browser surface changed. Full workspace/build/Expo/browser results from the earlier review remain **REPORTED ONLY**.
+
+## New findings
+
+No distinct new finding beyond the still-open M3-DELTA-MED-01 upgrade-path condition described above. The prior historical duplicate-confirmation migration risk is **CLOSED** for migrations that have not yet been applied: the preflight now aborts with conflicting event IDs before creating the unique index and does not rewrite confirmation/audit rows. Hosted historical data was not inspected.
+
+## Milestone 3 final freeze recommendation
+
+**PASS WITH CONDITIONS**
+
+All six original findings are CLOSED and clean-reset gates pass. Freeze is conditional on applying a forward migration (or proving no existing database has applied the earlier version of `20261007220000`) so the single-open-request lifecycle fix reaches upgraded databases and any pre-existing sibling OPEN requests are reconciled safely.
