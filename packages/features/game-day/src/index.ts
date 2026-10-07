@@ -15,5 +15,20 @@ export type {
   GameDayProjection,
   GameDayReader,
 } from "./application/game-day-commands.js";
+export {
+  acknowledgeGameDuty,
+  commitDutyAllocation,
+  createOpenGameDuty,
+  previewDutyAllocation,
+} from "./application/duty-commands.js";
+export {
+  compareDutyCandidates,
+  proposeDutyAllocation,
+} from "./application/duty-allocation.js";
+export type {
+  DutyCandidate,
+  DutyProposal,
+  OpenDuty,
+} from "./application/duty-allocation.js";
 export { createSupabaseGameDayGateway } from "./infrastructure/supabase-game-day-gateway.js";
 export type { GameDayGateway } from "./infrastructure/supabase-game-day-gateway.js";

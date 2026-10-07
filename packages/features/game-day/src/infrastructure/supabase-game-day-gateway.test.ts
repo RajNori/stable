@@ -80,6 +80,7 @@ describe("game day gateway", () => {
       ["42501: FORBIDDEN", "FORBIDDEN"],
       ["P0002: NOT_FOUND", "NOT_FOUND"],
       ["23514: VALIDATION_FAILED", "VALIDATION_FAILED"],
+      ["P0001: CONFLICT", "CONFLICT"],
     ] as const;
     for (const [message, code] of codes) {
       await expect(
@@ -120,5 +121,45 @@ describe("game day gateway", () => {
       code: "INTERNAL",
       message: gameDayMessages.saveFailed,
     });
+  });
+
+  it("opens, previews, commits, and acknowledges a duty", async () => {
+    const opened = client(dutyId);
+    await expect(
+      createSupabaseGameDayGateway(opened).createOpenDuty({
+        eventId,
+        dutyType: "CANTEEN",
+        label: "Canteen",
+      }),
+    ).resolves.toEqual({ dutyId });
+    const inputs = client({
+      duties: [{ dutyId, dutyType: "CANTEEN", label: "Canteen" }],
+      candidates: [{ userId, priorCount: 0 }],
+    });
+    await expect(
+      createSupabaseGameDayGateway(inputs).listDutyAllocationInputs(eventId),
+    ).resolves.toEqual({
+      duties: [{ dutyId, dutyType: "CANTEEN", label: "Canteen" }],
+      candidates: [{ userId, priorCount: 0 }],
+    });
+    const committed = client(null);
+    await expect(
+      createSupabaseGameDayGateway(committed).commitDutyAllocation(
+        eventId,
+        `${dutyId}:${userId}:0`,
+      ),
+    ).resolves.toBeUndefined();
+    const acknowledged = client(1);
+    await expect(
+      createSupabaseGameDayGateway(acknowledged).acknowledgeOwnDuty(eventId),
+    ).resolves.toBe(1);
+    await expect(
+      createSupabaseGameDayGateway(
+        client({ duties: [] }),
+      ).listDutyAllocationInputs(eventId),
+    ).rejects.toMatchObject({ code: "INTERNAL" });
+    await expect(
+      createSupabaseGameDayGateway(client("nope")).acknowledgeOwnDuty(eventId),
+    ).rejects.toMatchObject({ code: "INTERNAL" });
   });
 });

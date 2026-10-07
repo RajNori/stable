@@ -6,6 +6,14 @@ import {
   createSupabaseAttendanceGateway,
   recordAttendance,
 } from "@stable/attendance";
+import {
+  acknowledgeGameDuty,
+  commitDutyAllocation,
+  createOpenGameDuty,
+  createSupabaseGameDayGateway,
+  gameDayMessages,
+} from "@stable/game-day";
+import { DUTY_TYPES } from "@stable/game-day";
 import { redirect } from "next/navigation";
 
 import { fixtureAccessFrom } from "../../../../../lib/fixture-access";
@@ -114,4 +122,130 @@ export async function recordAttendanceAction(
   }
 
   redirect(destination(teamId, eventId));
+}
+
+async function dutyAccess(formData: FormData) {
+  const clubId = text(formData, "clubId");
+  const teamId = text(formData, "teamId");
+  const eventId = text(formData, "eventId");
+  if (
+    clubId === null ||
+    teamId === null ||
+    eventId === null ||
+    !UUID.test(clubId) ||
+    !UUID.test(teamId) ||
+    !UUID.test(eventId)
+  ) {
+    redirect(
+      teamId !== null &&
+        eventId !== null &&
+        UUID.test(teamId) &&
+        UUID.test(eventId)
+        ? withError(
+            destination(teamId, eventId),
+            gameDayMessages.validationFailed,
+          )
+        : "/",
+    );
+  }
+  const supabase = await createSupabaseServerClient();
+  const principal = await principalFromSupabase(supabase);
+  const reader = await createRuntimeClubContextReader(supabase);
+  const facts = principal === null ? null : await reader.read(principal.userId);
+  if (principal === null || facts === null) {
+    redirect(
+      withError(destination(teamId, eventId), gameDayMessages.unauthenticated),
+    );
+  }
+  const teamActive =
+    facts.teams.find((team) => team.id === teamId)?.active === true;
+  return {
+    access: fixtureAccessFrom(principal, facts, teamActive),
+    clubId,
+    teamId,
+    eventId,
+    writer: createSupabaseGameDayGateway(supabase),
+  };
+}
+
+export async function createOpenDutyAction(formData: FormData): Promise<void> {
+  const loaded = await dutyAccess(formData);
+  const dutyType = text(formData, "dutyType");
+  const label = text(formData, "label");
+  if (
+    dutyType === null ||
+    label === null ||
+    !DUTY_TYPES.some((item) => item === dutyType)
+  ) {
+    redirect(
+      withError(
+        destination(loaded.teamId, loaded.eventId),
+        gameDayMessages.validationFailed,
+      ),
+    );
+  }
+  try {
+    await createOpenGameDuty({
+      ...loaded.access,
+      clubId: loaded.clubId,
+      teamId: loaded.teamId,
+      eventId: loaded.eventId,
+      dutyType,
+      label,
+      writer: loaded.writer,
+    });
+  } catch (caught: unknown) {
+    const message =
+      caught instanceof Error ? caught.message : gameDayMessages.saveFailed;
+    redirect(withError(destination(loaded.teamId, loaded.eventId), message));
+  }
+  redirect(destination(loaded.teamId, loaded.eventId));
+}
+
+export async function commitDutyAllocationAction(
+  formData: FormData,
+): Promise<void> {
+  const loaded = await dutyAccess(formData);
+  const fingerprint = text(formData, "fingerprint");
+  if (fingerprint === null) {
+    redirect(
+      withError(
+        destination(loaded.teamId, loaded.eventId),
+        gameDayMessages.validationFailed,
+      ),
+    );
+  }
+  try {
+    await commitDutyAllocation({
+      ...loaded.access,
+      clubId: loaded.clubId,
+      teamId: loaded.teamId,
+      eventId: loaded.eventId,
+      fingerprint,
+      writer: loaded.writer,
+    });
+  } catch (caught: unknown) {
+    const message =
+      caught instanceof Error ? caught.message : gameDayMessages.saveFailed;
+    redirect(withError(destination(loaded.teamId, loaded.eventId), message));
+  }
+  redirect(destination(loaded.teamId, loaded.eventId));
+}
+
+export async function acknowledgeDutyAction(formData: FormData): Promise<void> {
+  const loaded = await dutyAccess(formData);
+  try {
+    await acknowledgeGameDuty({
+      ...loaded.access,
+      clubId: loaded.clubId,
+      teamId: loaded.teamId,
+      eventId: loaded.eventId,
+      writer: loaded.writer,
+    });
+  } catch (caught: unknown) {
+    const message =
+      caught instanceof Error ? caught.message : gameDayMessages.saveFailed;
+    redirect(withError(destination(loaded.teamId, loaded.eventId), message));
+  }
+  redirect(destination(loaded.teamId, loaded.eventId));
 }

@@ -5,8 +5,10 @@ import { createSupabaseFixtureGateway } from "@stable/fixtures";
 import {
   createSupabaseGameDayGateway,
   gameDayMessages,
+  previewDutyAllocation,
   readGameDay,
 } from "@stable/game-day";
+import { evaluateCapability } from "@stable/permissions";
 import { createSupabaseRosterGateway, listTeamRoster } from "@stable/roster";
 
 import { ClubAdminShell } from "../../../../../components/club-admin-shell";
@@ -16,7 +18,12 @@ import { loadLiveClubContext } from "../../../../../lib/load-live-club-context";
 import { principalFromSupabase } from "../../../../../lib/principal";
 import { createRuntimeClubContextReader } from "../../../../../lib/runtime-club-context-reader";
 import { createSupabaseServerClient } from "../../../../../lib/supabase/server";
-import { recordAttendanceAction } from "./actions";
+import {
+  acknowledgeDutyAction,
+  commitDutyAllocationAction,
+  createOpenDutyAction,
+  recordAttendanceAction,
+} from "./actions";
 
 export const dynamic = "force-dynamic";
 
@@ -130,6 +137,37 @@ export default async function GameDayPage({
     }
   }
 
+  const canManageDuties =
+    evaluateCapability({
+      ...access,
+      resource: { clubId: club.id, teamId: team.id, teamActive: team.active },
+      capability: "duty.manage",
+    }) === "allow";
+  let dutyProposal: { fingerprint: string; lines: string[] } | undefined;
+  if (canManageDuties && projection !== null) {
+    try {
+      const preview = await previewDutyAllocation({
+        ...access,
+        clubId: club.id,
+        teamId: team.id,
+        eventId: projection.eventId,
+        writer: createSupabaseGameDayGateway(supabase),
+      });
+      dutyProposal = {
+        fingerprint: preview.fingerprint,
+        lines: preview.proposals.map(
+          (proposal) =>
+            `${proposal.dutyId} count ${String(proposal.priorCount)}`,
+        ),
+      };
+    } catch (caught: unknown) {
+      error =
+        caught instanceof ApplicationError
+          ? caught.message
+          : gameDayMessages.readFailed;
+    }
+  }
+
   return (
     <ClubAdminShell presentation={presentation}>
       <GameDayPanel
@@ -137,6 +175,16 @@ export default async function GameDayPage({
         error={error}
         players={players}
         recordAction={recordAttendanceAction}
+        {...(dutyProposal === undefined ? {} : { dutyProposal })}
+        {...(canManageDuties
+          ? {
+              createDuty: createOpenDutyAction,
+              commitDuty: commitDutyAllocationAction,
+            }
+          : {})}
+        {...(projection?.ownDutyLabel !== null && projection !== null
+          ? { acknowledgeDuty: acknowledgeDutyAction }
+          : {})}
       />
     </ClubAdminShell>
   );

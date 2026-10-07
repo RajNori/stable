@@ -3,6 +3,7 @@ export const gameDayMessages = {
   forbidden: "This game day is not available.",
   notFound: "Game day was not found.",
   validationFailed: "Game day details failed validation.",
+  conflict: "The duty allocation is out of date.",
   saveFailed: "The duty could not be saved.",
   readFailed: "Game day could not be read.",
 } as const;

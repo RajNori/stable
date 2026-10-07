@@ -5,11 +5,19 @@ export function GameDayPanel({
   error,
   players = [],
   recordAction,
+  dutyProposal,
+  createDuty,
+  commitDuty,
+  acknowledgeDuty,
 }: {
   projection: GameDayProjection | null;
   error?: string | undefined;
   players?: { playerId: string; label: string }[] | undefined;
   recordAction?: ((formData: FormData) => Promise<void>) | undefined;
+  dutyProposal?: { fingerprint: string; lines: string[] } | undefined;
+  createDuty?: ((formData: FormData) => Promise<void>) | undefined;
+  commitDuty?: ((formData: FormData) => Promise<void>) | undefined;
+  acknowledgeDuty?: ((formData: FormData) => Promise<void>) | undefined;
 }) {
   return (
     <section aria-label="Game day">
@@ -28,6 +36,53 @@ export function GameDayPanel({
           <p>Coach note {projection.coachFocus ?? "Not set"}</p>
           <p>RSVP {projection.ownRsvp}</p>
           <p>Duty {projection.ownDutyLabel ?? "None"}</p>
+          {acknowledgeDuty !== undefined && projection.ownDutyLabel !== null ? (
+            <form action={acknowledgeDuty}>
+              <input type="hidden" name="clubId" value={projection.clubId} />
+              <input type="hidden" name="teamId" value={projection.teamId} />
+              <input type="hidden" name="eventId" value={projection.eventId} />
+              <button type="submit">Acknowledge duty</button>
+            </form>
+          ) : null}
+          {dutyProposal === undefined
+            ? null
+            : dutyProposal.lines.map((line) => <p key={line}>{line}</p>)}
+          {commitDuty !== undefined &&
+          dutyProposal !== undefined &&
+          dutyProposal.fingerprint.length > 0 ? (
+            <form action={commitDuty}>
+              <input type="hidden" name="clubId" value={projection.clubId} />
+              <input type="hidden" name="teamId" value={projection.teamId} />
+              <input type="hidden" name="eventId" value={projection.eventId} />
+              <input
+                type="hidden"
+                name="fingerprint"
+                value={dutyProposal.fingerprint}
+              />
+              <button type="submit">Commit allocation</button>
+            </form>
+          ) : null}
+          {createDuty !== undefined ? (
+            <form action={createDuty}>
+              <input type="hidden" name="clubId" value={projection.clubId} />
+              <input type="hidden" name="teamId" value={projection.teamId} />
+              <input type="hidden" name="eventId" value={projection.eventId} />
+              <label>
+                Duty
+                <select name="dutyType" defaultValue="SCORER">
+                  <option value="SCORER">Scorer</option>
+                  <option value="CLOCK">Clock</option>
+                  <option value="CANTEEN">Canteen</option>
+                  <option value="OTHER">Other</option>
+                </select>
+              </label>
+              <label>
+                Label
+                <input name="label" required />
+              </label>
+              <button type="submit">Add open duty</button>
+            </form>
+          ) : null}
           {projection.attendingCount === null ? null : (
             <p>
               Attending {projection.attendingCount}, unavailable{" "}

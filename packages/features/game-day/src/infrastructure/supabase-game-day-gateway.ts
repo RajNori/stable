@@ -2,6 +2,7 @@ import { ApplicationError } from "@stable/contracts";
 import type { PostgrestError } from "@supabase/supabase-js";
 import { z } from "zod";
 
+import type { DutyAllocationWriter } from "../application/duty-commands.js";
 import {
   gameDayProjectionSchema,
   type AssignDuty,
@@ -17,7 +18,7 @@ type GameDayClient = {
 };
 
 const OPERATION_CODE =
-  /^(?:[0-9A-Z]{5}:\s*)?(UNAUTHENTICATED|FORBIDDEN|NOT_FOUND|VALIDATION_FAILED)$/;
+  /^(?:[0-9A-Z]{5}:\s*)?(UNAUTHENTICATED|FORBIDDEN|NOT_FOUND|VALIDATION_FAILED|CONFLICT)$/;
 
 const rowSchema = z
   .strictObject({
@@ -61,13 +62,34 @@ const rowSchema = z
     unansweredCount: row.unanswered_count,
   }));
 
-export type GameDayGateway = GameDayReader;
+const allocationInputSchema = z.strictObject({
+  duties: z.array(
+    z.strictObject({
+      dutyId: z.string().uuid(),
+      dutyType: z.enum(["SCORER", "CLOCK", "CANTEEN", "OTHER"]),
+      label: z.string(),
+    }),
+  ),
+  candidates: z.array(
+    z.strictObject({
+      userId: z.string().uuid(),
+      priorCount: z.number().int().min(0),
+    }),
+  ),
+});
+
+export type GameDayGateway = GameDayReader & DutyAllocationWriter;
 
 export function createSupabaseGameDayGateway(client: unknown): GameDayGateway {
   const db = client as GameDayClient;
   return {
     readGameDay: (eventId) => readGameDay(db, eventId),
     assignGameDuty: (command) => assignGameDuty(db, command),
+    createOpenDuty: (input) => createOpenDuty(db, input),
+    listDutyAllocationInputs: (eventId) => listDutyInputs(db, eventId),
+    commitDutyAllocation: (eventId, fingerprint) =>
+      commitDutyAllocation(db, eventId, fingerprint),
+    acknowledgeOwnDuty: (eventId) => acknowledgeOwnDuty(db, eventId),
   };
 }
 
@@ -109,6 +131,66 @@ async function assignGameDuty(
   return { dutyId: parsed.data };
 }
 
+async function createOpenDuty(
+  db: GameDayClient,
+  input: {
+    eventId: string;
+    dutyType: "SCORER" | "CLOCK" | "CANTEEN" | "OTHER";
+    label: string;
+  },
+): Promise<{ dutyId: string }> {
+  const data = await call(db, "create_open_game_duty", {
+    p_event_id: input.eventId,
+    p_duty_type: input.dutyType,
+    p_label: input.label,
+  });
+  const value = Array.isArray(data) ? data[0] : data;
+  const parsed = z.string().uuid().safeParse(value);
+  if (!parsed.success) {
+    throw new ApplicationError("INTERNAL", gameDayMessages.saveFailed);
+  }
+  return { dutyId: parsed.data };
+}
+
+async function listDutyInputs(
+  db: GameDayClient,
+  eventId: string,
+): Promise<z.infer<typeof allocationInputSchema>> {
+  const data = await call(db, "list_duty_allocation_inputs", {
+    p_event_id: eventId,
+  });
+  const parsed = allocationInputSchema.safeParse(data);
+  if (!parsed.success) {
+    throw new ApplicationError("INTERNAL", gameDayMessages.readFailed);
+  }
+  return parsed.data;
+}
+
+async function commitDutyAllocation(
+  db: GameDayClient,
+  eventId: string,
+  fingerprint: string,
+): Promise<void> {
+  await call(db, "commit_duty_allocation", {
+    p_event_id: eventId,
+    p_fingerprint: fingerprint,
+  });
+}
+
+async function acknowledgeOwnDuty(
+  db: GameDayClient,
+  eventId: string,
+): Promise<number> {
+  const data = await call(db, "acknowledge_own_game_duty", {
+    p_event_id: eventId,
+  });
+  const parsed = z.number().int().nonnegative().safeParse(data);
+  if (!parsed.success) {
+    throw new ApplicationError("INTERNAL", gameDayMessages.saveFailed);
+  }
+  return parsed.data;
+}
+
 async function call(
   db: GameDayClient,
   name: string,
@@ -134,6 +216,9 @@ async function call(
         "VALIDATION_FAILED",
         gameDayMessages.validationFailed,
       );
+    }
+    if (code === "CONFLICT") {
+      throw new ApplicationError("CONFLICT", gameDayMessages.conflict);
     }
     throw new ApplicationError("INTERNAL", gameDayMessages.readFailed);
   }
