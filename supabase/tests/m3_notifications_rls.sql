@@ -155,6 +155,10 @@ select lives_ok(
   'guardian registers a second device'
 );
 select lives_ok(
+  $sql$select public.register_device_endpoint('ExponentPushToken[guardian-b]', 'IOS')$sql$,
+  'the owner can register the same token again'
+);
+select lives_ok(
   $sql$select public.deactivate_device_endpoint('ExponentPushToken[guardian-a]')$sql$,
   'sign-out deactivates only the presented device'
 );
@@ -175,17 +179,57 @@ select is(
 do $$ begin perform pg_temp.assume_user('8f8f8f8f-8f8f-48f8-88f8-8f8f8f8f8f01'); end $$;
 set local role authenticated;
 
-select lives_ok(
-  $sql$select public.register_device_endpoint('ExponentPushToken[guardian-b]', 'ANDROID')$sql$,
-  'registering the same token moves it'
+select is(
+  pg_temp.sqlerrm_of($sql$
+    select public.register_device_endpoint('ExponentPushToken[guardian-b]', 'ANDROID')
+  $sql$),
+  'CONFLICT',
+  'an active token owned by someone else is rejected'
+);
+
+select is(
+  position(
+    '8f8f8f8f-8f8f-48f8-88f8-8f8f8f8f8f02'
+    in pg_temp.sqlerrm_of($sql$
+      select public.register_device_endpoint('ExponentPushToken[guardian-b]', 'ANDROID')
+    $sql$)
+  ),
+  0,
+  'the rejection does not reveal the current owner'
 );
 
 reset role;
 
 select is(
   (select user_id::text from public.device_endpoints where expo_push_token = 'ExponentPushToken[guardian-b]'),
+  '8f8f8f8f-8f8f-48f8-88f8-8f8f8f8f8f02',
+  'the active token stays with its owner'
+);
+select is(
+  (select platform from public.device_endpoints where expo_push_token = 'ExponentPushToken[guardian-b]'),
+  'IOS',
+  'a rejected claim does not change the endpoint'
+);
+
+do $$ begin perform pg_temp.assume_user('8f8f8f8f-8f8f-48f8-88f8-8f8f8f8f8f01'); end $$;
+set local role authenticated;
+
+select lives_ok(
+  $sql$select public.register_device_endpoint('ExponentPushToken[guardian-a]', 'IOS')$sql$,
+  'a deactivated token can be registered by the next user'
+);
+
+reset role;
+
+select is(
+  (select user_id::text from public.device_endpoints where expo_push_token = 'ExponentPushToken[guardian-a]'),
   '8f8f8f8f-8f8f-48f8-88f8-8f8f8f8f8f01',
-  'the token now belongs to the current user'
+  'sign-out leaves the token free for the next login'
+);
+select is(
+  (select active from public.device_endpoints where expo_push_token = 'ExponentPushToken[guardian-a]'),
+  true,
+  'the next login reactivates the token'
 );
 
 do $$ begin perform pg_temp.assume_user('8f8f8f8f-8f8f-48f8-88f8-8f8f8f8f8f02'); end $$;
