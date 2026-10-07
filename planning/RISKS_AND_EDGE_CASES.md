@@ -55,10 +55,14 @@
 
 ## Stats
 - corrections after entry;
-- minutes exceed game duration;
-- stat entry incomplete;
-- manager allowed/not allowed by team policy;
-- recognition changed after review.
+- approximate minutes exceed scheduled duration or the 120-minute fallback;
+- stat entry is incomplete while the final score is known;
+- player transfers after a stat line is recorded;
+- score writes bypass M4 coaching capability through legacy fixture update;
+- imported/provider-owned score is overwritten;
+- recognition changes after review.
+
+Frozen M4 decisions: Assistant Coaches receive the Head Coach M4 capability set; Team Managers receive none. New stat lines require current registration, but corrections to existing lines do not. Score writes use the coach-only M4 operation; the legacy metadata update preserves scores.
 
 ## Offline
 - stale game time after fixture change;

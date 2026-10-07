@@ -98,6 +98,13 @@ Use high-level events.
 ## Dependency/security review
 CI should include dependency audit/scanning appropriate to the chosen package manager and GitHub security features.
 
+## Milestone 4 coaching data
+
+- Game stats, post-game reviews, recognitions, private player notes and practice plans are team-scoped staff data. Enforce access in application capabilities and SQL/RLS using `auth.uid()` and the current active team membership; never trust caller-supplied actor, team or club IDs.
+- M4 coaching reads/writes are allowed to Club Admin, Head Coach and Assistant Coach per the capability matrix, except `STAFF_PRIVATE` player notes: those require an active Head/Assistant Coach membership for the exact team. Club-admin authority alone, Team Managers and Guardians do not grant note access. Revoked coaching membership denies the next request.
+- Keep private note text out of logs, analytics, notifications, generic audit metadata, general fixture/game projections and offline snapshots. Correction history may retain only opaque game/player IDs, actor/time and the specified numeric before/after stat values; it has no guardian access and no child names.
+- M4 score writes apply only to `MANUAL` games and Stable-owned result fields. The score command requires `coaching_stats.write`; imported/PlayHQ result data is immutable to this command. Legacy fixture metadata updates must preserve scores and cannot bypass M4 score authorization.
+
 ## Required adversarial tests
 - IDOR across team IDs;
 - IDOR across player IDs;

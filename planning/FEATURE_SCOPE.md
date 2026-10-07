@@ -63,14 +63,11 @@
 - fill-in workflow.
 
 ### Coaching
-- score;
-- basic player stats;
-- court time;
-- team notes;
-- private player notes;
-- MVP/recognition;
-- review-to-practice focus;
-- thin practice planner.
+- manual score entry for Stable/manual games only (team/opponent 0–250); imported official results stay provider-owned;
+- player stats with bounded whole-number values and restricted correction history;
+- approximate court time with scheduled-duration validation or the 120-minute fallback;
+- post-game team review, separate private player notes, MVP/recognition, typed review-to-practice focus and thin practice planner;
+- M4 capabilities for active Head and Assistant Coaches and Club Admins per the permission matrix; no M4 coaching access for Team Managers or Guardians; private notes require active team coaching membership.
 
 ### Club Admin
 - operational dashboard;

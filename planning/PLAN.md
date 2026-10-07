@@ -202,34 +202,25 @@ Team manager can operate the weekend without WhatsApp for core operational coord
 ## Milestone 4 — Coaching Loop (MVP)
 
 ### Slice 4.1 Game score and player stats
-- final score;
-- points;
-- rebounds;
-- assists;
-- steals;
-- fouls;
-- approximate minutes;
-- validation;
-- correction history where appropriate.
+- manual final score only on Stable/manual games; team and opponent scores are paired integers 0–250;
+- provider/imported official result fields are immutable to M4; Stable owns player stats;
+- points, rebounds, assists and steals are integers 0–100; fouls are 0–20;
+- approximate minutes are whole non-negative integers capped at scheduled game duration when known, otherwise 120;
+- new stat line requires active player registration to that game team; correction of an existing line does not require current registration;
+- immutable restricted before/after numeric correction history; no child names.
 
 ### Slice 4.2 Post-game review
-- team notes;
-- private player notes;
-- MVP/Player of Game;
-- recognition categories;
-- development focus tags;
-- next-practice focus creation.
+- one review per game with separate “what worked” and “what needs improvement” notes;
+- private player notes are `STAFF_PRIVATE`, readable/writable only by active Head/Assistant Coach membership for that team;
+- recognition categories: MVP/Player of the Game, Hustle, Defence, Teamwork; one MVP per game and no public leaderboard;
+- bounded typed development focus tags and explicit next-practice focus selection.
 
 ### Slice 4.3 Thin practice planner
-- plan attached to training;
-- timed blocks;
-- drill name/instructions;
-- reorder;
-- duplicate previous;
-- template;
-- notes;
-- total duration validation;
-- carry review focus into practice.
+- plan attached to training or reusable template;
+- timed whole-minute blocks with drill name/instructions;
+- stable-order reorder, duplicate previous and template application;
+- notes and total duration validation;
+- selected review focus persists as a snapshot in the plan.
 
 ### Exit gate
 Coach can move from game observations to a useful next training plan entirely inside The Stable.

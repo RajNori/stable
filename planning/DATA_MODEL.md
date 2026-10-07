@@ -161,10 +161,12 @@ Prefer explicit, testable recurrence semantics rather than arbitrary opaque text
 - official_court_label nullable
 - fixture_status
 - home_away nullable
-- team_score nullable
-- opponent_score nullable
-- result_status nullable
+- team_score nullable; Stable/manual entry bound 0–250
+- opponent_score nullable; Stable/manual entry bound 0–250
+- result_status nullable (`FINAL` only for M4 manual entry)
 - last_external_sync_at nullable
+
+M4 manual result values are paired: both scores are null before entry or both are present with `result_status = FINAL`. Imported result values remain provider-owned and are not written by M4 score commands.
 
 ### game_team_overlay
 - game_event_id
@@ -304,25 +306,49 @@ Protect tokens from broad reads.
 - team_id
 - game_event_id
 - player_id
-- points
-- rebounds
-- assists
-- steals
-- fouls
-- approximate_minutes
+- points: integer 0–100
+- rebounds: integer 0–100
+- assists: integer 0–100
+- steals: integer 0–100
+- fouls: integer 0–20
+- approximate_minutes: whole integer >= 0; no greater than `floor(events.ends_at - events.starts_at)` in minutes when scheduled duration is known, otherwise <= 120
 - recorded_by
+- updated_by
 - updated_at
 
-Use non-negative checks and realistic limits where helpful without blocking corrections.
+Unique `(game_event_id, player_id)` and tenant/team consistency are enforced. A new line requires the Player to be active and currently registered to the GAME team. A correction to an existing line is allowed to an authorized M4 `coaching_stats.write` actor scoped to that GAME team (active coach membership or Club Admin per the matrix), without rechecking current player registration. Do not add historical roster snapshots in M4.
+
+### game_player_stat_revisions
+- id
+- club_id
+- team_id
+- game_event_id (opaque)
+- player_id (opaque)
+- actor_user_id
+- occurred_at
+- before_points, before_rebounds, before_assists, before_steals, before_fouls, before_approximate_minutes
+- after_points, after_rebounds, after_assists, after_steals, after_fouls, after_approximate_minutes
+
+Append one immutable revision for each actual correction, transactionally with the stat update. Restrict history to staff/system reads under `coaching_stats.read`; no Guardian access. Never store child names in the revision or generic audit payload.
 
 ### post_game_reviews
 - id
 - club_id
 - team_id
-- game_event_id
-- team_notes
+- game_event_id (unique)
+- what_worked (nullable, max 2,000 characters)
+- what_needs_improvement (nullable, max 2,000 characters)
 - completed_by
 - completed_at nullable
+
+Saving creates/updates a draft; an explicit completion marks it complete. An authorized M4 review writer can edit/reopen and re-complete it. Audit lifecycle actions with opaque IDs only.
+
+### post_game_review_focus
+- id
+- review_id
+- focus_code: `SHOOTING`, `BALL_HANDLING`, `PASSING`, `REBOUNDING`, `DEFENCE`, `COMMUNICATION`, `TEAMWORK`, or `TRANSITION`
+
+Codes are unique per review, with at most five focus tags per review.
 
 ### player_game_notes
 - id
@@ -330,9 +356,12 @@ Use non-negative checks and realistic limits where helpful without blocking corr
 - team_id
 - game_event_id
 - player_id
-- note
+- note (max 2,000 characters)
 - author_user_id
+- updated_by
 - visibility = STAFF_PRIVATE in MVP
+
+Unique `(game_event_id, player_id)`. Only active Head/Assistant Coaches for the game team may read or write. Club Admin authority alone, Team Managers and Guardians do not grant access.
 
 ### recognitions
 - id
@@ -340,9 +369,11 @@ Use non-negative checks and realistic limits where helpful without blocking corr
 - team_id
 - game_event_id
 - player_id
-- category
-- note nullable
+- category: `MVP`, `HUSTLE`, `DEFENCE`, or `TEAMWORK`
+- note nullable (max 500 characters)
 - created_by
+
+Unique `(game_event_id, player_id, category)`; at most one MVP recipient per game. These remain staff-facing; no leaderboard or public aggregation.
 
 ### drills
 - id
@@ -368,9 +399,18 @@ Use non-negative checks and realistic limits where helpful without blocking corr
 - practice_plan_id
 - sort_order
 - drill_id nullable
-- title
-- duration_minutes
-- instructions nullable
+- title (or a drill is required)
+- duration_minutes: positive whole minutes; total <= scheduled training duration where available, otherwise <= 240
+- instructions nullable (max 2,000 characters)
+
+Blocks have stable unique order within a plan. Reordering, duplication and template application are atomic. Duplicate/template operations snapshot values into a new plan and never mutate their source.
+
+### practice_plan_focus
+- practice_plan_id
+- source_review_id
+- focus_code
+
+A coach explicitly selects same-team review focus into a plan. Store the selected code as a durable snapshot; later source-review edits do not silently rewrite an existing plan.
 
 ### audit_events
 - id
