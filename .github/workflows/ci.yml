@@ -1,5 +1,8 @@
 # Pull request gate, plus post-merge verification on main.
 # No deploy, no EAS build, no production promotion, and no hosted Supabase mutation.
+#
+# Job ids and names are the GitHub status-check names. Rename them only
+# together with the required checks listed in planning/TESTING.md.
 name: ci
 
 on:
@@ -12,20 +15,21 @@ permissions:
   contents: read
 
 concurrency:
-  # One in-flight run per pull request, and one per main push.
-  # A newer commit cancels the older run. GitHub binds the result to that
-  # commit, so a cancelled or older success cannot stand in for the newest head.
-  group: ci-${{ github.workflow }}-${{ github.event_name }}-${{ github.ref }}
-  cancel-in-progress: true
+  # A newer pull request commit cancels the older run for that pull request.
+  # Each main push gets its own group so every merged commit is verified.
+  group: ci-${{ github.workflow }}-${{ github.event_name == 'pull_request' && github.ref || github.sha }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
   quality:
-    name: format, lint, typecheck, test
+    name: quality
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          persist-credentials: false
 
       - name: Setup pnpm
         uses: pnpm/action-setup@v4
@@ -56,12 +60,14 @@ jobs:
         run: pnpm test
 
   dependency-audit:
-    name: dependency audit exception
+    name: dependency-audit
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          persist-credentials: false
 
       - name: Setup pnpm
         uses: pnpm/action-setup@v4
@@ -79,6 +85,7 @@ jobs:
         run: pnpm install --frozen-lockfile
 
       # Accepted upstream highs warn and exit 0. Any other high or critical fails.
+      # An empty or incomplete audit report also fails.
       # Production release stays blocked while the exception file says BLOCKED.
       - name: Compare audit with the residual-risk exception
         run: |
@@ -86,12 +93,14 @@ jobs:
           node --experimental-strip-types --import ./scripts/register-workspace-ts.mjs scripts/check-dependency-exceptions.ts /tmp/pnpm-audit.json
 
   supabase:
-    name: supabase db tests
+    name: supabase
     runs-on: ubuntu-latest
     timeout-minutes: 50
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          persist-credentials: false
 
       - name: Setup pnpm
         uses: pnpm/action-setup@v4
@@ -137,8 +146,8 @@ jobs:
       - name: Run club context integration test
         run: pnpm --filter @stable/current-club-context exec vitest run src/infrastructure/supabase-club-context-reader.integration.test.ts
 
-  web:
-    name: web build
+  web-build:
+    name: web-build
     runs-on: ubuntu-latest
     timeout-minutes: 20
     env:
@@ -148,6 +157,8 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          persist-credentials: false
 
       - name: Setup pnpm
         uses: pnpm/action-setup@v4
@@ -168,12 +179,14 @@ jobs:
         run: pnpm --filter @stable/web build
 
   expo:
-    name: expo config
+    name: expo
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          persist-credentials: false
 
       - name: Setup pnpm
         uses: pnpm/action-setup@v4
@@ -203,6 +216,8 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          persist-credentials: false
 
       - name: Setup pnpm
         uses: pnpm/action-setup@v4
@@ -226,12 +241,14 @@ jobs:
         run: pnpm --filter @stable/web exec playwright test
 
   playwright-auth:
-    name: playwright authenticated
+    name: playwright-auth
     runs-on: ubuntu-latest
     timeout-minutes: 50
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          persist-credentials: false
 
       - name: Setup pnpm
         uses: pnpm/action-setup@v4
@@ -278,12 +295,14 @@ jobs:
           pnpm --filter @stable/web exec playwright test --config playwright.auth.config.ts
 
   maestro:
-    name: maestro flow parse
+    name: maestro
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          persist-credentials: false
 
       - name: Setup Node
         uses: actions/setup-node@v4
@@ -296,43 +315,6 @@ jobs:
           test "$(node -v)" = "v${expected}"
           test "$(node -p 'require("./package.json").engines.node')" = "${expected}"
 
-      # Device-farm Maestro is not installed. This only parses the committed flow.
-      - name: Parse Maestro flow
-        run: |
-          node --input-type=module <<'EOF'
-          import { readFileSync } from "node:fs";
-
-          const file = "apps/mobile/maestro/current-club-context.yaml";
-          const text = readFileSync(file, "utf8");
-          if (text.trim().length === 0) {
-            throw new Error(`${file} is empty`);
-          }
-
-          let appId = "";
-          let sawSeparator = false;
-          const commands = [];
-          for (const line of text.split(/\r?\n/)) {
-            if (line.startsWith("appId:")) {
-              appId = line.slice("appId:".length).trim();
-            }
-            if (line.trim() === "---") {
-              sawSeparator = true;
-            }
-            const command = /^- (\w+)/.exec(line);
-            if (command?.[1] !== undefined) {
-              commands.push(command[1]);
-            }
-          }
-
-          if (appId !== "app.stable.mobile") {
-            throw new Error(`${file} must declare appId app.stable.mobile`);
-          }
-          if (!sawSeparator) {
-            throw new Error(`${file} must contain a YAML document separator`);
-          }
-          if (!commands.includes("launchApp")) {
-            throw new Error(`${file} must launch the app`);
-          }
-
-          console.log(`parsed ${file}: appId=${appId} commands=${commands.join(",")}`);
-          EOF
+      # Device-farm Maestro is not installed. This validates every committed flow.
+      - name: Validate committed Maestro flows
+        run: node --experimental-strip-types scripts/check-maestro-flows.ts

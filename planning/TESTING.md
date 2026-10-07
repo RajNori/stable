@@ -134,6 +134,28 @@ Nightly/merge:
 - Maestro if environment available;
 - security scans.
 
+### GitHub Actions
+`.github/workflows/ci.yml` runs on every pull request and on every push to `main`. A push to `main` is post-merge verification only. CI never deploys, builds with EAS, promotes to production, links a Supabase project, or pushes migrations. Supabase jobs start a disposable local stack and refuse hosted URLs and credentials. PR CI needs no repository secrets.
+
+Required status checks for `main` (job names):
+- `quality` — frozen install, format, lint, typecheck, unit and coverage tests;
+- `dependency-audit` — `pnpm audit` compared with the residual-risk exception;
+- `supabase` — local start, clean reset, pgTAP, local Auth bootstrap, pgTAP again, club-context integration test;
+- `web-build` — Next.js production build with loopback public env;
+- `expo` — `expo config --type public` and `expo-doctor`;
+- `playwright` — unauthenticated browser tests;
+- `playwright-auth` — authenticated browser tests against local Supabase;
+- `maestro` — structure validation of every committed Maestro flow (no device run).
+
+Configure these in a branch protection rule or repository ruleset for `main`, and require branches to be up to date before merging.
+
+### Branch policy
+From Milestone 4 onward:
+- no routine direct implementation commits to `main`;
+- each milestone uses one short-lived branch such as `milestone/4-coaching-loop`, with slices merged through pull requests;
+- all required checks must pass before merge;
+- the integrated Codex review runs before the final merge and freeze tag.
+
 ## Flaky tests
 No "retry until green" policy.
 A flaky test is a defect.

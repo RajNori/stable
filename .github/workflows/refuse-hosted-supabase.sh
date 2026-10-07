@@ -12,12 +12,14 @@ if [ -n "${SUPABASE_ACCESS_TOKEN:-}" ] ||
   exit 1
 fi
 
-case "${SUPABASE_URL:-}" in
-  *supabase.co*)
-    echo "CI must not use a hosted Supabase URL."
-    exit 1
-    ;;
-esac
+for url in "${SUPABASE_URL:-}" "${NEXT_PUBLIC_SUPABASE_URL:-}"; do
+  case "$url" in
+    *supabase.co*)
+      echo "CI must not use a hosted Supabase URL."
+      exit 1
+      ;;
+  esac
+done
 
 if [ -f supabase/.temp/project-ref ]; then
   echo "CI must not use a linked Supabase project."
