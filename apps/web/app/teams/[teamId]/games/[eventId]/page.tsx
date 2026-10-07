@@ -10,6 +10,7 @@ import {
   previewDutyAllocation,
   readGameDay,
   readGameCoachingStats,
+  readGamePlayerStatHistory,
 } from "@stable/game-day";
 import {
   createSupabaseFillInGateway,
@@ -144,14 +145,24 @@ export default async function GameDayPage({
       capability: "coaching_stats.write",
     }) === "allow";
   let coachingStats = null;
+  let statCorrections: Awaited<ReturnType<typeof readGamePlayerStatHistory>> =
+    [];
   if (canReadCoachingStats && projection !== null) {
     try {
+      const gameStatsGateway = createSupabaseGameStatsGateway(supabase);
       coachingStats = await readGameCoachingStats({
         ...access,
         clubId: club.id,
         teamId: team.id,
         eventId: projection.eventId,
-        writer: createSupabaseGameStatsGateway(supabase),
+        writer: gameStatsGateway,
+      });
+      statCorrections = await readGamePlayerStatHistory({
+        ...access,
+        clubId: club.id,
+        teamId: team.id,
+        eventId: projection.eventId,
+        writer: gameStatsGateway,
       });
     } catch (caught: unknown) {
       error =
@@ -326,6 +337,7 @@ export default async function GameDayPage({
       {coachingStats !== null ? (
         <GameStatsPanel
           stats={coachingStats}
+          corrections={statCorrections}
           teamId={team.id}
           canWrite={canWriteCoachingStats}
           scoreAction={saveManualGameResultAction}

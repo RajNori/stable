@@ -4,6 +4,7 @@ import { z } from "zod";
 
 import type {
   GameCoachingStats,
+  GamePlayerStatCorrection,
   GamePlayerStatValues,
   GameStatsWriter,
   SaveGamePlayerStat,
@@ -40,6 +41,25 @@ const rawRowSchema = z.strictObject({
   approximate_minutes: z.number().int().nullable(),
 });
 
+const rawCorrectionSchema = z.strictObject({
+  event_id: z.string().uuid(),
+  player_id: z.string().uuid(),
+  actor_user_id: z.string().uuid(),
+  occurred_at: z.string().datetime({ offset: true }),
+  before_points: z.number().int().min(0).max(100),
+  before_rebounds: z.number().int().min(0).max(100),
+  before_assists: z.number().int().min(0).max(100),
+  before_steals: z.number().int().min(0).max(100),
+  before_fouls: z.number().int().min(0).max(20),
+  before_approximate_minutes: z.number().int().min(0).max(120),
+  after_points: z.number().int().min(0).max(100),
+  after_rebounds: z.number().int().min(0).max(100),
+  after_assists: z.number().int().min(0).max(100),
+  after_steals: z.number().int().min(0).max(100),
+  after_fouls: z.number().int().min(0).max(20),
+  after_approximate_minutes: z.number().int().min(0).max(120),
+});
+
 function statFromRow(
   row: z.infer<typeof rawRowSchema>,
 ): GamePlayerStatValues | null {
@@ -69,11 +89,48 @@ export function createSupabaseGameStatsGateway(
   return {
     readGameCoachingStats: (eventId) =>
       readGameCoachingStats(client as GameStatsClient, eventId),
+    readGamePlayerStatHistory: (eventId) =>
+      readGamePlayerStatHistory(client as GameStatsClient, eventId),
     saveManualGameResult: (command) =>
       saveManualGameResult(client as GameStatsClient, command),
     saveGamePlayerStat: (command) =>
       saveGamePlayerStat(client as GameStatsClient, command),
   };
+}
+
+async function readGamePlayerStatHistory(
+  db: GameStatsClient,
+  eventId: string,
+): Promise<GamePlayerStatCorrection[]> {
+  const data = await call(db, "read_game_player_stat_history", {
+    p_event_id: eventId,
+  });
+  const rows = z.array(rawCorrectionSchema).safeParse(data);
+  if (!rows.success) {
+    throw new ApplicationError("INTERNAL", gameStatsMessages.readFailed);
+  }
+  return rows.data.map((row) => ({
+    eventId: row.event_id,
+    playerId: row.player_id,
+    actorId: row.actor_user_id,
+    occurredAt: row.occurred_at,
+    before: {
+      points: row.before_points,
+      rebounds: row.before_rebounds,
+      assists: row.before_assists,
+      steals: row.before_steals,
+      fouls: row.before_fouls,
+      approximateMinutes: row.before_approximate_minutes,
+    },
+    after: {
+      points: row.after_points,
+      rebounds: row.after_rebounds,
+      assists: row.after_assists,
+      steals: row.after_steals,
+      fouls: row.after_fouls,
+      approximateMinutes: row.after_approximate_minutes,
+    },
+  }));
 }
 
 async function readGameCoachingStats(

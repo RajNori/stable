@@ -101,6 +101,90 @@ describe("Supabase game stats gateway", () => {
     });
   });
 
+  it("maps only opaque ids, timestamp, and numeric values from restricted history", async () => {
+    const correction = {
+      event_id: eventId,
+      player_id: playerId,
+      actor_user_id: "77777777-7777-4777-8777-777777777777",
+      occurred_at: "2026-10-07T10:00:00.000Z",
+      before_points: 10,
+      before_rebounds: 3,
+      before_assists: 1,
+      before_steals: 0,
+      before_fouls: 1,
+      before_approximate_minutes: 30,
+      after_points: 12,
+      after_rebounds: 3,
+      after_assists: 1,
+      after_steals: 0,
+      after_fouls: 1,
+      after_approximate_minutes: 30,
+    };
+    const rpc = vi.fn(async () => ({ data: [correction], error: null }));
+    const gateway = createSupabaseGameStatsGateway({ rpc });
+    await expect(gateway.readGamePlayerStatHistory(eventId)).resolves.toEqual([
+      {
+        eventId,
+        playerId,
+        actorId: correction.actor_user_id,
+        occurredAt: correction.occurred_at,
+        before: {
+          points: 10,
+          rebounds: 3,
+          assists: 1,
+          steals: 0,
+          fouls: 1,
+          approximateMinutes: 30,
+        },
+        after: {
+          points: 12,
+          rebounds: 3,
+          assists: 1,
+          steals: 0,
+          fouls: 1,
+          approximateMinutes: 30,
+        },
+      },
+    ]);
+    expect(rpc).toHaveBeenCalledWith("read_game_player_stat_history", {
+      p_event_id: eventId,
+    });
+  });
+
+  it("rejects history payloads containing child names or other unexpected fields", async () => {
+    const gateway = createSupabaseGameStatsGateway({
+      rpc: vi.fn(async () => ({
+        data: [
+          {
+            event_id: eventId,
+            player_id: playerId,
+            actor_user_id: "77777777-7777-4777-8777-777777777777",
+            occurred_at: "2026-10-07T10:00:00.000Z",
+            before_points: 1,
+            before_rebounds: 0,
+            before_assists: 0,
+            before_steals: 0,
+            before_fouls: 0,
+            before_approximate_minutes: 1,
+            after_points: 2,
+            after_rebounds: 0,
+            after_assists: 0,
+            after_steals: 0,
+            after_fouls: 0,
+            after_approximate_minutes: 1,
+            player_name: "Private Name",
+          },
+        ],
+        error: null,
+      })),
+    });
+    await expect(
+      gateway.readGamePlayerStatHistory(eventId),
+    ).rejects.toMatchObject({
+      code: "INTERNAL",
+    });
+  });
+
   it("maps authorization and validation errors to safe application messages", async () => {
     const rpc = vi.fn(async () => ({
       data: null,

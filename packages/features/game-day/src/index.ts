@@ -39,6 +39,7 @@ export { createSupabaseGameDayGateway } from "./infrastructure/supabase-game-day
 export type { GameDayGateway } from "./infrastructure/supabase-game-day-gateway.js";
 export {
   readGameCoachingStats,
+  readGamePlayerStatHistory,
   saveGamePlayerStat,
   saveManualGameResult,
   saveGamePlayerStatSchema,
@@ -47,6 +48,7 @@ export {
 export type {
   GameCoachingStats,
   GamePlayerStatValues,
+  GamePlayerStatCorrection,
   GameStatsAccess,
   GameStatsWriter,
   SaveGamePlayerStat,

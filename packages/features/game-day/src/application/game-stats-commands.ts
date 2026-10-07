@@ -54,6 +54,15 @@ export type GameCoachingStats = {
   }[];
 };
 
+export type GamePlayerStatCorrection = {
+  eventId: string;
+  playerId: string;
+  actorId: string;
+  occurredAt: string;
+  before: GamePlayerStatValues;
+  after: GamePlayerStatValues;
+};
+
 export type GameStatsAccess = {
   principal: Principal | null;
   clubMemberships: readonly MembershipFact[];
@@ -65,6 +74,9 @@ export type GameStatsAccess = {
 
 export type GameStatsWriter = {
   readGameCoachingStats(eventId: string): Promise<GameCoachingStats>;
+  readGamePlayerStatHistory(
+    eventId: string,
+  ): Promise<GamePlayerStatCorrection[]>;
   saveManualGameResult(command: SaveManualGameResult): Promise<void>;
   saveGamePlayerStat(command: SaveGamePlayerStat): Promise<void>;
 };
@@ -131,6 +143,22 @@ export async function readGameCoachingStats(
   },
 ): Promise<GameCoachingStats> {
   return readAuthorizedGame(input);
+}
+
+export async function readGamePlayerStatHistory(
+  input: GameStatsAccess & {
+    clubId: string;
+    teamId: string;
+    eventId: string;
+    writer: GameStatsWriter;
+  },
+): Promise<GamePlayerStatCorrection[]> {
+  const game = await readAuthorizedGame(input);
+  const history = await input.writer.readGamePlayerStatHistory(game.eventId);
+  if (history.some((entry) => entry.eventId !== game.eventId)) {
+    failed("NOT_FOUND");
+  }
+  return history;
 }
 
 export async function saveManualGameResult(

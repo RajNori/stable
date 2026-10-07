@@ -5,6 +5,7 @@ import { ApplicationError } from "@stable/contracts";
 import {
   saveGamePlayerStat,
   saveManualGameResult,
+  readGamePlayerStatHistory,
   type GameStatsAccess,
   type GameStatsWriter,
 } from "./game-stats-commands.js";
@@ -37,6 +38,7 @@ function writer(): GameStatsWriter {
   return {
     saveManualGameResult: vi.fn(async () => undefined),
     saveGamePlayerStat: vi.fn(async () => undefined),
+    readGamePlayerStatHistory: vi.fn(async () => []),
     readGameCoachingStats: vi.fn(async () => ({
       eventId,
       clubId,
@@ -52,6 +54,166 @@ function writer(): GameStatsWriter {
 }
 
 describe("M4 game result and player stat commands", () => {
+  it.each(["HEAD_COACH", "ASSISTANT_COACH"] as const)(
+    "%s can read restricted correction history",
+    async (role) => {
+      const target = writer();
+      vi.mocked(target.readGamePlayerStatHistory).mockResolvedValueOnce([
+        {
+          eventId,
+          playerId,
+          actorId: "55555555-5555-4555-8555-555555555555",
+          occurredAt: "2026-10-07T10:00:00.000Z",
+          before: {
+            points: 10,
+            rebounds: 2,
+            assists: 0,
+            steals: 0,
+            fouls: 1,
+            approximateMinutes: 20,
+          },
+          after: {
+            points: 12,
+            rebounds: 2,
+            assists: 0,
+            steals: 0,
+            fouls: 1,
+            approximateMinutes: 20,
+          },
+        },
+      ]);
+      await expect(
+        readGamePlayerStatHistory({
+          ...access(role),
+          clubId,
+          teamId,
+          eventId,
+          writer: target,
+        }),
+      ).resolves.toHaveLength(1);
+      expect(target.readGamePlayerStatHistory).toHaveBeenCalledWith(eventId);
+    },
+  );
+
+  it("allows Club Admin history access through the capability matrix", async () => {
+    const target = writer();
+    await expect(
+      readGamePlayerStatHistory({
+        principal: { userId: "55555555-5555-4555-8555-555555555555" },
+        clubMemberships: [{ clubId, role: "CLUB_ADMIN", active: true }],
+        teamMemberships: [],
+        guardianLinks: [],
+        registrations: [],
+        teamActive: true,
+        clubId,
+        teamId,
+        eventId,
+        writer: target,
+      }),
+    ).resolves.toEqual([]);
+  });
+
+  it.each([
+    { role: "TEAM_MANAGER" as const, active: true },
+    { role: "HEAD_COACH" as const, active: false },
+  ])(
+    "denies $role history access when active=$active",
+    async ({ role, active }) => {
+      const target = writer();
+      const actor = {
+        ...access(role),
+        teamMemberships: access(role).teamMemberships.map((membership) => ({
+          ...membership,
+          active,
+        })),
+      };
+      await expect(
+        readGamePlayerStatHistory({
+          ...actor,
+          clubId,
+          teamId,
+          eventId,
+          writer: target,
+        }),
+      ).rejects.toMatchObject({ code: "FORBIDDEN" });
+      expect(target.readGamePlayerStatHistory).not.toHaveBeenCalled();
+    },
+  );
+
+  it("rejects history returned for a different game", async () => {
+    const target = writer();
+    vi.mocked(target.readGamePlayerStatHistory).mockResolvedValueOnce([
+      {
+        eventId: "99999999-9999-4999-8999-999999999999",
+        playerId,
+        actorId: "55555555-5555-4555-8555-555555555555",
+        occurredAt: "2026-10-07T10:00:00.000Z",
+        before: {
+          points: 1,
+          rebounds: 0,
+          assists: 0,
+          steals: 0,
+          fouls: 0,
+          approximateMinutes: 1,
+        },
+        after: {
+          points: 2,
+          rebounds: 0,
+          assists: 0,
+          steals: 0,
+          fouls: 0,
+          approximateMinutes: 1,
+        },
+      },
+    ]);
+    await expect(
+      readGamePlayerStatHistory({
+        ...access("HEAD_COACH"),
+        clubId,
+        teamId,
+        eventId,
+        writer: target,
+      }),
+    ).rejects.toMatchObject({ code: "NOT_FOUND" });
+  });
+
+  it("denies a Guardian history request even when linked to a player", async () => {
+    const target = writer();
+    await expect(
+      readGamePlayerStatHistory({
+        ...access("TEAM_MANAGER"),
+        teamMemberships: [],
+        guardianLinks: [
+          {
+            clubId,
+            playerId,
+            active: true,
+            playerActive: true,
+          },
+        ],
+        clubId,
+        teamId,
+        eventId,
+        writer: target,
+      }),
+    ).rejects.toMatchObject({ code: "FORBIDDEN" });
+    expect(target.readGamePlayerStatHistory).not.toHaveBeenCalled();
+  });
+
+  it("denies a current coach requesting history under a different team scope", async () => {
+    const target = writer();
+    await expect(
+      readGamePlayerStatHistory({
+        ...access("HEAD_COACH"),
+        clubId,
+        teamId: "99999999-9999-4999-8999-999999999999",
+        eventId,
+        writer: target,
+      }),
+    ).rejects.toMatchObject({ code: "FORBIDDEN" });
+    expect(target.readGamePlayerStatHistory).not.toHaveBeenCalled();
+  });
+
   it("allows active assistants to save a bounded paired score", async () => {
     const target = writer();
     await expect(

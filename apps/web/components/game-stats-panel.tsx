@@ -1,8 +1,12 @@
-import type { GameCoachingStats } from "@stable/game-day";
+import type {
+  GameCoachingStats,
+  GamePlayerStatCorrection,
+} from "@stable/game-day";
 import { themeFor } from "@stable/design-tokens";
 
 type GameStatsPanelProps = {
   stats: GameCoachingStats;
+  corrections: readonly GamePlayerStatCorrection[];
   teamId: string;
   canWrite: boolean;
   scoreAction: (formData: FormData) => void | Promise<void>;
@@ -11,6 +15,7 @@ type GameStatsPanelProps = {
 
 export function GameStatsPanel({
   stats,
+  corrections,
   teamId,
   canWrite,
   scoreAction,
@@ -76,6 +81,26 @@ export function GameStatsPanel({
       )}
 
       <h3>Player statistics</h3>
+      {corrections.length > 0 ? (
+        <details>
+          <summary>Restricted staff correction history</summary>
+          <p>Opaque identifiers and numeric values only.</p>
+          <ul aria-label="Restricted staff correction history">
+            {corrections.map((correction, index) => (
+              <li key={`${correction.eventId}-${correction.playerId}-${index}`}>
+                <p>
+                  Event {correction.eventId} · Player {correction.playerId} ·
+                  Actor {correction.actorId} · {correction.occurredAt}
+                </p>
+                <p>
+                  Before: {Object.values(correction.before).join(", ")} → After:{" "}
+                  {Object.values(correction.after).join(", ")}
+                </p>
+              </li>
+            ))}
+          </ul>
+        </details>
+      ) : null}
       {stats.players.length === 0 ? (
         <p>No eligible players are registered.</p>
       ) : null}

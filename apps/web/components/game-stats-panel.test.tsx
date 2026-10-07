@@ -35,6 +35,30 @@ const fixture: GameCoachingStats = {
     },
   ],
 };
+const corrections = [
+  {
+    eventId: fixture.eventId,
+    playerId: "66666666-6666-4666-8666-666666666666",
+    actorId: "88888888-8888-4888-8888-888888888888",
+    occurredAt: "2026-10-07T10:00:00.000Z",
+    before: {
+      points: 1,
+      rebounds: 0,
+      assists: 0,
+      steals: 0,
+      fouls: 0,
+      approximateMinutes: 1,
+    },
+    after: {
+      points: 2,
+      rebounds: 0,
+      assists: 0,
+      steals: 0,
+      fouls: 0,
+      approximateMinutes: 1,
+    },
+  },
+];
 
 afterEach(cleanup);
 
@@ -43,6 +67,7 @@ describe("game stats panel", () => {
     render(
       <GameStatsPanel
         stats={fixture}
+        corrections={corrections}
         teamId={fixture.teamId}
         canWrite
         scoreAction={vi.fn()}
@@ -62,12 +87,20 @@ describe("game stats panel", () => {
         })
         .getAttribute("max"),
     ).toBe("40");
+    expect(
+      screen.getByText("Restricted staff correction history"),
+    ).toBeTruthy();
+    expect(
+      screen.getByText(/Player 66666666-6666-4666-8666-666666666666/),
+    ).toBeTruthy();
+    expect(screen.queryByText("Alex Example", { selector: "p" })).toBeNull();
   });
 
   it("shows imported results read-only and offers no score form", () => {
     render(
       <GameStatsPanel
         stats={{ ...fixture, source: "IMPORT" }}
+        corrections={[]}
         teamId={fixture.teamId}
         canWrite
         scoreAction={vi.fn()}
@@ -86,6 +119,7 @@ describe("game stats panel", () => {
     render(
       <GameStatsPanel
         stats={fixture}
+        corrections={[]}
         teamId={fixture.teamId}
         canWrite
         scoreAction={vi.fn()}
@@ -101,6 +135,7 @@ describe("game stats panel", () => {
     render(
       <GameStatsPanel
         stats={fixture}
+        corrections={[]}
         teamId={fixture.teamId}
         canWrite={false}
         scoreAction={vi.fn()}
