@@ -15,6 +15,7 @@ import {
   gameDayMessages,
   requestDutySwap,
 } from "@stable/game-day";
+import { createSupabaseFixtureGateway } from "@stable/fixtures";
 import { DUTY_TYPES } from "@stable/game-day";
 import {
   confirmFillIn,
@@ -108,8 +109,14 @@ export async function recordAttendanceAction(
     );
   }
 
-  const teamActive =
-    facts.teams.find((team) => team.id === teamId)?.active === true;
+  const visibleTeam =
+    await createSupabaseFixtureGateway(supabase).readVisibleTeam(teamId);
+  if (visibleTeam === null || visibleTeam.clubId !== clubId) {
+    redirect(
+      withError(destination(teamId, eventId), attendanceMessages.notFound),
+    );
+  }
+  const teamActive = visibleTeam.active;
   try {
     await recordAttendance({
       ...fixtureAccessFrom(principal, facts, teamActive),
@@ -166,8 +173,12 @@ async function dutyAccess(formData: FormData) {
       withError(destination(teamId, eventId), gameDayMessages.unauthenticated),
     );
   }
-  const teamActive =
-    facts.teams.find((team) => team.id === teamId)?.active === true;
+  const visibleTeam =
+    await createSupabaseFixtureGateway(supabase).readVisibleTeam(teamId);
+  if (visibleTeam === null || visibleTeam.clubId !== clubId) {
+    redirect(withError(destination(teamId, eventId), gameDayMessages.notFound));
+  }
+  const teamActive = visibleTeam.active;
   return {
     access: fixtureAccessFrom(principal, facts, teamActive),
     clubId,

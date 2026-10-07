@@ -16,6 +16,7 @@ import {
   createSupabaseNotificationGateway,
   enqueueAnnouncementPublished,
 } from "@stable/notifications";
+import { createSupabaseFixtureGateway } from "@stable/fixtures";
 import { redirect } from "next/navigation";
 
 import { fixtureAccessFrom } from "../../../../lib/fixture-access";
@@ -55,11 +56,14 @@ async function loadAccess(clubId: string, teamId: string) {
   const principal = await principalFromSupabase(supabase);
   const reader = await createRuntimeClubContextReader(supabase);
   const facts = principal === null ? null : await reader.read(principal.userId);
-  const team = facts?.teams.find((item) => item.id === teamId);
+  const team =
+    principal === null
+      ? null
+      : await createSupabaseFixtureGateway(supabase).readVisibleTeam(teamId);
   if (
     principal === null ||
     facts === null ||
-    team === undefined ||
+    team === null ||
     team.clubId !== clubId
   ) {
     return null;
