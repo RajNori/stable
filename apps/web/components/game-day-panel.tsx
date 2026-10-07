@@ -88,7 +88,11 @@ export function GameDayPanel({
                     name="eventId"
                     value={projection.eventId}
                   />
-                  <input type="hidden" name="requestId" value={openFillRequestId} />
+                  <input
+                    type="hidden"
+                    name="requestId"
+                    value={openFillRequestId}
+                  />
                   <input
                     type="hidden"
                     name="playerId"
@@ -117,7 +121,11 @@ export function GameDayPanel({
                     name="eventId"
                     value={projection.eventId}
                   />
-                  <input type="hidden" name="requestId" value={openFillRequestId} />
+                  <input
+                    type="hidden"
+                    name="requestId"
+                    value={openFillRequestId}
+                  />
                   <input
                     type="hidden"
                     name="playerId"
