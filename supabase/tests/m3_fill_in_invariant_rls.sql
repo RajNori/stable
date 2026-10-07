@@ -119,6 +119,26 @@ values
 
 select no_plan();
 
+select ok(
+  exists (
+    select 1
+    from pg_indexes
+    where schemaname = 'public'
+      and indexname = 'fill_in_confirmations_one_event'
+  ),
+  'a clean history keeps one confirmation per event'
+);
+
+select ok(
+  exists (
+    select 1
+    from pg_indexes
+    where schemaname = 'public'
+      and indexname = 'fill_in_requests_one_open'
+  ),
+  'one open fill-in request per event is enforced'
+);
+
 create temp table game_ids (
   label text primary key,
   event_id uuid not null,
@@ -192,6 +212,25 @@ update game_ids
 set first_request = public.request_fill_in(event_id)
 where label = 'pair';
 
+select is(
+  pg_temp.sqlerrm_of($sql$
+    select public.request_fill_in(
+      (select event_id from game_ids where label = 'pair')
+    )
+  $sql$),
+  'CONFLICT',
+  'a second open fill-in request is denied'
+);
+
+reset role;
+
+update public.fill_in_requests
+set status = 'WITHDRAWN'
+where id = (select first_request from game_ids where label = 'pair');
+
+do $$ begin perform pg_temp.assume_user('6f6f6f6f-6f6f-46f6-86f6-6f6f6f6f6f01'); end $$;
+set local role authenticated;
+
 update game_ids
 set second_request = public.request_fill_in(event_id)
 where label = 'pair';
@@ -201,12 +240,8 @@ do $$ begin perform pg_temp.assume_user('6f6f6f6f-6f6f-46f6-86f6-6f6f6f6f6f03');
 set local role authenticated;
 
 select public.respond_fill_in(
-  (select first_request from game_ids where label = 'pair'),
-  '6e6e6e6e-6e6e-46e6-86e6-6e6e6e6e6e01'
-);
-select public.respond_fill_in(
   (select second_request from game_ids where label = 'pair'),
-  '6e6e6e6e-6e6e-46e6-86e6-6e6e6e6e6e02'
+  '6e6e6e6e-6e6e-46e6-86e6-6e6e6e6e6e01'
 );
 
 reset role;
@@ -214,24 +249,23 @@ do $$ begin perform pg_temp.assume_user('6f6f6f6f-6f6f-46f6-86f6-6f6f6f6f6f01');
 set local role authenticated;
 
 select public.confirm_fill_in(
-  (select first_request from game_ids where label = 'pair'),
+  (select second_request from game_ids where label = 'pair'),
   '6e6e6e6e-6e6e-46e6-86e6-6e6e6e6e6e01'
 );
 
 select is(
   pg_temp.sqlerrm_of($sql$
-    select public.confirm_fill_in(
-      (select second_request from game_ids where label = 'pair'),
-      '6e6e6e6e-6e6e-46e6-86e6-6e6e6e6e6e02'
+    select public.request_fill_in(
+      (select event_id from game_ids where label = 'pair')
     )
   $sql$),
   'CONFLICT',
-  'a second confirmation for the same game is denied'
+  'a confirmed fill-in permanently blocks another request'
 );
 
 select is(
   public.enqueue_fill_in_confirmed(
-    (select first_request from game_ids where label = 'pair')
+    (select second_request from game_ids where label = 'pair')
   ),
   1,
   'only the winning confirmation enqueues a notification'
@@ -240,11 +274,11 @@ select is(
 select is(
   pg_temp.sqlerrm_of($sql$
     select public.enqueue_fill_in_confirmed(
-      (select second_request from game_ids where label = 'pair')
+      (select first_request from game_ids where label = 'pair')
     )
   $sql$),
   'FORBIDDEN',
-  'the losing request cannot enqueue a confirmation notification'
+  'a withdrawn request cannot enqueue a confirmation notification'
 );
 
 reset role;
@@ -263,17 +297,17 @@ select is(
 select is(
   (select count(*)::integer from public.notification_requests
     where notification_type = 'FILL_IN_CONFIRMED'
-      and source_id = (select first_request from game_ids where label = 'pair')),
+      and source_id = (select second_request from game_ids where label = 'pair')),
   1,
   'the winner has one confirmation notification'
 );
 
 select is(
-  (select count(*)::integer from public.notification_requests
-    where notification_type = 'FILL_IN_CONFIRMED'
-      and source_id = (select second_request from game_ids where label = 'pair')),
+  (select count(*)::integer from public.fill_in_requests
+    where event_id = (select event_id from game_ids where label = 'pair')
+      and status = 'OPEN'),
   0,
-  'the loser has no confirmation notification'
+  'confirmation leaves no open sibling request'
 );
 
 do $$ begin perform pg_temp.assume_user('6f6f6f6f-6f6f-46f6-86f6-6f6f6f6f6f01'); end $$;
@@ -583,6 +617,81 @@ select lives_ok(
 
 reset role;
 
+do $$ begin perform pg_temp.assume_user('6f6f6f6f-6f6f-46f6-86f6-6f6f6f6f6f01'); end $$;
+set local role authenticated;
+
+insert into game_ids (label, event_id)
+select 'stale-notice', pg_temp.fresh_game('Stale Notice', '2026-12-19 18:30:00+11');
+
+update game_ids
+set first_request = public.request_fill_in(event_id)
+where label = 'stale-notice';
+
+select is(
+  public.enqueue_fill_in_requested(
+    (select first_request from game_ids where label = 'stale-notice')
+  ),
+  1,
+  'an open fill-in request enqueues one guardian notice'
+);
+
+reset role;
+do $$ begin perform pg_temp.assume_user('6f6f6f6f-6f6f-46f6-86f6-6f6f6f6f6f03'); end $$;
+set local role authenticated;
+
+select public.respond_fill_in(
+  (select first_request from game_ids where label = 'stale-notice'),
+  '6e6e6e6e-6e6e-46e6-86e6-6e6e6e6e6e01'
+);
+
+reset role;
+do $$ begin perform pg_temp.assume_user('6f6f6f6f-6f6f-46f6-86f6-6f6f6f6f6f01'); end $$;
+set local role authenticated;
+
+select public.confirm_fill_in(
+  (select first_request from game_ids where label = 'stale-notice'),
+  '6e6e6e6e-6e6e-46e6-86e6-6e6e6e6e6e01'
+);
+
+reset role;
+
+select is(
+  public.apply_notification_provider_result(
+    (
+      select id
+      from public.notification_requests
+      where notification_type = 'FILL_IN_REQUESTED'
+        and source_id = (select first_request from game_ids where label = 'stale-notice')
+    ),
+    'ExponentPushToken[stale]',
+    'OK'
+  ),
+  'SKIPPED',
+  'a confirmed fill-in makes the request notice undeliverable'
+);
+
+select is(
+  (
+    select status
+    from public.notification_requests
+    where notification_type = 'FILL_IN_REQUESTED'
+      and source_id = (select first_request from game_ids where label = 'stale-notice')
+  ),
+  'SKIPPED',
+  'the stale request notice is kept and marked skipped'
+);
+
+select is(
+  (
+    select count(*)::integer
+    from public.audit_events
+    where action = 'fill_in.requested'
+      and target_id = (select first_request from game_ids where label = 'stale-notice')
+  ),
+  1,
+  'skipping delivery does not remove the request audit'
+);
+
 select extensions.dblink_connect('race_setup', pg_temp.db_link());
 
 select extensions.dblink_exec(
@@ -707,17 +816,6 @@ select extensions.dblink_exec(
       'SCHEDULED'
     );
 
-    insert into public.fill_in_requests (
-      id, club_id, team_id, event_id, requested_by, status
-    )
-    values
-      ('a7a7a7a7-a7a7-47a7-87a7-a7a7a7a7a741', 'a7a7a7a7-a7a7-47a7-87a7-a7a7a7a7a711', 'a7a7a7a7-a7a7-47a7-87a7-a7a7a7a7a713', 'a7a7a7a7-a7a7-47a7-87a7-a7a7a7a7a714', 'a7a7a7a7-a7a7-47a7-87a7-a7a7a7a7a721', 'OPEN'),
-      ('a7a7a7a7-a7a7-47a7-87a7-a7a7a7a7a742', 'a7a7a7a7-a7a7-47a7-87a7-a7a7a7a7a711', 'a7a7a7a7-a7a7-47a7-87a7-a7a7a7a7a713', 'a7a7a7a7-a7a7-47a7-87a7-a7a7a7a7a714', 'a7a7a7a7-a7a7-47a7-87a7-a7a7a7a7a721', 'OPEN');
-
-    insert into public.fill_in_responses (request_id, player_id, guardian_user_id)
-    values
-      ('a7a7a7a7-a7a7-47a7-87a7-a7a7a7a7a741', 'a7a7a7a7-a7a7-47a7-87a7-a7a7a7a7a731', 'a7a7a7a7-a7a7-47a7-87a7-a7a7a7a7a723'),
-      ('a7a7a7a7-a7a7-47a7-87a7-a7a7a7a7a742', 'a7a7a7a7-a7a7-47a7-87a7-a7a7a7a7a732', 'a7a7a7a7-a7a7-47a7-87a7-a7a7a7a7a724');
   $setup$
 );
 
@@ -765,20 +863,14 @@ select extensions.dblink_exec(
 select extensions.dblink_send_query(
   'race_a',
   $setup$
-    select public.confirm_fill_in(
-      'a7a7a7a7-a7a7-47a7-87a7-a7a7a7a7a741',
-      'a7a7a7a7-a7a7-47a7-87a7-a7a7a7a7a731'
-    )
+    select public.request_fill_in('a7a7a7a7-a7a7-47a7-87a7-a7a7a7a7a714')
   $setup$
 );
 
 select extensions.dblink_send_query(
   'race_b',
   $setup$
-    select public.confirm_fill_in(
-      'a7a7a7a7-a7a7-47a7-87a7-a7a7a7a7a742',
-      'a7a7a7a7-a7a7-47a7-87a7-a7a7a7a7a732'
-    )
+    select public.request_fill_in('a7a7a7a7-a7a7-47a7-87a7-a7a7a7a7a714')
   $setup$
 );
 
@@ -798,7 +890,7 @@ select is(
     + (select (result ~ '^[0-9a-f-]{36}$')::integer from race_results where slot = 'b')
   ),
   1,
-  'exactly one concurrent confirmation succeeds'
+  'exactly one concurrent fill-in request succeeds'
 );
 
 select ok(
@@ -810,56 +902,23 @@ select ok(
     ),
     false
   ),
-  'the losing concurrent confirmation is denied'
+  'the losing concurrent fill-in request is denied'
 );
 
 select is(
-  (select count(*)::integer from public.fill_in_confirmations
-    where event_id = 'a7a7a7a7-a7a7-47a7-87a7-a7a7a7a7a714'),
+  (select count(*)::integer from public.fill_in_requests
+    where event_id = 'a7a7a7a7-a7a7-47a7-87a7-a7a7a7a7a714'
+      and status = 'OPEN'),
   1,
-  'the race leaves one confirmation'
+  'the race leaves one open fill-in request'
 );
 
 select is(
   (select count(*)::integer from public.audit_events
-    where action = 'fill_in.confirmed'
+    where action = 'fill_in.requested'
       and club_id = 'a7a7a7a7-a7a7-47a7-87a7-a7a7a7a7a711'),
   1,
-  'the race writes one confirmation audit'
-);
-
-select extensions.dblink_exec(
-  'race_setup',
-  format(
-    $setup$
-      do $body$
-      begin
-        perform set_config('request.jwt.claim.sub', %L, false);
-        perform set_config('request.jwt.claim.role', 'authenticated', false);
-        perform set_config('request.jwt.claims', %L, false);
-        execute 'set role authenticated';
-        perform public.enqueue_fill_in_confirmed(%L::uuid);
-      end
-      $body$;
-    $setup$,
-    (select confirmed_by::text from public.fill_in_confirmations
-      where event_id = 'a7a7a7a7-a7a7-47a7-87a7-a7a7a7a7a714'),
-    (select json_build_object(
-      'sub', confirmed_by::text,
-      'role', 'authenticated'
-    )::text from public.fill_in_confirmations
-      where event_id = 'a7a7a7a7-a7a7-47a7-87a7-a7a7a7a7a714'),
-    (select request_id::text from public.fill_in_confirmations
-      where event_id = 'a7a7a7a7-a7a7-47a7-87a7-a7a7a7a7a714')
-  )
-);
-
-select is(
-  (select count(*)::integer from public.notification_requests
-    where notification_type = 'FILL_IN_CONFIRMED'
-      and team_id = 'a7a7a7a7-a7a7-47a7-87a7-a7a7a7a7a713'),
-  1,
-  'the race enqueues one confirmation notification'
+  'the race writes one request audit'
 );
 
 select extensions.dblink_disconnect('race_a');
@@ -921,6 +980,86 @@ select extensions.dblink_exec(
   $setup$
 );
 select extensions.dblink_disconnect('race_cleanup');
+
+do $$ begin perform pg_temp.assume_user('6f6f6f6f-6f6f-46f6-86f6-6f6f6f6f6f01'); end $$;
+set local role authenticated;
+
+insert into game_ids (label, event_id)
+select 'history-conflict', pg_temp.fresh_game('History Opponent', '2026-12-26 18:30:00+11');
+
+reset role;
+
+insert into public.fill_in_requests (
+  id, club_id, team_id, event_id, requested_by, status
+)
+values
+  (
+    '6b6b6b6b-6b6b-46b6-86b6-6b6b6b6b6b01',
+    '6a6a6a6a-6a6a-46a6-86a6-6a6a6a6a6a6a',
+    '6d6d6d6d-6d6d-46d6-86d6-6d6d6d6d6d6d',
+    (select event_id from game_ids where label = 'history-conflict'),
+    '6f6f6f6f-6f6f-46f6-86f6-6f6f6f6f6f01',
+    'WITHDRAWN'
+  ),
+  (
+    '6b6b6b6b-6b6b-46b6-86b6-6b6b6b6b6b02',
+    '6a6a6a6a-6a6a-46a6-86a6-6a6a6a6a6a6a',
+    '6d6d6d6d-6d6d-46d6-86d6-6d6d6d6d6d6d',
+    (select event_id from game_ids where label = 'history-conflict'),
+    '6f6f6f6f-6f6f-46f6-86f6-6f6f6f6f6f01',
+    'WITHDRAWN'
+  );
+
+drop index public.fill_in_confirmations_one_event;
+
+insert into public.fill_in_confirmations (
+  id, request_id, event_id, player_id, confirmed_by
+)
+values
+  (
+    '6c6c6c6c-6c6c-46c6-86c6-6c6c6c6c6c01',
+    '6b6b6b6b-6b6b-46b6-86b6-6b6b6b6b6b01',
+    (select event_id from game_ids where label = 'history-conflict'),
+    '6e6e6e6e-6e6e-46e6-86e6-6e6e6e6e6e01',
+    '6f6f6f6f-6f6f-46f6-86f6-6f6f6f6f6f01'
+  ),
+  (
+    '6c6c6c6c-6c6c-46c6-86c6-6c6c6c6c6c02',
+    '6b6b6b6b-6b6b-46b6-86b6-6b6b6b6b6b02',
+    (select event_id from game_ids where label = 'history-conflict'),
+    '6e6e6e6e-6e6e-46e6-86e6-6e6e6e6e6e02',
+    '6f6f6f6f-6f6f-46f6-86f6-6f6f6f6f6f01'
+  );
+
+select ok(
+  pg_temp.sqlerrm_of('select public.assert_fill_in_confirmation_history()')
+    like 'FILL_IN_CONFIRMATION_HISTORY_CONFLICT%',
+  'historical duplicate confirmations abort the migration preflight'
+);
+
+select is(
+  (
+    select count(*)::integer
+    from public.fill_in_confirmations
+    where event_id = (select event_id from game_ids where label = 'history-conflict')
+  ),
+  2,
+  'historical confirmation rows are preserved'
+);
+
+select is(
+  (
+    select count(*)::integer
+    from public.audit_events
+    where action = 'fill_in.confirmed'
+      and target_id in (
+        '6c6c6c6c-6c6c-46c6-86c6-6c6c6c6c6c01',
+        '6c6c6c6c-6c6c-46c6-86c6-6c6c6c6c6c02'
+      )
+  ),
+  0,
+  'the preflight does not rewrite confirmation audit history'
+);
 
 select * from finish();
 rollback;

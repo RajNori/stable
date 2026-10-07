@@ -1,4 +1,6 @@
--- One confirmed fill-in per event. Response and confirmation re-check the game.
+-- One open request and one confirmed fill-in per event.
+-- Historical duplicate confirmations are not deleted or chosen. The
+-- preflight below aborts this migration so an operator can reconcile them.
 
 alter table public.fill_in_confirmations
   add column event_id uuid;
@@ -24,10 +26,52 @@ alter table public.fill_in_confirmations
   foreign key (request_id, event_id)
   references public.fill_in_requests (id, event_id);
 
+-- Fail closed before the event-level unique index. Duplicate historical
+-- confirmations stay in place, and audit history is not rewritten.
+create or replace function public.assert_fill_in_confirmation_history()
+returns void
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  conflict_count integer;
+  conflict_detail text;
+begin
+  select count(*)::integer,
+    string_agg(
+      conflict.event_id::text || ' (' || conflict.confirmation_count::text || ')',
+      ', ' order by conflict.event_id::text
+    )
+  into conflict_count, conflict_detail
+  from (
+    select confirmation.event_id, count(*)::integer as confirmation_count
+    from public.fill_in_confirmations as confirmation
+    group by confirmation.event_id
+    having count(*) > 1
+  ) as conflict;
+
+  if conflict_count > 0 then
+    raise exception
+      'FILL_IN_CONFIRMATION_HISTORY_CONFLICT: % event(s) already have more than one confirmed fill-in [%]. Reconcile those confirmation rows before this migration. No confirmation or audit row was changed.',
+      conflict_count,
+      conflict_detail
+      using errcode = '23514';
+  end if;
+end;
+$$;
+
+revoke all on function public.assert_fill_in_confirmation_history()
+  from public, anon, authenticated;
+
+select public.assert_fill_in_confirmation_history();
+
 create unique index fill_in_confirmations_one_event
   on public.fill_in_confirmations (event_id);
 
-drop index public.fill_in_requests_one_open;
+create unique index if not exists fill_in_requests_one_open
+  on public.fill_in_requests (event_id)
+  where status = 'OPEN';
 
 create unique index fill_in_requests_one_confirmed
   on public.fill_in_requests (event_id)
@@ -66,20 +110,25 @@ begin
 
   if exists (
     select 1
-    from public.fill_in_confirmations as confirmation
-    where confirmation.event_id = event_row.id
-  ) or exists (
-    select 1
     from public.fill_in_requests as request
     where request.event_id = event_row.id
-      and request.status = 'CONFIRMED'
+      and request.status in ('OPEN', 'CONFIRMED')
+  ) or exists (
+    select 1
+    from public.fill_in_confirmations as confirmation
+    where confirmation.event_id = event_row.id
   ) then
     raise exception 'CONFLICT' using errcode = 'P0001';
   end if;
 
-  insert into public.fill_in_requests (club_id, team_id, event_id, requested_by)
-  values (event_row.club_id, event_row.team_id, event_row.id, actor)
-  returning id into created_id;
+  begin
+    insert into public.fill_in_requests (club_id, team_id, event_id, requested_by)
+    values (event_row.club_id, event_row.team_id, event_row.id, actor)
+    returning id into created_id;
+  exception
+    when unique_violation then
+      raise exception 'CONFLICT' using errcode = 'P0001';
+  end;
 
   insert into public.audit_events (club_id, actor_user_id, action, target_id)
   values (event_row.club_id, actor, 'fill_in.requested', created_id);
