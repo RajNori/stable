@@ -27,7 +27,10 @@ import {
   savePostGameReview,
   savePrivatePlayerNote,
 } from "@stable/coaching-review";
-import type { RecognitionCategory, ReviewFocusCode } from "@stable/coaching-review";
+import type {
+  RecognitionCategory,
+  ReviewFocusCode,
+} from "@stable/coaching-review";
 import { DUTY_TYPES } from "@stable/game-day";
 import {
   confirmFillIn,
@@ -242,45 +245,185 @@ export async function saveGamePlayerStatAction(
 }
 
 async function reviewAccess(formData: FormData) {
-  const clubId = text(formData, "clubId"); const teamId = text(formData, "teamId"); const eventId = text(formData, "eventId");
-  if (clubId === null || teamId === null || eventId === null || !UUID.test(clubId) || !UUID.test(teamId) || !UUID.test(eventId)) redirect(teamId !== null && eventId !== null && UUID.test(teamId) && UUID.test(eventId) ? withError(destination(teamId, eventId), "VALIDATION_FAILED") : "/");
-  const supabase = await createSupabaseServerClient(); const principal = await principalFromSupabase(supabase); const reader = await createRuntimeClubContextReader(supabase); const facts = principal === null ? null : await reader.read(principal.userId);
-  if (principal === null || facts === null) redirect(withError(destination(teamId, eventId), "UNAUTHENTICATED"));
-  const visibleTeam = await createSupabaseFixtureGateway(supabase).readVisibleTeam(teamId);
-  if (visibleTeam === null || visibleTeam.clubId !== clubId) redirect(withError(destination(teamId, eventId), "NOT_FOUND"));
-  return { access: fixtureAccessFrom(principal, facts, visibleTeam.active), clubId, teamId, eventId, writer: createSupabaseReviewGateway(supabase) };
+  const clubId = text(formData, "clubId");
+  const teamId = text(formData, "teamId");
+  const eventId = text(formData, "eventId");
+  if (
+    clubId === null ||
+    teamId === null ||
+    eventId === null ||
+    !UUID.test(clubId) ||
+    !UUID.test(teamId) ||
+    !UUID.test(eventId)
+  )
+    redirect(
+      teamId !== null &&
+        eventId !== null &&
+        UUID.test(teamId) &&
+        UUID.test(eventId)
+        ? withError(destination(teamId, eventId), "VALIDATION_FAILED")
+        : "/",
+    );
+  const supabase = await createSupabaseServerClient();
+  const principal = await principalFromSupabase(supabase);
+  const reader = await createRuntimeClubContextReader(supabase);
+  const facts = principal === null ? null : await reader.read(principal.userId);
+  if (principal === null || facts === null)
+    redirect(withError(destination(teamId, eventId), "UNAUTHENTICATED"));
+  const visibleTeam =
+    await createSupabaseFixtureGateway(supabase).readVisibleTeam(teamId);
+  if (visibleTeam === null || visibleTeam.clubId !== clubId)
+    redirect(withError(destination(teamId, eventId), "NOT_FOUND"));
+  return {
+    access: fixtureAccessFrom(principal, facts, visibleTeam.active),
+    clubId,
+    teamId,
+    eventId,
+    writer: createSupabaseReviewGateway(supabase),
+  };
 }
 
-export async function savePostGameReviewAction(formData: FormData): Promise<void> {
-  const loaded = await reviewAccess(formData); const whatWorked = text(formData, "whatWorked") ?? ""; const needsImprovement = text(formData, "needsImprovement") ?? "";
-  const focusCodes = formData.getAll("focusCodes").filter((value): value is string => typeof value === "string") as ReviewFocusCode[];
+export async function savePostGameReviewAction(
+  formData: FormData,
+): Promise<void> {
+  const loaded = await reviewAccess(formData);
+  const whatWorked = text(formData, "whatWorked") ?? "";
+  const needsImprovement = text(formData, "needsImprovement") ?? "";
+  const focusCodes = formData
+    .getAll("focusCodes")
+    .filter(
+      (value): value is string => typeof value === "string",
+    ) as ReviewFocusCode[];
   try {
-    await savePostGameReview({ ...loaded.access, clubId: loaded.clubId, teamId: loaded.teamId, eventId: loaded.eventId, whatWorked, needsImprovement, focusCodes, complete: text(formData, "complete") === "true", writer: loaded.writer });
-  } catch (caught: unknown) { redirect(withError(destination(loaded.teamId, loaded.eventId), caught instanceof ApplicationError ? caught.message : "VALIDATION_FAILED")); }
+    await savePostGameReview({
+      ...loaded.access,
+      clubId: loaded.clubId,
+      teamId: loaded.teamId,
+      eventId: loaded.eventId,
+      whatWorked,
+      needsImprovement,
+      focusCodes,
+      complete: text(formData, "complete") === "true",
+      writer: loaded.writer,
+    });
+  } catch (caught: unknown) {
+    redirect(
+      withError(
+        destination(loaded.teamId, loaded.eventId),
+        caught instanceof ApplicationError
+          ? caught.message
+          : "VALIDATION_FAILED",
+      ),
+    );
+  }
   redirect(destination(loaded.teamId, loaded.eventId));
 }
 
-export async function savePlayerRecognitionAction(formData: FormData): Promise<void> {
-  const loaded = await reviewAccess(formData); const playerId = text(formData, "playerId"); const category = text(formData, "category");
-  if (playerId === null || category === null || !UUID.test(playerId)) redirect(withError(destination(loaded.teamId, loaded.eventId), "VALIDATION_FAILED"));
-  try { await savePlayerRecognition({ ...loaded.access, clubId: loaded.clubId, teamId: loaded.teamId, eventId: loaded.eventId, playerId, category: category as RecognitionCategory, note: text(formData, "recognitionNote"), writer: loaded.writer }); }
-  catch (caught: unknown) { redirect(withError(destination(loaded.teamId, loaded.eventId), caught instanceof ApplicationError ? caught.message : "VALIDATION_FAILED")); }
+export async function savePlayerRecognitionAction(
+  formData: FormData,
+): Promise<void> {
+  const loaded = await reviewAccess(formData);
+  const playerId = text(formData, "playerId");
+  const category = text(formData, "category");
+  if (playerId === null || category === null || !UUID.test(playerId))
+    redirect(
+      withError(
+        destination(loaded.teamId, loaded.eventId),
+        "VALIDATION_FAILED",
+      ),
+    );
+  try {
+    await savePlayerRecognition({
+      ...loaded.access,
+      clubId: loaded.clubId,
+      teamId: loaded.teamId,
+      eventId: loaded.eventId,
+      playerId,
+      category: category as RecognitionCategory,
+      note: text(formData, "recognitionNote"),
+      writer: loaded.writer,
+    });
+  } catch (caught: unknown) {
+    redirect(
+      withError(
+        destination(loaded.teamId, loaded.eventId),
+        caught instanceof ApplicationError
+          ? caught.message
+          : "VALIDATION_FAILED",
+      ),
+    );
+  }
   redirect(destination(loaded.teamId, loaded.eventId));
 }
 
-export async function removePlayerRecognitionAction(formData: FormData): Promise<void> {
-  const loaded = await reviewAccess(formData); const playerId = text(formData, "playerId"); const category = text(formData, "category");
-  if (playerId === null || category === null || !UUID.test(playerId)) redirect(withError(destination(loaded.teamId, loaded.eventId), "VALIDATION_FAILED"));
-  try { await removePlayerRecognition({ ...loaded.access, clubId: loaded.clubId, teamId: loaded.teamId, eventId: loaded.eventId, playerId, category: category as RecognitionCategory, writer: loaded.writer }); }
-  catch (caught: unknown) { redirect(withError(destination(loaded.teamId, loaded.eventId), caught instanceof ApplicationError ? caught.message : "VALIDATION_FAILED")); }
+export async function removePlayerRecognitionAction(
+  formData: FormData,
+): Promise<void> {
+  const loaded = await reviewAccess(formData);
+  const playerId = text(formData, "playerId");
+  const category = text(formData, "category");
+  if (playerId === null || category === null || !UUID.test(playerId))
+    redirect(
+      withError(
+        destination(loaded.teamId, loaded.eventId),
+        "VALIDATION_FAILED",
+      ),
+    );
+  try {
+    await removePlayerRecognition({
+      ...loaded.access,
+      clubId: loaded.clubId,
+      teamId: loaded.teamId,
+      eventId: loaded.eventId,
+      playerId,
+      category: category as RecognitionCategory,
+      writer: loaded.writer,
+    });
+  } catch (caught: unknown) {
+    redirect(
+      withError(
+        destination(loaded.teamId, loaded.eventId),
+        caught instanceof ApplicationError
+          ? caught.message
+          : "VALIDATION_FAILED",
+      ),
+    );
+  }
   redirect(destination(loaded.teamId, loaded.eventId));
 }
 
-export async function savePrivatePlayerNoteAction(formData: FormData): Promise<void> {
-  const loaded = await reviewAccess(formData); const playerId = text(formData, "playerId");
-  if (playerId === null || !UUID.test(playerId)) redirect(withError(destination(loaded.teamId, loaded.eventId), "VALIDATION_FAILED"));
-  try { await savePrivatePlayerNote({ ...loaded.access, clubId: loaded.clubId, teamId: loaded.teamId, eventId: loaded.eventId, playerId, note: text(formData, "note"), writer: loaded.writer }); }
-  catch (caught: unknown) { redirect(withError(destination(loaded.teamId, loaded.eventId), caught instanceof ApplicationError ? caught.message : "VALIDATION_FAILED")); }
+export async function savePrivatePlayerNoteAction(
+  formData: FormData,
+): Promise<void> {
+  const loaded = await reviewAccess(formData);
+  const playerId = text(formData, "playerId");
+  if (playerId === null || !UUID.test(playerId))
+    redirect(
+      withError(
+        destination(loaded.teamId, loaded.eventId),
+        "VALIDATION_FAILED",
+      ),
+    );
+  try {
+    await savePrivatePlayerNote({
+      ...loaded.access,
+      clubId: loaded.clubId,
+      teamId: loaded.teamId,
+      eventId: loaded.eventId,
+      playerId,
+      note: text(formData, "note"),
+      writer: loaded.writer,
+    });
+  } catch (caught: unknown) {
+    redirect(
+      withError(
+        destination(loaded.teamId, loaded.eventId),
+        caught instanceof ApplicationError
+          ? caught.message
+          : "VALIDATION_FAILED",
+      ),
+    );
+  }
   redirect(destination(loaded.teamId, loaded.eventId));
 }
 

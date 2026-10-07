@@ -2,7 +2,11 @@ import { ApplicationError } from "@stable/contracts";
 import { attendanceMessages } from "@stable/attendance";
 import { getCurrentClubContext } from "@stable/current-club-context";
 import { createSupabaseFixtureGateway } from "@stable/fixtures";
-import { createSupabaseReviewGateway, listPrivatePlayerNotes, readPostGameReview } from "@stable/coaching-review";
+import {
+  createSupabaseReviewGateway,
+  listPrivatePlayerNotes,
+  readPostGameReview,
+} from "@stable/coaching-review";
 import {
   createSupabaseGameStatsGateway,
   createSupabaseGameDayGateway,
@@ -178,25 +182,63 @@ export default async function GameDayPage({
     }
   }
 
-  const reviewResource = { clubId: club.id, teamId: team.id, teamActive: team.active };
-  const canReadReview = evaluateCapability({ ...access, resource: reviewResource, capability: "post_game_review.read" }) === "allow";
-  const canWriteReview = evaluateCapability({ ...access, resource: reviewResource, capability: "post_game_review.write" }) === "allow";
-  const canWritePrivateNotes = evaluateCapability({ ...access, resource: reviewResource, capability: "private_player_note.write" }) === "allow";
+  const reviewResource = {
+    clubId: club.id,
+    teamId: team.id,
+    teamActive: team.active,
+  };
+  const canReadReview =
+    evaluateCapability({
+      ...access,
+      resource: reviewResource,
+      capability: "post_game_review.read",
+    }) === "allow";
+  const canWriteReview =
+    evaluateCapability({
+      ...access,
+      resource: reviewResource,
+      capability: "post_game_review.write",
+    }) === "allow";
+  const canWritePrivateNotes =
+    evaluateCapability({
+      ...access,
+      resource: reviewResource,
+      capability: "private_player_note.write",
+    }) === "allow";
   let postGameReview = null;
   let privateNotes = new Map<string, string>();
   if (canReadReview && projection !== null) {
     try {
       const reviewGateway = createSupabaseReviewGateway(supabase);
-      postGameReview = await readPostGameReview({ ...access, clubId: club.id, teamId: team.id, eventId: projection.eventId, writer: reviewGateway });
+      postGameReview = await readPostGameReview({
+        ...access,
+        clubId: club.id,
+        teamId: team.id,
+        eventId: projection.eventId,
+        writer: reviewGateway,
+      });
       if (canWritePrivateNotes) {
-        const noteRows = await listPrivatePlayerNotes({ ...access, clubId: club.id, teamId: team.id, eventId: projection.eventId, writer: reviewGateway });
+        const noteRows = await listPrivatePlayerNotes({
+          ...access,
+          clubId: club.id,
+          teamId: team.id,
+          eventId: projection.eventId,
+          writer: reviewGateway,
+        });
         privateNotes = new Map(noteRows.map((row) => [row.playerId, row.note]));
       }
     } catch (caught: unknown) {
-      error = caught instanceof ApplicationError ? caught.message : "Post-game review could not be loaded.";
+      error =
+        caught instanceof ApplicationError
+          ? caught.message
+          : "Post-game review could not be loaded.";
     }
   }
-  const reviewPlayers = coachingStats?.players.map((player) => ({ playerId: player.playerId, label: player.displayName })) ?? [];
+  const reviewPlayers =
+    coachingStats?.players.map((player) => ({
+      playerId: player.playerId,
+      label: player.displayName,
+    })) ?? [];
 
   const managed = new Set(
     facts.registrations
