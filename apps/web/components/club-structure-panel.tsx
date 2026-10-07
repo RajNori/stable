@@ -77,6 +77,10 @@ export function ClubStructurePanel({
               { href: `/teams/${team.id}/fixtures`, label: "Fixtures" },
               { href: `/teams/${team.id}/schedule`, label: "Schedule" },
               { href: `/teams/${team.id}/training`, label: "Training" },
+              {
+                href: `/teams/${team.id}/announcements`,
+                label: "Announcements",
+              },
             ],
           }))}
         />

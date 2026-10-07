@@ -15,6 +15,11 @@ import {
 import { loadMobileBootEnv } from "../src/boot-env";
 import { CurrentClubContextScreen } from "../src/current-club-context-screen";
 import { loadMobileCurrentClubContext } from "../src/load-mobile-current-club-context";
+import {
+  acknowledgeMobileAnnouncement,
+  loadMobileAnnouncements,
+  markMobileAnnouncementRead,
+} from "../src/load-mobile-announcements";
 import { loadMobileGameDay } from "../src/load-mobile-game-day";
 import { loadMobileTeamRoster } from "../src/load-mobile-team-roster";
 import { loadMobileTeamSchedule } from "../src/load-mobile-team-schedule";
@@ -22,6 +27,7 @@ import { MobileDestinations } from "../src/mobile-destinations";
 import { expoNetworkMonitor } from "../src/expo-network-monitor";
 import { secureGameDaySnapshotStore } from "../src/game-day-snapshot";
 import { useMobileOnline } from "../src/mobile-connectivity";
+import { TeamAnnouncementsScreen } from "../src/team-announcements-screen";
 import { TeamGameDayScreen } from "../src/team-game-day-screen";
 import { TeamRosterScreen } from "../src/team-roster-screen";
 import { TeamScheduleScreen } from "../src/team-schedule-screen";
@@ -89,6 +95,14 @@ export default function CurrentClubContextRoute() {
               <TeamRosterScreen
                 loadContext={loadContext}
                 loadRoster={loadMobileTeamRoster}
+              />
+            }
+            updates={
+              <TeamAnnouncementsScreen
+                loadContext={loadContext}
+                loadAnnouncements={loadMobileAnnouncements}
+                acknowledge={acknowledgeMobileAnnouncement}
+                markRead={markMobileAnnouncementRead}
               />
             }
           />

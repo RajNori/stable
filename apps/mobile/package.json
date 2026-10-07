@@ -27,6 +27,7 @@
   },
   "dependencies": {
     "@sentry/react-native": "~7.11.0",
+    "@stable/announcements": "workspace:*",
     "@stable/auth": "workspace:*",
     "@stable/config": "workspace:*",
     "@stable/contracts": "workspace:*",

@@ -199,7 +199,13 @@ export const evaluateCapability: EvaluateCapability = (input) => {
     input.capability === "fixture.manage_manual" ||
     input.capability === "fixture.overlay_manage" ||
     input.capability === "attendance.read_team" ||
-    input.capability === "training.manage"
+    input.capability === "training.manage" ||
+    input.capability === "announcement.publish" ||
+    input.capability === "announcement.read" ||
+    input.capability === "announcement.ack" ||
+    input.capability === "duty.manage" ||
+    input.capability === "duty.respond" ||
+    input.capability === "fillin.manage"
   ) {
     return teamEventScoped(input, clubId);
   }
@@ -250,5 +256,24 @@ function teamEventScoped(
   if (input.capability === "attendance.read_team") {
     return admin || staff ? "allow" : "deny";
   }
-  return admin || headCoach || manager ? "allow" : "deny";
+  if (
+    input.capability === "announcement.read" ||
+    input.capability === "announcement.ack" ||
+    input.capability === "duty.respond"
+  ) {
+    return admin || staff || guardian ? "allow" : "deny";
+  }
+  if (input.capability === "announcement.publish") {
+    return admin || headCoach || manager ? "allow" : "deny";
+  }
+  if (input.capability === "duty.manage") {
+    return admin || manager ? "allow" : "deny";
+  }
+  if (input.capability === "fillin.manage") {
+    return admin || headCoach || manager ? "allow" : "deny";
+  }
+  if (input.capability === "training.manage") {
+    return admin || headCoach || manager ? "allow" : "deny";
+  }
+  return "deny";
 }

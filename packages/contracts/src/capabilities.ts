@@ -34,6 +34,12 @@ export const TEAM_CAPABILITIES = [
   "fixture.overlay_manage",
   "attendance.read_team",
   "training.manage",
+  "announcement.publish",
+  "announcement.read",
+  "announcement.ack",
+  "duty.manage",
+  "duty.respond",
+  "fillin.manage",
 ] as const;
 
 export const PLAYER_CAPABILITIES = [

@@ -609,5 +609,62 @@ describe("evaluateCapability", () => {
       }),
     ).toBe("deny");
     expect(decide("training.manage", ownTeam, guardian)).toBe("deny");
+
+    expect(
+      decide("announcement.publish", ownTeam, { clubMemberships: [admin()] }),
+    ).toBe("allow");
+    expect(
+      decide("announcement.publish", ownTeam, {
+        teamMemberships: [staff("HEAD_COACH")],
+      }),
+    ).toBe("allow");
+    expect(
+      decide("announcement.publish", ownTeam, {
+        teamMemberships: [staff("TEAM_MANAGER")],
+      }),
+    ).toBe("allow");
+    expect(
+      decide("announcement.publish", ownTeam, {
+        teamMemberships: [staff("ASSISTANT_COACH")],
+      }),
+    ).toBe("deny");
+    expect(decide("announcement.publish", ownTeam, guardian)).toBe("deny");
+    expect(decide("announcement.read", ownTeam, guardian)).toBe("allow");
+    expect(
+      decide("announcement.read", ownTeam, {
+        teamMemberships: [staff("ASSISTANT_COACH")],
+      }),
+    ).toBe("allow");
+    expect(decide("announcement.read", otherTeam, guardian)).toBe("deny");
+    expect(decide("announcement.ack", ownTeam, guardian)).toBe("allow");
+    expect(decide("announcement.ack", ownTeam)).toBe("deny");
+
+    expect(decide("duty.manage", ownTeam, { clubMemberships: [admin()] })).toBe(
+      "allow",
+    );
+    expect(
+      decide("duty.manage", ownTeam, {
+        teamMemberships: [staff("TEAM_MANAGER")],
+      }),
+    ).toBe("allow");
+    expect(
+      decide("duty.manage", ownTeam, {
+        teamMemberships: [staff("HEAD_COACH")],
+      }),
+    ).toBe("deny");
+    expect(decide("duty.respond", ownTeam, guardian)).toBe("allow");
+    expect(decide("duty.respond", ownTeam)).toBe("deny");
+
+    expect(
+      decide("fillin.manage", ownTeam, {
+        teamMemberships: [staff("HEAD_COACH")],
+      }),
+    ).toBe("allow");
+    expect(
+      decide("fillin.manage", ownTeam, {
+        teamMemberships: [staff("ASSISTANT_COACH")],
+      }),
+    ).toBe("deny");
+    expect(decide("fillin.manage", ownTeam, guardian)).toBe("deny");
   });
 });

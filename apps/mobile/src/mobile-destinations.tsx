@@ -47,10 +47,12 @@ export function MobileDestinations({
   home,
   schedule,
   team,
+  updates,
 }: {
   home: React.ReactNode;
   schedule: React.ReactNode;
   team: React.ReactNode;
+  updates?: React.ReactNode;
 }) {
   const [selected, setSelected] = useState<Destination>("Home");
 
@@ -75,9 +77,16 @@ export function MobileDestinations({
       {selected === "Home" ? home : null}
       {selected === "Schedule" ? schedule : null}
       {selected === "Team" ? team : null}
-      {selected === "Updates" || selected === "Profile" ? (
+      {selected === "Updates"
+        ? (updates ?? (
+            <Text accessibilityRole="header" style={styles.placeholder}>
+              Updates is not available yet.
+            </Text>
+          ))
+        : null}
+      {selected === "Profile" ? (
         <Text accessibilityRole="header" style={styles.placeholder}>
-          {`${selected} is not available yet.`}
+          Profile is not available yet.
         </Text>
       ) : null}
     </View>
