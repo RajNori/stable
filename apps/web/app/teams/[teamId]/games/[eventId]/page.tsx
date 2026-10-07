@@ -2,6 +2,7 @@ import { ApplicationError } from "@stable/contracts";
 import { attendanceMessages } from "@stable/attendance";
 import { getCurrentClubContext } from "@stable/current-club-context";
 import { createSupabaseFixtureGateway } from "@stable/fixtures";
+import { createSupabaseReviewGateway, listPrivatePlayerNotes, readPostGameReview } from "@stable/coaching-review";
 import {
   createSupabaseGameStatsGateway,
   createSupabaseGameDayGateway,
@@ -24,6 +25,7 @@ import { createSupabaseRosterGateway, listTeamRoster } from "@stable/roster";
 import { ClubAdminShell } from "../../../../../components/club-admin-shell";
 import { GameDayPanel } from "../../../../../components/game-day-panel";
 import { GameStatsPanel } from "../../../../../components/game-stats-panel";
+import { PostGameReviewPanel } from "../../../../../components/post-game-review-panel";
 import { fixtureAccessFrom } from "../../../../../lib/fixture-access";
 import { loadLiveClubContext } from "../../../../../lib/load-live-club-context";
 import { principalFromSupabase } from "../../../../../lib/principal";
@@ -40,6 +42,10 @@ import {
   requestFillInAction,
   saveGamePlayerStatAction,
   saveManualGameResultAction,
+  savePostGameReviewAction,
+  savePlayerRecognitionAction,
+  removePlayerRecognitionAction,
+  savePrivatePlayerNoteAction,
   respondFillInAction,
 } from "./actions";
 
@@ -171,6 +177,26 @@ export default async function GameDayPage({
           : gameStatsMessages.readFailed;
     }
   }
+
+  const reviewResource = { clubId: club.id, teamId: team.id, teamActive: team.active };
+  const canReadReview = evaluateCapability({ ...access, resource: reviewResource, capability: "post_game_review.read" }) === "allow";
+  const canWriteReview = evaluateCapability({ ...access, resource: reviewResource, capability: "post_game_review.write" }) === "allow";
+  const canWritePrivateNotes = evaluateCapability({ ...access, resource: reviewResource, capability: "private_player_note.write" }) === "allow";
+  let postGameReview = null;
+  let privateNotes = new Map<string, string>();
+  if (canReadReview && projection !== null) {
+    try {
+      const reviewGateway = createSupabaseReviewGateway(supabase);
+      postGameReview = await readPostGameReview({ ...access, clubId: club.id, teamId: team.id, eventId: projection.eventId, writer: reviewGateway });
+      if (canWritePrivateNotes) {
+        const noteRows = await listPrivatePlayerNotes({ ...access, clubId: club.id, teamId: team.id, eventId: projection.eventId, writer: reviewGateway });
+        privateNotes = new Map(noteRows.map((row) => [row.playerId, row.note]));
+      }
+    } catch (caught: unknown) {
+      error = caught instanceof ApplicationError ? caught.message : "Post-game review could not be loaded.";
+    }
+  }
+  const reviewPlayers = coachingStats?.players.map((player) => ({ playerId: player.playerId, label: player.displayName })) ?? [];
 
   const managed = new Set(
     facts.registrations
@@ -342,6 +368,19 @@ export default async function GameDayPage({
           canWrite={canWriteCoachingStats}
           scoreAction={saveManualGameResultAction}
           playerStatAction={saveGamePlayerStatAction}
+        />
+      ) : null}
+      {postGameReview !== null ? (
+        <PostGameReviewPanel
+          review={postGameReview}
+          players={reviewPlayers}
+          privateNotes={privateNotes}
+          canWrite={canWriteReview}
+          canWritePrivateNotes={canWritePrivateNotes}
+          saveReviewAction={savePostGameReviewAction}
+          saveRecognitionAction={savePlayerRecognitionAction}
+          removeRecognitionAction={removePlayerRecognitionAction}
+          savePrivateNoteAction={savePrivatePlayerNoteAction}
         />
       ) : null}
     </ClubAdminShell>
