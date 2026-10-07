@@ -34,7 +34,8 @@ insert into public.events(id,club_id,team_id,event_type,starts_at,ends_at,status
  ('73410000-0000-4000-8000-000000000032','73410000-0000-4000-8000-000000000010','73410000-0000-4000-8000-000000000012','TRAINING','2026-09-03 09:00:00+00','2026-09-03 10:00:00+00','SCHEDULED'),
  ('73410000-0000-4000-8000-000000000033','73410000-0000-4000-8000-000000000010','73410000-0000-4000-8000-000000000012','TRAINING','2026-09-04 09:00:00+00',null,'SCHEDULED'),
  ('73410000-0000-4000-8000-000000000034','73410000-0000-4000-8000-000000000010','73410000-0000-4000-8000-000000000013','TRAINING','2026-09-05 09:00:00+00','2026-09-05 10:00:00+00','SCHEDULED'),
- ('73410000-0000-4000-8000-000000000035','73410000-0000-4000-8000-000000000010','73410000-0000-4000-8000-000000000012','TRAINING','2026-09-06 09:00:00+00','2026-09-06 14:00:00+00','SCHEDULED');
+ ('73410000-0000-4000-8000-000000000035','73410000-0000-4000-8000-000000000010','73410000-0000-4000-8000-000000000012','TRAINING','2026-09-06 09:00:00+00','2026-09-06 14:00:00+00','SCHEDULED'),
+ ('73410000-0000-4000-8000-000000000036','73410000-0000-4000-8000-000000000010','73410000-0000-4000-8000-000000000012','TRAINING','2026-09-07 09:00:00+00',null,'SCHEDULED');
 insert into public.games(event_id,club_id,opponent_name,source,official_start_at,fixture_status) values
  ('73410000-0000-4000-8000-000000000030','73410000-0000-4000-8000-000000000010','Opponent','MANUAL','2026-09-01 09:00:00+00','COMPLETED'),
  ('73410000-0000-4000-8000-000000000031','73410000-0000-4000-8000-000000000010','Other Opponent','MANUAL','2026-09-02 09:00:00+00','COMPLETED');
@@ -61,8 +62,8 @@ select is(pg_temp.sqlerrm_of($$select public.save_practice_plan('73410000-0000-4
 select lives_ok($$select public.save_practice_plan('73410000-0000-4000-8000-000000000012',null,'73410000-0000-4000-8000-000000000033','Unknown duration','', '[{"order":1,"duration_minutes":240,"title":"Full practice","instructions":""}]','[]')$$,'unknown scheduled duration permits at most 240 minutes');
 select is(pg_temp.sqlerrm_of($$select public.save_practice_plan('73410000-0000-4000-8000-000000000012',null,'73410000-0000-4000-8000-000000000033','Too long unknown','', '[{"order":1,"duration_minutes":240,"title":"A","instructions":""},{"order":2,"duration_minutes":1,"title":"B","instructions":""}]','[]')$$),'VALIDATION_FAILED','unknown scheduled duration rejects 241 minutes');
 select lives_ok($$select public.save_practice_plan('73410000-0000-4000-8000-000000000012',null,'73410000-0000-4000-8000-000000000035','Long training','', '[{"order":1,"duration_minutes":241,"title":"Extended block","instructions":""}]','[]')$$,'known 300-minute training permits a 241-minute plan');
-select is(pg_temp.sqlerrm_of($$select public.copy_practice_plan('73410000-0000-4000-8000-000000000012',(select id from public.practice_plans where training_event_id='73410000-0000-4000-8000-000000000035'),null,true)$$),'VALIDATION_FAILED','copying a 241-minute linked plan to a template rejects the overlong snapshot');
 reset role;
+select is(pg_temp.sqlerrm_of($$select public.copy_practice_plan('73410000-0000-4000-8000-000000000012',(select id from public.practice_plans where training_event_id='73410000-0000-4000-8000-000000000035'),null,true)$$),'VALIDATION_FAILED','copying a 241-minute linked plan to a template rejects the overlong snapshot');
 
 select ok((select count(*)=1 from public.practice_plan_focus where source_review_id='73410000-0000-4000-8000-000000000040' and source_event_id='73410000-0000-4000-8000-000000000030' and focus_code='PASSING'),'focus retains typed source review/event snapshot');
 select is((select count(*) from public.practice_blocks where practice_plan_id=(select id from public.practice_plans where training_event_id='73410000-0000-4000-8000-000000000032')),2::bigint,'saved plan contains both blocks');
@@ -85,12 +86,12 @@ select is((select id from public.practice_blocks where practice_plan_id=(select 
 
 do $$ declare p uuid; copied uuid; begin
   select id into p from public.practice_plans where training_event_id='73410000-0000-4000-8000-000000000032';
-  copied := public.copy_practice_plan('73410000-0000-4000-8000-000000000012',p,'73410000-0000-4000-8000-000000000033',false);
+  copied := public.copy_practice_plan('73410000-0000-4000-8000-000000000012',p,'73410000-0000-4000-8000-000000000036',false);
   perform pg_temp.assume_user('73410000-0000-4000-8000-000000000003');
 end $$;
-select is((select count(*) from public.practice_blocks source join public.practice_blocks copied on copied.sort_order=source.sort_order where source.practice_plan_id=(select id from public.practice_plans where training_event_id='73410000-0000-4000-8000-000000000032') and copied.practice_plan_id=(select id from public.practice_plans where training_event_id='73410000-0000-4000-8000-000000000033') and source.id=copied.id),0::bigint,'copy snapshots block values with new identities');
+select is((select count(*) from public.practice_blocks source join public.practice_blocks copied on copied.sort_order=source.sort_order where source.practice_plan_id=(select id from public.practice_plans where training_event_id='73410000-0000-4000-8000-000000000032') and copied.practice_plan_id=(select id from public.practice_plans where training_event_id='73410000-0000-4000-8000-000000000036') and source.id=copied.id),0::bigint,'copy snapshots block values with new identities');
 select is((select title from public.practice_blocks where practice_plan_id=(select id from public.practice_plans where training_event_id='73410000-0000-4000-8000-000000000032') and sort_order=1),'Spacing','copy left source title intact');
-select is((select count(*) from public.practice_plan_focus where practice_plan_id=(select id from public.practice_plans where training_event_id='73410000-0000-4000-8000-000000000033') and source_review_id='73410000-0000-4000-8000-000000000040' and focus_code='PASSING'),1::bigint,'template/plan copy snapshots typed focus source');
+select is((select count(*) from public.practice_plan_focus where practice_plan_id=(select id from public.practice_plans where training_event_id='73410000-0000-4000-8000-000000000036') and source_review_id='73410000-0000-4000-8000-000000000040' and focus_code='PASSING'),1::bigint,'template/plan copy snapshots typed focus source');
 delete from public.post_game_review_focus where review_id='73410000-0000-4000-8000-000000000040' and focus_code='PASSING';
 select is((select count(*) from public.practice_plan_focus where source_review_id='73410000-0000-4000-8000-000000000040' and focus_code='PASSING'),2::bigint,'later source-review edit does not mutate plan focus snapshots');
 

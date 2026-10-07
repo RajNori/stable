@@ -386,6 +386,54 @@ export type Database = {
           },
         ];
       };
+      drills: {
+        Row: {
+          active: boolean;
+          club_id: string;
+          created_at: string;
+          default_duration_minutes: number | null;
+          id: string;
+          instructions: string;
+          name: string;
+          team_id: string;
+        };
+        Insert: {
+          active?: boolean;
+          club_id: string;
+          created_at?: string;
+          default_duration_minutes?: number | null;
+          id?: string;
+          instructions?: string;
+          name: string;
+          team_id: string;
+        };
+        Update: {
+          active?: boolean;
+          club_id?: string;
+          created_at?: string;
+          default_duration_minutes?: number | null;
+          id?: string;
+          instructions?: string;
+          name?: string;
+          team_id?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "drills_club_id_fkey";
+            columns: ["club_id"];
+            isOneToOne: false;
+            referencedRelation: "clubs";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "drills_team_club_fkey";
+            columns: ["team_id", "club_id"];
+            isOneToOne: false;
+            referencedRelation: "teams";
+            referencedColumns: ["id", "club_id"];
+          },
+        ];
+      };
       duties: {
         Row: {
           club_id: string;
@@ -1289,6 +1337,63 @@ export type Database = {
           },
         ];
       };
+      player_game_recognitions: {
+        Row: {
+          category: string;
+          club_id: string;
+          created_at: string;
+          created_by: string;
+          game_event_id: string;
+          id: string;
+          note: string | null;
+          player_id: string;
+          team_id: string;
+          updated_at: string;
+          updated_by: string;
+        };
+        Insert: {
+          category: string;
+          club_id: string;
+          created_at?: string;
+          created_by: string;
+          game_event_id: string;
+          id?: string;
+          note?: string | null;
+          player_id: string;
+          team_id: string;
+          updated_at?: string;
+          updated_by: string;
+        };
+        Update: {
+          category?: string;
+          club_id?: string;
+          created_at?: string;
+          created_by?: string;
+          game_event_id?: string;
+          id?: string;
+          note?: string | null;
+          player_id?: string;
+          team_id?: string;
+          updated_at?: string;
+          updated_by?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "player_game_recognitions_game_team_club_fkey";
+            columns: ["game_event_id", "team_id", "club_id"];
+            isOneToOne: false;
+            referencedRelation: "events";
+            referencedColumns: ["id", "team_id", "club_id"];
+          },
+          {
+            foreignKeyName: "player_game_recognitions_player_club_fkey";
+            columns: ["player_id", "club_id"];
+            isOneToOne: false;
+            referencedRelation: "players";
+            referencedColumns: ["id", "club_id"];
+          },
+        ];
+      };
       player_source_identities: {
         Row: {
           club_id: string;
@@ -1456,6 +1561,293 @@ export type Database = {
             isOneToOne: false;
             referencedRelation: "clubs";
             referencedColumns: ["id"];
+          },
+        ];
+      };
+      post_game_review_focus: {
+        Row: {
+          created_at: string;
+          focus_code: string;
+          review_id: string;
+        };
+        Insert: {
+          created_at?: string;
+          focus_code: string;
+          review_id: string;
+        };
+        Update: {
+          created_at?: string;
+          focus_code?: string;
+          review_id?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "post_game_review_focus_review_id_fkey";
+            columns: ["review_id"];
+            isOneToOne: false;
+            referencedRelation: "post_game_reviews";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
+      post_game_reviews: {
+        Row: {
+          club_id: string;
+          completed_at: string | null;
+          completed_by: string | null;
+          created_at: string;
+          game_event_id: string;
+          id: string;
+          needs_improvement: string;
+          team_id: string;
+          updated_at: string;
+          what_worked: string;
+        };
+        Insert: {
+          club_id: string;
+          completed_at?: string | null;
+          completed_by?: string | null;
+          created_at?: string;
+          game_event_id: string;
+          id?: string;
+          needs_improvement?: string;
+          team_id: string;
+          updated_at?: string;
+          what_worked?: string;
+        };
+        Update: {
+          club_id?: string;
+          completed_at?: string | null;
+          completed_by?: string | null;
+          created_at?: string;
+          game_event_id?: string;
+          id?: string;
+          needs_improvement?: string;
+          team_id?: string;
+          updated_at?: string;
+          what_worked?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "post_game_reviews_event_team_club_fkey";
+            columns: ["game_event_id", "team_id", "club_id"];
+            isOneToOne: false;
+            referencedRelation: "events";
+            referencedColumns: ["id", "team_id", "club_id"];
+          },
+        ];
+      };
+      practice_blocks: {
+        Row: {
+          club_id: string;
+          drill_id: string | null;
+          duration_minutes: number;
+          id: string;
+          instructions: string;
+          practice_plan_id: string;
+          sort_order: number;
+          team_id: string;
+          title: string | null;
+        };
+        Insert: {
+          club_id: string;
+          drill_id?: string | null;
+          duration_minutes: number;
+          id?: string;
+          instructions?: string;
+          practice_plan_id: string;
+          sort_order: number;
+          team_id: string;
+          title?: string | null;
+        };
+        Update: {
+          club_id?: string;
+          drill_id?: string | null;
+          duration_minutes?: number;
+          id?: string;
+          instructions?: string;
+          practice_plan_id?: string;
+          sort_order?: number;
+          team_id?: string;
+          title?: string | null;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "practice_blocks_drill_fkey";
+            columns: ["drill_id", "team_id", "club_id"];
+            isOneToOne: false;
+            referencedRelation: "drills";
+            referencedColumns: ["id", "team_id", "club_id"];
+          },
+          {
+            foreignKeyName: "practice_blocks_plan_fkey";
+            columns: ["practice_plan_id", "team_id", "club_id"];
+            isOneToOne: false;
+            referencedRelation: "practice_plans";
+            referencedColumns: ["id", "team_id", "club_id"];
+          },
+        ];
+      };
+      practice_plan_focus: {
+        Row: {
+          club_id: string;
+          created_at: string;
+          focus_code: string;
+          practice_plan_id: string;
+          source_event_id: string;
+          source_review_id: string;
+          team_id: string;
+        };
+        Insert: {
+          club_id: string;
+          created_at?: string;
+          focus_code: string;
+          practice_plan_id: string;
+          source_event_id: string;
+          source_review_id: string;
+          team_id: string;
+        };
+        Update: {
+          club_id?: string;
+          created_at?: string;
+          focus_code?: string;
+          practice_plan_id?: string;
+          source_event_id?: string;
+          source_review_id?: string;
+          team_id?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "practice_plan_focus_event_fkey";
+            columns: ["source_event_id", "team_id", "club_id"];
+            isOneToOne: false;
+            referencedRelation: "events";
+            referencedColumns: ["id", "team_id", "club_id"];
+          },
+          {
+            foreignKeyName: "practice_plan_focus_plan_fkey";
+            columns: ["practice_plan_id", "team_id", "club_id"];
+            isOneToOne: false;
+            referencedRelation: "practice_plans";
+            referencedColumns: ["id", "team_id", "club_id"];
+          },
+          {
+            foreignKeyName: "practice_plan_focus_review_fkey";
+            columns: ["source_review_id"];
+            isOneToOne: false;
+            referencedRelation: "post_game_reviews";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
+      practice_plans: {
+        Row: {
+          club_id: string;
+          created_at: string;
+          created_by: string;
+          id: string;
+          is_template: boolean;
+          notes: string;
+          team_id: string;
+          title: string;
+          training_event_id: string | null;
+          updated_at: string;
+          updated_by: string;
+        };
+        Insert: {
+          club_id: string;
+          created_at?: string;
+          created_by: string;
+          id?: string;
+          is_template: boolean;
+          notes?: string;
+          team_id: string;
+          title: string;
+          training_event_id?: string | null;
+          updated_at?: string;
+          updated_by: string;
+        };
+        Update: {
+          club_id?: string;
+          created_at?: string;
+          created_by?: string;
+          id?: string;
+          is_template?: boolean;
+          notes?: string;
+          team_id?: string;
+          title?: string;
+          training_event_id?: string | null;
+          updated_at?: string;
+          updated_by?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "practice_plans_event_fkey";
+            columns: ["training_event_id", "team_id", "club_id"];
+            isOneToOne: false;
+            referencedRelation: "events";
+            referencedColumns: ["id", "team_id", "club_id"];
+          },
+          {
+            foreignKeyName: "practice_plans_team_club_fkey";
+            columns: ["team_id", "club_id"];
+            isOneToOne: false;
+            referencedRelation: "teams";
+            referencedColumns: ["id", "club_id"];
+          },
+        ];
+      };
+      private_player_game_notes: {
+        Row: {
+          author_user_id: string;
+          club_id: string;
+          created_at: string;
+          game_event_id: string;
+          note: string;
+          player_id: string;
+          team_id: string;
+          updated_at: string;
+          updated_by: string;
+          visibility: string;
+        };
+        Insert: {
+          author_user_id: string;
+          club_id: string;
+          created_at?: string;
+          game_event_id: string;
+          note: string;
+          player_id: string;
+          team_id: string;
+          updated_at?: string;
+          updated_by: string;
+          visibility?: string;
+        };
+        Update: {
+          author_user_id?: string;
+          club_id?: string;
+          created_at?: string;
+          game_event_id?: string;
+          note?: string;
+          player_id?: string;
+          team_id?: string;
+          updated_at?: string;
+          updated_by?: string;
+          visibility?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "private_player_game_notes_game_team_club_fkey";
+            columns: ["game_event_id", "team_id", "club_id"];
+            isOneToOne: false;
+            referencedRelation: "events";
+            referencedColumns: ["id", "team_id", "club_id"];
+          },
+          {
+            foreignKeyName: "private_player_game_notes_player_club_fkey";
+            columns: ["player_id", "club_id"];
+            isOneToOne: false;
+            referencedRelation: "players";
+            referencedColumns: ["id", "club_id"];
           },
         ];
       };
@@ -1888,6 +2280,14 @@ export type Database = {
         Args: { p_team_id: string; p_user_id: string };
         Returns: undefined;
       };
+      assert_post_game_review_actor: {
+        Args: { p_private_note?: boolean; p_team_id: string };
+        Returns: undefined;
+      };
+      assert_practice_plan_actor: {
+        Args: { p_team_id: string };
+        Returns: undefined;
+      };
       assert_team_roster_reader: {
         Args: { p_full: boolean; p_team_id: string };
         Returns: string;
@@ -1951,6 +2351,15 @@ export type Database = {
       };
       confirm_fill_in: {
         Args: { p_player_id: string; p_request_id: string };
+        Returns: string;
+      };
+      copy_practice_plan: {
+        Args: {
+          p_as_template: boolean;
+          p_source_plan_id: string;
+          p_team_id: string;
+          p_training_event_id: string;
+        };
         Returns: string;
       };
       create_club_competition: {
@@ -2403,6 +2812,13 @@ export type Database = {
           target_user_id: string;
         }[];
       };
+      list_private_player_game_notes: {
+        Args: { p_event_id: string };
+        Returns: {
+          note: string;
+          player_id: string;
+        }[];
+      };
       list_team_announcements: {
         Args: { p_include_archived: boolean; p_team_id: string };
         Returns: {
@@ -2557,6 +2973,7 @@ export type Database = {
         Returns: boolean;
       };
       player_text: { Args: { p_value: string }; Returns: string };
+      practice_plan_json: { Args: { p_plan_id: string }; Returns: Json };
       publish_announcement: {
         Args: {
           p_acknowledgement_required: boolean;
@@ -2704,6 +3121,25 @@ export type Database = {
           player_id: string;
         }[];
       };
+      read_post_game_review: {
+        Args: { p_event_id: string };
+        Returns: {
+          club_id: string;
+          completed_at: string;
+          completed_by: string;
+          event_id: string;
+          focus_codes: string[];
+          needs_improvement: string;
+          recognitions: Json;
+          team_id: string;
+          what_worked: string;
+        }[];
+      };
+      read_practice_planner: { Args: { p_team_id: string }; Returns: Json };
+      read_private_player_game_note: {
+        Args: { p_event_id: string; p_player_id: string };
+        Returns: string;
+      };
       record_attendance: {
         Args: {
           p_absence_category: string;
@@ -2735,6 +3171,10 @@ export type Database = {
           isOneToOne: true;
           isSetofReturn: false;
         };
+      };
+      remove_player_game_recognition: {
+        Args: { p_category: string; p_event_id: string; p_player_id: string };
+        Returns: undefined;
       };
       request_duty_swap: {
         Args: { p_event_id: string; p_target_user_id: string };
@@ -2799,6 +3239,50 @@ export type Database = {
           p_opponent_score: number;
           p_team_score: number;
         };
+        Returns: undefined;
+      };
+      save_player_game_recognition: {
+        Args: {
+          p_category: string;
+          p_event_id: string;
+          p_note: string;
+          p_player_id: string;
+        };
+        Returns: string;
+      };
+      save_post_game_review: {
+        Args: {
+          p_complete: boolean;
+          p_event_id: string;
+          p_focus_codes: Json;
+          p_needs_improvement: string;
+          p_what_worked: string;
+        };
+        Returns: string;
+      };
+      save_practice_drill: {
+        Args: {
+          p_default_duration_minutes: number;
+          p_instructions: string;
+          p_name: string;
+          p_team_id: string;
+        };
+        Returns: string;
+      };
+      save_practice_plan: {
+        Args: {
+          p_blocks: Json;
+          p_focus: Json;
+          p_notes: string;
+          p_plan_id: string;
+          p_team_id: string;
+          p_title: string;
+          p_training_event_id: string;
+        };
+        Returns: string;
+      };
+      save_private_player_game_note: {
+        Args: { p_event_id: string; p_note: string; p_player_id: string };
         Returns: undefined;
       };
       set_notification_preference: {

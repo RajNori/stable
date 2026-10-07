@@ -176,7 +176,7 @@ begin
   if exists(select 1 from jsonb_array_elements(p_blocks) item group by (item->>'order') having count(*) > 1) or (jsonb_array_length(p_blocks) > 0 and (select count(distinct (item->>'order')::integer) from jsonb_array_elements(p_blocks) item) <> jsonb_array_length(p_blocks)) or exists(select 1 from jsonb_array_elements(p_blocks) item where (item->>'order')::integer < 1 or (item->>'order')::integer > 50) then raise exception 'VALIDATION_FAILED' using errcode = '23514'; end if;
   if exists(select 1 from jsonb_array_elements(p_blocks) item where ((nullif(item->>'drill_id','') is null) = (nullif(btrim(item->>'title'),'') is null)) or char_length(coalesce(item->>'title','')) > 120 or char_length(coalesce(item->>'instructions','')) > 2000) then raise exception 'VALIDATION_FAILED' using errcode = '23514'; end if;
   if exists(select 1 from jsonb_array_elements(p_blocks) item where item->>'drill_id' is not null and not exists(select 1 from public.drills drill where drill.id = (item->>'drill_id')::uuid and drill.team_id = team_row.id and drill.club_id = team_row.club_id and drill.active)) then raise exception 'VALIDATION_FAILED' using errcode = '23514'; end if;
-  if total_minutes > case when event_row.id is null or event_row.ends_at is null then 240 else floor(extract(epoch from (event_row.ends_at - event_row.starts_at)) / 60)::numeric end then raise exception 'VALIDATION_FAILED' using errcode = '23514'; end if;
+  if total_minutes > (case when event_row.id is null or event_row.ends_at is null then 240 else floor(extract(epoch from (event_row.ends_at - event_row.starts_at)) / 60)::numeric end) then raise exception 'VALIDATION_FAILED' using errcode = '23514'; end if;
   if exists(select 1 from jsonb_array_elements(p_focus) item where not (item->>'code' = any(array['SHOOTING','BALL_HANDLING','PASSING','REBOUNDING','DEFENCE','COMMUNICATION','TEAMWORK','TRANSITION'])) or not exists(
       select 1 from public.post_game_reviews review join public.events source_event on source_event.id = review.game_event_id
       join public.post_game_review_focus source_focus on source_focus.review_id = review.id
@@ -233,7 +233,7 @@ begin
     if not found then raise exception 'NOT_FOUND' using errcode = 'P0002'; end if;
     if exists(select 1 from public.practice_plans where training_event_id = p_training_event_id) then raise exception 'CONFLICT' using errcode = 'P0001'; end if;
   end if;
-  if (select coalesce(sum(duration_minutes),0) from public.practice_blocks where practice_plan_id = source_row.id) > case when p_training_event_id is null or target_event.ends_at is null then 240 else floor(extract(epoch from (target_event.ends_at - target_event.starts_at)) / 60)::numeric end then raise exception 'VALIDATION_FAILED' using errcode = '23514'; end if;
+  if (select coalesce(sum(duration_minutes),0) from public.practice_blocks where practice_plan_id = source_row.id) > (case when p_training_event_id is null or target_event.ends_at is null then 240 else floor(extract(epoch from (target_event.ends_at - target_event.starts_at)) / 60)::numeric end) then raise exception 'VALIDATION_FAILED' using errcode = '23514'; end if;
   insert into public.practice_plans(club_id, team_id, training_event_id, is_template, title, notes, created_by, updated_by)
     values(team_row.club_id, team_row.id, p_training_event_id, p_as_template, source_row.title, source_row.notes, actor, actor) returning id into new_plan_id;
   insert into public.practice_blocks(practice_plan_id, club_id, team_id, sort_order, drill_id, title, duration_minutes, instructions)

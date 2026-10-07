@@ -244,12 +244,7 @@ function teamEventScoped(
     teamId,
     HEAD_COACH_ROLES,
   );
-  const coach = activeStaff(
-    input.teamMemberships,
-    clubId,
-    teamId,
-    COACH_ROLES,
-  );
+  const coach = activeStaff(input.teamMemberships, clubId, teamId, COACH_ROLES);
   const manager = activeStaff(
     input.teamMemberships,
     clubId,

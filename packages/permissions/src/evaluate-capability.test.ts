@@ -741,9 +741,9 @@ describe("evaluateCapability", () => {
     }
 
     for (const capability of privateNoteCapabilities) {
-      expect(
-        decide(capability, ownTeam, { clubMemberships: [admin()] }),
-      ).toBe("deny");
+      expect(decide(capability, ownTeam, { clubMemberships: [admin()] })).toBe(
+        "deny",
+      );
       expect(
         decide(capability, ownTeam, {
           clubMemberships: [admin()],
