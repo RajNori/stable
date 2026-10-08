@@ -41,6 +41,18 @@ export default defineConfig({
         channel: "chrome",
         viewport: { width: 1280, height: 800 },
       },
+      testIgnore: "**/responsive-accessibility.spec.ts",
+    },
+    {
+      name: "mobile-chromium",
+      testMatch: "**/responsive-accessibility.spec.ts",
+      use: {
+        ...devices["Desktop Chrome"],
+        channel: "chrome",
+        viewport: { width: 390, height: 844 },
+        isMobile: true,
+        hasTouch: true,
+      },
     },
   ],
 });
