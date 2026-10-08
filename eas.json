@@ -42,13 +42,5 @@
         "buildType": "app-bundle"
       }
     }
-  },
-  "submit": {
-    "play-internal": {
-      "android": {
-        "track": "internal",
-        "releaseStatus": "draft"
-      }
-    }
   }
 }

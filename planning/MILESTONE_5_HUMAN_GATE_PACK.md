@@ -158,12 +158,14 @@ for identification only; do not link or mutate a project.
 - Existing EAS `preview` is `distribution: internal`, environment `preview`,
   and `EXPO_PUBLIC_APP_ENV=staging`. That produces direct internal-distribution
   artifacts; it is not a TestFlight upload profile and is not a Play Store AAB.
-- EAS `testflight` and `play-internal` profiles are now prepared. Both inherit
-  only the approved `preview` EAS environment and force app mode `staging`; both
-  use store distribution. Android explicitly builds an app bundle. Android
-  submit profile pins the track to `internal` and `releaseStatus: draft` so an
-  upload cannot auto-roll out. No EAS build, signing, submission, or store action
-  was run.
+- EAS `testflight` and `play-internal` build profiles are prepared. Both select
+  the EAS `preview` environment and force app mode `staging`; both use store
+  distribution. Android explicitly builds an app bundle. The repository's
+  `packages/config/src/eas.test.ts` deliberately rejects any `submit` block, so
+  none is configured. For Play, the account owner must upload the exact AAB
+  manually under Play Console **Testing → Internal testing**, save as Draft, and
+  verify the track before proceeding. No EAS build, signing, submission, or store
+  action was run.
 - No OAuth, push, universal-link or app-link credentials are configured here.
   Auth callback scheme is `stable://auth/callback`. Notifications/push
   provider state is not externally verified.
@@ -203,16 +205,21 @@ eas submit --platform ios --id <that-ios-build-id>
 eas build --platform android --profile play-internal
 # Record EAS build ID, app version/versionCode, candidate SHA, staging env,
 # signing key identity (non-secret label only), and AAB artifact status.
-eas submit --platform android --profile play-internal --id <that-android-build-id>
-# The submit profile is pinned to Internal track and draft release status.
+# Account owner downloads the AAB for <that-android-build-id> from EAS, verifies
+# its candidate SHA, then opens Play Console → Testing → Internal testing →
+# Create new release, uploads this AAB, verifies Internal track, and saves Draft.
+# Do not invoke eas submit: this repo deliberately has no submit profile/hook.
 ```
 
 Stop before each EAS command until the account owner explicitly authorizes the
 build/signing operation. Stop before `eas submit` until that owner approves upload
 to the named TestFlight app or Play Console Internal track. Never use a production
-build profile, `--auto-submit`, App Store review submission, or Play Production,
-Open, or Closed track for this pilot gate. After upload, the owner must complete
-internal tester/group setup and record exact store build ID plus candidate SHA.
+build profile, `--auto-submit`, App Store review submission, EAS Submit for
+Android, or Play Production, Open, or Closed track for this pilot gate. After
+iOS upload, the owner must complete TestFlight internal tester/group setup. After
+Android upload, the owner must verify the release remains a draft on Internal
+track, then complete tester setup. Record exact store build ID plus candidate
+SHA for both platforms.
 
 ## 4. Physical-device accessibility script (15–20 minutes)
 
