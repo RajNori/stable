@@ -57,7 +57,7 @@ Planned remediation lanes, subject to path and contract review before dispatch:
 
 - Preserve Node `24.21.0` and pnpm `12.9.1`.
 - Focused tests for each changed boundary, then repository-equivalent full local gate from `planning/TESTING.md`, including local Supabase safety guard, pgTAP, integration, Playwright/auth, Expo, and Maestro validation.
-- Meet hand-written testable code coverage targets (lines/statements/functions ≥95%, branches ≥90%; critical permission/domain policy branches 100% where meaningful) without lowering thresholds or blanket exclusions.
+- Meet hand-written testable code coverage targets (lines/statements/functions ≥95%, branches ≥90%; critical permission/domain policy branches 100% where meaningful) without lowering thresholds or blanket exclusions. Current app coverage is below target: web 84.72% lines / 76.93% branches; mobile 84.64% lines / 83.53% branches. Treat as an open release blocker and improve meaningful app tests before exit review.
 - All eight required GitHub Actions checks must pass on the exact PR head: quality, dependency-audit, supabase, web-build, expo, playwright, playwright-auth, maestro.
 - Six independent read-only exit reviews after implementation and local gates: security/privacy/authorization; database/RLS/migration/concurrency; auth/offline/recovery; accessibility/UX failure states; release/operations/environment; M0–M4 regression. Reviewers must not be implementation agents.
 - No merge is authorized by this execution. Report the final candidate and wait for human approval at the merge boundary.
