@@ -49,15 +49,28 @@ export function MobileAuthGate({
     state: "loading",
   });
   const sessionUserId = React.useRef<string | null>(null);
+  const sessionTransition = React.useRef(0);
+  const beginSessionTransition = React.useCallback(() => {
+    sessionTransition.current += 1;
+    return sessionTransition.current;
+  }, []);
   const updateSession = React.useCallback(
-    async (next: AuthSessionSnapshot) => {
+    async (next: AuthSessionSnapshot, transition: number) => {
+      if (transition !== sessionTransition.current) {
+        return;
+      }
       const nextUserId =
         next.state === "authenticated" ? next.principal.userId : null;
       if (sessionUserId.current !== nextUserId) {
         try {
           await clearPrivateCache(sessionUserId.current);
         } catch (error: unknown) {
-          setSession(recoverySnapshot(error));
+          if (transition === sessionTransition.current) {
+            setSession(recoverySnapshot(error));
+          }
+          return;
+        }
+        if (transition !== sessionTransition.current) {
           return;
         }
         sessionUserId.current = nextUserId;
@@ -69,21 +82,22 @@ export function MobileAuthGate({
 
   useEffect(() => {
     let active = true;
+    const transition = beginSessionTransition();
     restore()
       .then((next) => {
         if (active) {
-          updateSession(next);
+          void updateSession(next, transition);
         }
       })
       .catch((error: unknown) => {
         if (active) {
-          updateSession(recoverySnapshot(error));
+          void updateSession(recoverySnapshot(error), transition);
         }
       });
     return () => {
       active = false;
     };
-  }, [restore, updateSession]);
+  }, [beginSessionTransition, restore, updateSession]);
 
   useEffect(() => {
     if (linking === undefined) {
@@ -94,19 +108,21 @@ export function MobileAuthGate({
       if (!url.includes("auth/callback")) {
         return;
       }
+      const transition = beginSessionTransition();
       actions
         .completeCallback(url)
         .then((next) => {
           if (active) {
-            updateSession(next);
+            void updateSession(next, transition);
           }
         })
         .catch((error: unknown) => {
           if (active) {
-            updateSession(recoverySnapshot(error));
+            void updateSession(recoverySnapshot(error), transition);
           }
         });
     };
+    const transitionAtLinkStart = sessionTransition.current;
     linking
       .getInitialUrl()
       .then((url) => {
@@ -115,8 +131,9 @@ export function MobileAuthGate({
         }
       })
       .catch((error: unknown) => {
-        if (active) {
-          updateSession(recoverySnapshot(error));
+        if (active && sessionTransition.current === transitionAtLinkStart) {
+          const transition = beginSessionTransition();
+          void updateSession(recoverySnapshot(error), transition);
         }
       });
     const unsubscribe = linking.subscribe(accept);
@@ -124,7 +141,7 @@ export function MobileAuthGate({
       active = false;
       unsubscribe();
     };
-  }, [actions, linking, updateSession]);
+  }, [actions, beginSessionTransition, linking, updateSession]);
 
   if (session.state === "authenticated") {
     return (
@@ -133,10 +150,11 @@ export function MobileAuthGate({
           accessibilityRole="button"
           accessibilityLabel="Sign out"
           onPress={() => {
+            const transition = beginSessionTransition();
             void signOut()
-              .then(updateSession)
+              .then((next) => updateSession(next, transition))
               .catch((error: unknown) => {
-                updateSession(recoverySnapshot(error));
+                void updateSession(recoverySnapshot(error), transition);
               });
           }}
           style={styles.signOut}
@@ -155,14 +173,23 @@ export function MobileAuthGate({
         actions={{
           requestPhone: actions.requestPhone,
           verifyPhone: async (phone, token) => {
-            await updateSession(await actions.verifyPhone(phone, token));
+            const transition = beginSessionTransition();
+            await updateSession(
+              await actions.verifyPhone(phone, token),
+              transition,
+            );
           },
           requestEmail: actions.requestEmail,
           verifyEmail: async (email, token) => {
-            await updateSession(await actions.verifyEmail(email, token));
+            const transition = beginSessionTransition();
+            await updateSession(
+              await actions.verifyEmail(email, token),
+              transition,
+            );
           },
           retry: async () => {
-            await updateSession(await restore());
+            const transition = beginSessionTransition();
+            await updateSession(await restore(), transition);
           },
         }}
       />

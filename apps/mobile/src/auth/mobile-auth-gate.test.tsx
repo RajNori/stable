@@ -2,6 +2,7 @@ import { ApplicationError, AUTH_ERROR_MESSAGES } from "@stable/contracts";
 import type { AuthSessionSnapshot } from "@stable/contracts";
 import { QueryClient } from "@tanstack/react-query";
 import {
+  act,
   render,
   screen,
   userEvent,
@@ -335,6 +336,45 @@ describe("mobile auth gate", () => {
     expect(complete.mock.calls[0]).toEqual([
       "stable://auth/callback?code=local-code",
     ]);
+  });
+
+  it("keeps a callback session when an older restore resolves afterward", async () => {
+    let resolveRestore: ((snapshot: AuthSessionSnapshot) => void) | undefined;
+    const restore = new Promise<AuthSessionSnapshot>((resolve) => {
+      resolveRestore = resolve;
+    });
+    await render(
+      <MobileAuthGate
+        restore={() => restore}
+        signOut={async () => ({ state: "unauthenticated" })}
+        actions={idleActions({
+          async completeCallback() {
+            return secondAuthenticated;
+          },
+        })}
+        linking={{
+          async getInitialUrl() {
+            return "stable://auth/callback?code=account-b";
+          },
+          subscribe() {
+            return () => undefined;
+          },
+        }}
+        authenticated={(id) => <Text>Signed in as {id}</Text>}
+      />,
+    );
+
+    expect(
+      await screen.findByText(`Signed in as ${secondUserId}`),
+    ).toBeTruthy();
+    await act(async () => {
+      resolveRestore?.(authenticated);
+      await restore;
+      await Promise.resolve();
+    });
+
+    expect(screen.getByText(`Signed in as ${secondUserId}`)).toBeTruthy();
+    expect(screen.queryByText(`Signed in as ${userId}`)).toBeNull();
   });
 
   it("ignores unrelated links and accepts a later callback once", async () => {
