@@ -335,17 +335,15 @@ system and report step outcomes/ambiguities before this gate is PASS.
 - GitHub's externally verified 8/8 result (`quality`, `dependency-audit`,
   `supabase`, `web-build`, `expo`, `playwright`, `playwright-auth`, `maestro`)
   was on PR head `6adc49acb6ea62ff0c9a04601b19ab7b09d0a124`.
-- GitHub read-only verification confirmed PR #3 was OPEN and Draft at
-  `9e6ca15cae0123732ed79ad861a9ac0717243fe8`, with all eight required jobs
-  passing on that same exact head: `quality`, `dependency-audit`, `supabase`,
-  `web-build`, `expo`, `playwright`, `playwright-auth`, and `maestro`. Vercel
-  Preview also passed; Supabase Preview was skipped and is not required.
-- The release-pack/profile/test changes described here are uncommitted at the
-  time of this snapshot, so this pass result does not cover them. The next PR
-  head requires its own Actions run before being called green.
-- Any resulting documentation/config commit must be called out separately from
-  product/test/review SHA. Do not create follow-on evidence-only commits just to
-  record CI for a documentation-only SHA.
+- GitHub read-only verification confirmed PR #3 remains OPEN and Draft at
+  gate-preparation SHA `0eb162b2df8f094245e038f58f043e050e668fd0`; all eight
+  required jobs passed on that same exact SHA: `quality`, `dependency-audit`,
+  `supabase`, `web-build`, `expo`, `playwright`, `playwright-auth`, and
+  `maestro`. Vercel Preview also passed; Supabase Preview was skipped and is not
+  required.
+- The evidence-only successor commit is separate from the product-code,
+  independent-review, and gate-preparation SHAs. Do not make another commit
+  solely to record CI for a new documentation-only SHA.
 
 ## Human closure items
 
