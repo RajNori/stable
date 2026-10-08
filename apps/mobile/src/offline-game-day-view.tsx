@@ -1,6 +1,12 @@
 import { themeFor } from "@stable/design-tokens";
-import React from "react";
-import { StyleSheet, Text, View } from "react-native";
+import React, { useEffect } from "react";
+import {
+  AccessibilityInfo,
+  Platform,
+  StyleSheet,
+  Text,
+  View,
+} from "react-native";
 
 import {
   gameDaySnapshotFreshness,
@@ -33,6 +39,19 @@ export function OfflineGameDayView({
   snapshot: GameDaySnapshot | null;
   now: number;
 }) {
+  const freshness =
+    snapshot === null ? null : gameDaySnapshotFreshness(snapshot.savedAt, now);
+  const statusAnnouncement =
+    snapshot === null
+      ? null
+      : `Offline. Last updated ${snapshot.savedAt}${freshness === "stale" ? ". This snapshot is stale." : "."}`;
+
+  useEffect(() => {
+    if (Platform.OS === "ios" && statusAnnouncement !== null) {
+      AccessibilityInfo.announceForAccessibility(statusAnnouncement);
+    }
+  }, [statusAnnouncement]);
+
   if (snapshot === null) {
     return (
       <View style={styles.screen}>
@@ -41,15 +60,18 @@ export function OfflineGameDayView({
     );
   }
 
-  const freshness = gameDaySnapshotFreshness(snapshot.savedAt, now);
   return (
     <View style={styles.screen}>
-      <Text style={styles.title}>
+      <Text accessibilityRole="header" style={styles.title}>
         {snapshot.teamName}: {snapshot.opponentName}
       </Text>
-      <Text style={styles.body}>Offline · Last updated {snapshot.savedAt}</Text>
+      <Text accessibilityLiveRegion="polite" style={styles.body}>
+        Offline · Last updated {snapshot.savedAt}
+      </Text>
       {freshness === "stale" ? (
-        <Text style={styles.body}>This snapshot is stale.</Text>
+        <Text accessibilityLiveRegion="polite" style={styles.body}>
+          This snapshot is stale.
+        </Text>
       ) : null}
       <Text style={styles.body}>RSVP {snapshot.ownRsvp}</Text>
       <Text style={styles.body}>Duty {snapshot.ownDutyLabel ?? "None"}</Text>

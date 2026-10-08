@@ -92,9 +92,14 @@ describe("eas.json", () => {
     expect(development[ENV.expoAppEnv]).toBe("local");
     expect(development[ENV.expoSupabaseUrl]).toBeUndefined();
     expect(preview[ENV.expoAppEnv]).toBe("staging");
-    expect(preview[ENV.expoSupabaseUrl]).toBe("https://staging.invalid");
+    expect(preview[ENV.expoSupabaseUrl]).toBeUndefined();
     expect(production[ENV.expoAppEnv]).toBe("production");
     expect(production).not.toHaveProperty("submit");
+
+    if (!isRecord(config.build) || !isRecord(config.build.preview)) {
+      throw new Error("eas.json is missing the preview profile");
+    }
+    expect(config.build.preview.environment).toBe("preview");
 
     if (!isRecord(config.build) || !isRecord(config.build.production)) {
       throw new Error("eas.json is missing the production profile");

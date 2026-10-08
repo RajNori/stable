@@ -1,6 +1,8 @@
 import React from "react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { render, screen } from "@testing-library/react-native";
+import { ApplicationError } from "@stable/contracts";
+import { rosterMessages } from "@stable/roster";
 import type { CurrentClubContext } from "@stable/contracts";
 import type { TeamRoster } from "@stable/roster";
 
@@ -108,5 +110,49 @@ describe("team roster screen", () => {
     ).toBeTruthy();
     expect(called).toBe(false);
     expect(screen.queryByText("U16 Boys")).toBeNull();
+  });
+
+  it("fails closed when club context is unavailable", async () => {
+    await renderRoster(
+      () => Promise.reject(new Error("network details")),
+      () => Promise.reject(new Error("must not load")),
+    );
+
+    expect(await screen.findByText(rosterMessages.readFailed)).toBeTruthy();
+    expect(screen.queryByText("network details")).toBeNull();
+  });
+
+  it("shows the safe forbidden state for a context without a club", async () => {
+    await renderRoster(
+      () =>
+        Promise.resolve({
+          ...context([]),
+          club: null,
+          activeTeam: null,
+          availableTeams: [],
+        }),
+      () => Promise.reject(new Error("must not load")),
+    );
+
+    expect(await screen.findByText(rosterMessages.forbidden)).toBeTruthy();
+  });
+
+  it("shows a domain roster error without leaking provider details", async () => {
+    await renderRoster(
+      () => Promise.resolve(context([{ id: teamId, name: "U14 Boys" }])),
+      () => Promise.reject(new ApplicationError("FORBIDDEN", "Roster hidden")),
+    );
+
+    expect(await screen.findByText("Roster hidden")).toBeTruthy();
+  });
+
+  it("shows a generic roster failure without provider details", async () => {
+    await renderRoster(
+      () => Promise.resolve(context([{ id: teamId, name: "U14 Boys" }])),
+      () => Promise.reject(new Error("database response with private data")),
+    );
+
+    expect(await screen.findByText(rosterMessages.readFailed)).toBeTruthy();
+    expect(screen.queryByText(/private data/)).toBeNull();
   });
 });

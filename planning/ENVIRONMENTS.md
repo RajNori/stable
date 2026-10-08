@@ -22,6 +22,14 @@ Profiles:
 - preview
 - production
 
+The `preview` build profile selects the EAS `preview` environment and sets
+`EXPO_PUBLIC_APP_ENV=staging`. Configure
+`EXPO_PUBLIC_SUPABASE_URL` and `EXPO_PUBLIC_SUPABASE_PUBLISHABLE_KEY` in that
+EAS environment using the staging project only. Do not put those values in
+`eas.json`; the URL and publishable key must never point to production for an
+internal pilot build. Validate the resulting app configuration before
+distribution.
+
 iOS and Android are MVP targets from the first pilot.
 
 ## Environment validation

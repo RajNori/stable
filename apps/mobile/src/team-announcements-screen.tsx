@@ -26,6 +26,11 @@ const styles = StyleSheet.create({
     fontSize: theme.typeScale.bodyMd.fontSize,
     lineHeight: theme.typeScale.bodyMd.lineHeight,
   },
+  action: {
+    minHeight: 44,
+    minWidth: 44,
+    justifyContent: "center",
+  },
 });
 
 function message(error: unknown): string {
@@ -122,6 +127,7 @@ export function TeamAnnouncementsScreen({
           <Pressable
             accessibilityRole="button"
             accessibilityLabel="Register device"
+            style={styles.action}
             onPress={() => {
               void registerDevice(deviceToken).catch((caught: unknown) => {
                 setActionError(message(caught));
@@ -133,6 +139,7 @@ export function TeamAnnouncementsScreen({
           <Pressable
             accessibilityRole="button"
             accessibilityLabel="Remove device"
+            style={styles.action}
             onPress={() => {
               void removeDevice(deviceToken).catch((caught: unknown) => {
                 setActionError(message(caught));
@@ -144,7 +151,9 @@ export function TeamAnnouncementsScreen({
         </View>
       ) : null}
       {actionError === null ? null : (
-        <Text style={styles.body}>{actionError}</Text>
+        <Text accessibilityRole="alert" style={styles.body}>
+          {actionError}
+        </Text>
       )}
       {announcements.data.length === 0 ? (
         <Text style={styles.body}>No announcements.</Text>
@@ -156,6 +165,7 @@ export function TeamAnnouncementsScreen({
           <Pressable
             accessibilityRole="button"
             accessibilityLabel={`Mark read ${announcement.title}`}
+            style={styles.action}
             onPress={() => {
               void markRead(announcement)
                 .then(async () => {
@@ -176,6 +186,7 @@ export function TeamAnnouncementsScreen({
             <Pressable
               accessibilityRole="button"
               accessibilityLabel={`Acknowledge ${announcement.title}`}
+              style={styles.action}
               onPress={() => {
                 void acknowledge(announcement)
                   .then(async () => {

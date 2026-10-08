@@ -1,0 +1,77 @@
+# Milestone 5 — Pilot Hardening Execution
+
+Status: **Final candidate hardening complete; exact-head reviews and PR CI pending**
+
+Base: `342fea896d44e4224fddfe705f7ea92d0292c933` (frozen Milestone 4)
+
+Branch: `milestone/5-pilot-hardening`
+
+## Objective and scope
+
+Make the existing MVP safe, tested, observable, recoverable, and operationally ready for a small pilot. This is a hardening milestone only. Wave 2 product features, architectural rewrites, and speculative refactors remain out of scope. The frozen M4 coaching boundary remains HEAD_COACH or ASSISTANT_COACH for the exact active team; TEAM_MANAGER, Guardian, and CLUB_ADMIN-only remain denied.
+
+The required release evidence is tracked in [MILESTONE_5_RELEASE_EVIDENCE.md](MILESTONE_5_RELEASE_EVIDENCE.md). Production release remains separately blocked while the accepted dependency exception says `productionStatus: BLOCKED`.
+
+## Immutable start-state verification
+
+Verified before work began:
+
+- `origin/main`, `milestone-4`, `pre-milestone-5`, and `checkpoint/pre-milestone-5` resolve to the frozen M4 SHA above.
+- Initial worktree was clean; execution is on `milestone/5-pilot-hardening`.
+- Node `v24.21.0`; pnpm `12.9.1`.
+- M4 recovery refs were not changed.
+
+## Wave A — read-only release audit
+
+Four reviewers inspected isolated detached worktrees at the frozen base. They made no changes and ran no hosted or destructive operations.
+
+| Workstream | Initial finding | Priority / owner |
+|---|---|---|
+| Critical E2E | No composed guardian invite → auth → child/team → Game Day → RSVP path. No E2E for coach auth → stats → review → next-practice focus → planner. Recovery has component/session tests but no complete recovery journey. | P1 release evidence gap; Web/Mobile E2E owners |
+| Security/privacy/observability | Sentry/PostHog are not connected to app runtimes; capture helpers no-op without a sink. The audit team-attribution issue is closed with target/event context validation and pgTAP mismatch cases. Runtime Sentry wiring was rejected by automatic approval review because it would send telemetry to an externally configured DSN without specific destination authorization. | P1 observability and destination-approval gate; audit metadata fix locally verified; Coordinator |
+| Accessibility/performance | No measured performance baseline or device session. Game Day headers and offline/live announcements are implemented and covered by tests; manual VoiceOver/TalkBack, focus placement, dynamic-text, and touch-target/device review remain open. Browser E2E includes a responsive check. | P1 evidence gates; Web/Mobile QA |
+| Operations/environment/mobile | EAS preview initially hard-coded `https://staging.invalid` and omitted the staging publishable key (repository config now selects the EAS `preview` environment; the actual staging variables still need external verification). Backup/restore runbook and first-pilot synthetic setup/operator procedure are now documented. The local restore rehearsal passed; hosted retention/recovery verification, pilot setup/rehearsal, and TestFlight/Android internal build evidence remain open. | P1 readiness gates; Coordinator + Mobile/Ops |
+
+### External status found during audit
+
+- GitHub confirms the M4 PR's eight required jobs passed on its exact head. Vercel Preview initially failed separately, then the user confirmed the Preview deployment succeeds after correcting its environment configuration.
+- Vercel Preview's root cause was a missing/invalid `NEXT_PUBLIC_APP_ENV`. Preview now uses `NEXT_PUBLIC_APP_ENV=staging` with hosted Supabase URL and publishable-key values. The existing fail-closed environment guard behaved correctly; no application code change was required. Do not point Preview at loopback or change the accepted environment values.
+- GitHub's current reviewed advisory records continue to report no patched versions for the accepted High advisories affecting `node-forge` and `braces`. No override or suppression is justified. If no supported upstream fix appears, production remains NO-GO; pilot and production decisions will be reported separately.
+- Staging project access/configuration, backup retention, Sentry event receipt, and Apple/Google/EAS account/signing state require external evidence. No hosted resource or credential was accessed.
+
+## Remediation ownership and boundaries
+
+The coordinator owns shared contracts, authorization/privacy decisions, SQL migration ordering, generated types, CI, common environment configuration, integration, and release documentation. Independent writers must use isolated worktrees, own disjoint paths, and return changed files, commit SHA, tests, findings, assumptions, and unresolved issues. No implementation begins until this audit is consolidated.
+
+Planned remediation lanes, subject to path and contract review before dispatch:
+
+1. **Mobile runtime / staging configuration:** select EAS `preview` for the internal preview profile and keep staging URL/publishable key in that external environment; verify its values and build target before distribution. Repository config fix is committed; no account or secret was created. Remote values, TestFlight, Android internal build, push setup, and app-owner credentials remain unverified.
+2. **Critical web journeys:** authenticated Playwright passes 24/24 on isolated local Supabase, including email/phone OTP, magic-link/sign-out, stale callback → fresh email-code recovery, invitation safety, Club Admin team/staff/guardian operations, Team Manager fixture/duty/announcement/fill-in workflow, guardian invite → child/team → Game Day → RSVP, active-coach stats → review → next-practice focus → planner, and Team A coach denial of Team B coaching reads/writes. The parameterized Inbucket URL enforces loopback isolation; tests use synthetic identities. Offline locator/snapshot failure and reconnect tests are integrated; `planning/OFFLINE.md` records the frozen read-only/refresh behavior.
+3. **Accessibility and performance evidence:** expose Game Day headers, add app/offline and responsive browser checks, and establish repeatable baseline measurements. Focused mobile and web checks pass; device/manual review and performance measurements remain pending. Optimize only measured bottlenecks.
+4. **Operations evidence:** added backup/restore, production configuration, and first-team operator procedures. A local dump → migration rebuild → public data restore → pgTAP rehearsal passes in two disposable local projects. Hosted backup retention and Storage-object recovery remain staging-owner verification; no hosted restore or mutation occurred.
+5. **Observability:** the shared capture helper emits only a constant exception message and bounded classification. Focused package tests pass 19/19. Sentry remains unwired in app runtimes and no delivery is claimed. Automatic approval review rejected runtime wiring that would send telemetry to a configured external DSN without specific destination approval. Account-owner destination/DSN approval and event receipt remain release gates.
+6. **Audit privacy:** M5 scopes generic M4 lifecycle audit rows to active coaches on the exact active team. The follow-up migration validates supplied teams against addressable targets and opaque game/player context for stats. Full pgTAP tests cover coach allow and admin-only, manager, guardian, revoked, other-team, and deactivated-team denial; both source and restored disposable databases pass 23 files / 917 assertions. A pre-M5 migration-upgrade rehearsal scopes resolvable historical event rows and leaves ambiguous player-only rows unscoped. Concurrent private-note creation now serializes by game/player and passed a two-session local race check. Final independent review remains pending.
+7. **Vercel:** Preview PASS (user-confirmed): its environment now sets `NEXT_PUBLIC_APP_ENV=staging` and hosted Supabase Preview URL/publishable key. The previous build failed because the mode was missing/invalid; the existing guard behaved correctly. No application code change was needed. No Vercel project configuration was changed by this work.
+
+## Independent review remediation
+
+Initial independent reads found actionable P2 issues: audit metadata could be tagged to a caller-supplied wrong team; a slow restore could overwrite a newer callback; the prior account remained visible during callback exchange; and account-switch cleanup retained an offline-context pointer. These are closed with exact target/event team validation, a generation guard, a pending-callback privacy state, and full per-user offline cleanup. A private-note creation race now serializes with a game/player advisory lock. The final exit reviews must cover the exact code/evidence candidate. The mobile auth-gate test timeout changed from 5,000 ms (Jest default) to 15,000 ms; it passed 20/20 while web Vitest ran concurrently. No retry policy, assertion, setup, or expected behavior changed. The increase addresses observed CI runner execution variance, not an observed race; do not increase further without new failure evidence. The Vercel Preview fix remains closed unless it regresses. See `MILESTONE_5_RELEASE_EVIDENCE.md` for local gates and remaining human/device constraints.
+
+## Verification gates
+
+- Preserve Node `24.21.0` and pnpm `12.9.1`.
+- Focused tests for each changed boundary, then repository-equivalent full local gate from `planning/TESTING.md`, including local Supabase safety guard, pgTAP, integration, Playwright/auth, Expo, and Maestro validation.
+- Meet hand-written testable code coverage targets (lines/statements/functions ≥95%, branches ≥90%; critical permission/domain policy branches 100% where meaningful) without lowering thresholds or blanket exclusions. Candidate `0624b8b570868800d04b40e5bbf4cab1f540b51a`: web 98.18% lines / 98.21% statements / 98.95% functions / 92.81% branches (25 files, 127 tests); mobile 95.14% lines / 95.09% statements / 96.41% functions / 92.67% branches (18 suites, 156 tests). Format, lint, typecheck 25/25, and uncached unit gate 47/47 pass. Do not add blanket app UI exclusions.
+- All eight required GitHub Actions checks must pass on the exact PR head: quality, dependency-audit, supabase, web-build, expo, playwright, playwright-auth, maestro.
+- Six independent read-only exit reviews against the final evidence-updated candidate: security/privacy/authorization; database/RLS/migration/concurrency; auth/offline/recovery; accessibility/UX failure states; release/operations/environment; M0–M4 regression. Reviewers must not modify implementation or access hosted services.
+- No merge is authorized by this execution. Report the final candidate and wait for human approval at the merge boundary.
+
+## Unresolved human gates
+
+- Any destructive hosted staging restore, hosted Supabase mutation, production migration/deployment, production submission, credential rotation, account-owner/MFA action, new paid infrastructure, or irreversible remote action.
+- Specific destination approval for Sentry telemetry wiring (blocked by automatic review), staging DSN/event receipt and Supabase identity/backup verification, EAS signing/build distribution and Apple/Google tester/account state.
+- Any change to frozen authorization semantics, child privacy defaults, or acceptance of an actionable Medium or Critical/High security issue.
+
+## Final evidence checklist
+
+Populate [MILESTONE_5_RELEASE_EVIDENCE.md](MILESTONE_5_RELEASE_EVIDENCE.md) with candidate SHA, migration list, full test/coverage/pgTAP counts, critical journeys, accessibility and performance results, offline/auth recovery, security/privacy/audit reviews, Sentry, Vercel, backup/restore, internal builds, advisories, known issues, human gates, separate pilot and production decisions, all eight CI jobs, and final repository state. Do not store secrets or real child data.

@@ -13,14 +13,33 @@
     },
     "preview": {
       "distribution": "internal",
+      "environment": "preview",
       "env": {
-        "EXPO_PUBLIC_APP_ENV": "staging",
-        "EXPO_PUBLIC_SUPABASE_URL": "https://staging.invalid"
+        "EXPO_PUBLIC_APP_ENV": "staging"
       }
     },
     "production": {
       "env": {
         "EXPO_PUBLIC_APP_ENV": "production"
+      }
+    },
+    "testflight": {
+      "extends": "preview",
+      "distribution": "store",
+      "environment": "preview",
+      "env": {
+        "EXPO_PUBLIC_APP_ENV": "staging"
+      }
+    },
+    "play-internal": {
+      "extends": "preview",
+      "distribution": "store",
+      "environment": "preview",
+      "env": {
+        "EXPO_PUBLIC_APP_ENV": "staging"
+      },
+      "android": {
+        "buildType": "app-bundle"
       }
     }
   }

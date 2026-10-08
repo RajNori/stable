@@ -1,4 +1,5 @@
 import { themeFor } from "@stable/design-tokens";
+import { useQueryClient } from "@tanstack/react-query";
 import * as Linking from "expo-linking";
 import React, { useCallback, useMemo } from "react";
 import { SafeAreaView } from "react-native-safe-area-context";
@@ -30,6 +31,7 @@ import { loadMobileTeamSchedule } from "../src/load-mobile-team-schedule";
 import { MobileDestinations } from "../src/mobile-destinations";
 import { expoNetworkMonitor } from "../src/expo-network-monitor";
 import { secureGameDaySnapshotStore } from "../src/game-day-snapshot";
+import { clearStoredOfflineGameDay } from "../src/offline-context";
 import { useMobileOnline } from "../src/mobile-connectivity";
 import { TeamAnnouncementsScreen } from "../src/team-announcements-screen";
 import { TeamGameDayScreen } from "../src/team-game-day-screen";
@@ -41,6 +43,18 @@ const theme = themeFor("mustangs");
 const boot = loadMobileBootEnv();
 
 export default function CurrentClubContextRoute() {
+  const queryClient = useQueryClient();
+  const snapshotStore = useMemo(() => secureGameDaySnapshotStore(), []);
+  const clearPrivateCache = useCallback(
+    async (previousUserId: string | null) => {
+      void queryClient.cancelQueries();
+      queryClient.clear();
+      if (previousUserId !== null) {
+        await clearStoredOfflineGameDay(snapshotStore, previousUserId);
+      }
+    },
+    [queryClient, snapshotStore],
+  );
   const loadContext = useCallback(() => loadMobileCurrentClubContext(), []);
   const actions = useMemo(
     () =>
@@ -52,7 +66,6 @@ export default function CurrentClubContextRoute() {
   );
   const monitor = useMemo(() => expoNetworkMonitor(), []);
   const online = useMobileOnline(monitor);
-  const snapshotStore = useMemo(() => secureGameDaySnapshotStore(), []);
   const linking = useMemo(
     () => ({
       getInitialUrl: () => Linking.getInitialURL(),
@@ -77,6 +90,7 @@ export default function CurrentClubContextRoute() {
         signOut={signOutLiveMobileAuthSession}
         actions={actions}
         linking={linking}
+        clearPrivateCache={clearPrivateCache}
         authenticated={(userId) => (
           <MobileDestinations
             home={<CurrentClubContextScreen loadContext={loadContext} />}

@@ -1,7 +1,9 @@
 import type { AuthSessionSnapshot } from "@stable/contracts";
 import { themeFor } from "@stable/design-tokens";
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import {
+  AccessibilityInfo,
+  findNodeHandle,
   KeyboardAvoidingView,
   Platform,
   Pressable,
@@ -45,6 +47,7 @@ type AuthScreenProps = {
   readonly providerSettings?: AuthProviderSettings;
   readonly onProvider?: (provider: AuthProviderName) => void;
   readonly resendCooldownSeconds?: number;
+  readonly accessibilityFocusTarget?: (heading: Text | null) => number | null;
 };
 
 export function AuthScreen({
@@ -53,6 +56,7 @@ export function AuthScreen({
   providerSettings = frozenAuthProviderSettings(),
   onProvider,
   resendCooldownSeconds = 30,
+  accessibilityFocusTarget = findNodeHandle,
 }: AuthScreenProps) {
   const [step, setStep] = useState<Step>({ kind: "welcome" });
   const [phone, setPhone] = useState("");
@@ -61,6 +65,50 @@ export function AuthScreen({
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [resendIn, setResendIn] = useState(0);
+  const headingRef = useRef<Text>(null);
+  const announcement =
+    session.state === "recovery"
+      ? `Sign-in is paused. ${session.message}`
+      : session.state === "loading" || session.state === "authenticated"
+        ? null
+        : step.kind === "welcome"
+          ? "Know what's next. Show up ready."
+          : step.kind === "phone"
+            ? "Your mobile"
+            : step.kind === "email"
+              ? "Your email"
+              : `Enter the code. Sent to ${step.kind === "phone-otp" ? step.phone : step.email}`;
+
+  useEffect(() => {
+    if (announcement !== null) {
+      AccessibilityInfo.announceForAccessibility(announcement);
+    }
+  }, [announcement]);
+
+  useEffect(() => {
+    if (announcement === null) {
+      return;
+    }
+    let active = true;
+    const screenReaderStatus = AccessibilityInfo.isScreenReaderEnabled?.();
+    if (screenReaderStatus === undefined) {
+      return;
+    }
+    void screenReaderStatus
+      .then((enabled) => {
+        if (!active || !enabled) {
+          return;
+        }
+        const target = accessibilityFocusTarget(headingRef.current);
+        if (target !== null) {
+          AccessibilityInfo.setAccessibilityFocus(target);
+        }
+      })
+      .catch(() => undefined);
+    return () => {
+      active = false;
+    };
+  }, [accessibilityFocusTarget, announcement]);
 
   useEffect(() => {
     if (resendIn <= 0) {
@@ -107,7 +155,11 @@ export function AuthScreen({
     return (
       <View style={styles.screen}>
         <Text style={styles.brand}>The Stable</Text>
-        <Text accessibilityRole="header" style={styles.heading}>
+        <Text
+          ref={headingRef}
+          accessibilityRole="header"
+          style={styles.heading}
+        >
           Sign-in is paused
         </Text>
         <Text accessibilityRole="alert" style={styles.error}>
@@ -140,6 +192,7 @@ export function AuthScreen({
         ) : null}
         {step.kind === "welcome" ? (
           <Welcome
+            headingRef={headingRef}
             providerSettings={providerSettings}
             busy={busy}
             onPhone={() => {
@@ -155,6 +208,7 @@ export function AuthScreen({
         ) : null}
         {step.kind === "phone" ? (
           <Entry
+            headingRef={headingRef}
             title="Your mobile"
             hint="Australian mobiles start with 04."
             label="Mobile number"
@@ -184,6 +238,7 @@ export function AuthScreen({
         ) : null}
         {step.kind === "phone-otp" ? (
           <CodeEntry
+            headingRef={headingRef}
             title="Enter the code"
             sentTo={step.phone}
             changeLabel="Change mobile number"
@@ -214,6 +269,7 @@ export function AuthScreen({
         ) : null}
         {step.kind === "email" ? (
           <Entry
+            headingRef={headingRef}
             title="Your email"
             hint="We'll send a 6-digit code. The same email can also sign you in from its link."
             label="Email address"
@@ -245,6 +301,7 @@ export function AuthScreen({
         ) : null}
         {step.kind === "email-otp" ? (
           <CodeEntry
+            headingRef={headingRef}
             title="Enter the code"
             sentTo={step.email}
             changeLabel="Change email"
@@ -279,12 +336,14 @@ export function AuthScreen({
 }
 
 function Welcome({
+  headingRef,
   providerSettings,
   busy,
   onPhone,
   onEmail,
   onProvider,
 }: {
+  headingRef: React.RefObject<Text | null>;
   providerSettings: AuthProviderSettings;
   busy: boolean;
   onPhone: () => void;
@@ -301,7 +360,7 @@ function Welcome({
   return (
     <View style={styles.stack}>
       <Text style={styles.brand}>The Stable</Text>
-      <Text accessibilityRole="header" style={styles.heading}>
+      <Text ref={headingRef} accessibilityRole="header" style={styles.heading}>
         Know what's next. Show up ready.
       </Text>
       <Text style={styles.body}>
@@ -341,6 +400,7 @@ function Welcome({
 }
 
 function Entry({
+  headingRef,
   title,
   hint,
   label,
@@ -355,6 +415,7 @@ function Entry({
   onBack,
   onSubmit,
 }: {
+  headingRef: React.RefObject<Text | null>;
   title: string;
   hint: string;
   label: string;
@@ -371,7 +432,7 @@ function Entry({
 }) {
   return (
     <View style={styles.stack}>
-      <Text accessibilityRole="header" style={styles.heading}>
+      <Text ref={headingRef} accessibilityRole="header" style={styles.heading}>
         {title}
       </Text>
       <Text style={styles.body}>{hint}</Text>
@@ -404,6 +465,7 @@ function Entry({
 }
 
 function CodeEntry({
+  headingRef,
   title,
   sentTo,
   changeLabel,
@@ -417,6 +479,7 @@ function CodeEntry({
   onResend,
   onSubmit,
 }: {
+  headingRef: React.RefObject<Text | null>;
   title: string;
   sentTo: string;
   changeLabel: string;
@@ -434,7 +497,7 @@ function CodeEntry({
     resendIn > 0 ? `Resend code in ${resendIn}s` : "Resend code";
   return (
     <View style={styles.stack}>
-      <Text accessibilityRole="header" style={styles.heading}>
+      <Text ref={headingRef} accessibilityRole="header" style={styles.heading}>
         {title}
       </Text>
       <Text style={styles.body}>Sent to {sentTo}</Text>

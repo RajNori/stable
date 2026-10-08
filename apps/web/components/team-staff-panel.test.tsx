@@ -40,6 +40,22 @@ describe("team staff panel", () => {
             label: "Local Member",
           },
         ]}
+        invitations={[
+          {
+            id: "dddddddd-dddd-4ddd-8ddd-dddddddddddd",
+            status: "pending",
+            label: "Coach invitation",
+            teamId: "17171717-1717-4717-8717-171717171717",
+          },
+          {
+            id: "eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee",
+            status: "pending",
+            label: "Other team invitation",
+            teamId: "27272727-2727-4727-8727-272727272727",
+          },
+        ]}
+        createInvitation={() => Promise.resolve({})}
+        revokeInvitation={noop}
         assignRole={noop}
         revokeRole={noop}
         reactivateRole={noop}
@@ -53,8 +69,34 @@ describe("team staff panel", () => {
     expect(assigned.textContent).toContain("(revoked)");
     expect(screen.getByRole("button", { name: "Revoke" })).toBeTruthy();
     expect(screen.getByRole("button", { name: "Reactivate" })).toBeTruthy();
+    expect(screen.getByText("Coach invitation pending")).toBeTruthy();
+    expect(screen.queryByText("Other team invitation pending")).toBeNull();
     expect(screen.queryByLabelText("Email")).toBeNull();
     expect(screen.queryByRole("searchbox")).toBeNull();
     expect(document.body.textContent).not.toContain("@");
+  });
+
+  it("fails closed when the team context is missing and shows the load error", () => {
+    render(
+      <TeamStaffPanel
+        clubId="11111111-1111-4111-8111-111111111111"
+        team={null}
+        adults={[]}
+        assignments={[]}
+        assignRole={noop}
+        revokeRole={noop}
+        reactivateRole={noop}
+        error="Team staff could not be loaded."
+      />,
+    );
+
+    expect(screen.getByRole("heading", { name: "Team staff" })).toBeTruthy();
+    expect(screen.getByRole("alert").textContent).toBe(
+      "Team staff could not be loaded.",
+    );
+    expect(screen.queryByRole("button", { name: "Assign role" })).toBeNull();
+    expect(
+      screen.queryByRole("list", { name: "Staff assignments" }),
+    ).toBeNull();
   });
 });

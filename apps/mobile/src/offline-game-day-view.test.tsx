@@ -1,9 +1,24 @@
 import React from "react";
+import { AccessibilityInfo } from "react-native";
 import { render, screen } from "@testing-library/react-native";
 
 import { gameDaySnapshotFromProjection } from "./game-day-snapshot";
 import { OfflineGameDayView } from "./offline-game-day-view";
 import type { GameDayProjection } from "@stable/game-day";
+
+type AccessibilitySpy = {
+  mockImplementation: (
+    implementation: (message: string) => void,
+  ) => AccessibilitySpy;
+  mockRestore: () => void;
+};
+
+declare const jest: {
+  spyOn: (
+    object: typeof AccessibilityInfo,
+    method: "announceForAccessibility",
+  ) => AccessibilitySpy;
+};
 
 const projection: GameDayProjection = {
   eventId: "55555555-5555-4555-8555-555555555555",
@@ -29,6 +44,12 @@ const projection: GameDayProjection = {
 
 describe("offline game day view", () => {
   it("shows the saved time and disables writes", async () => {
+    const announcements: string[] = [];
+    const announce = jest
+      .spyOn(AccessibilityInfo, "announceForAccessibility")
+      .mockImplementation((message) => {
+        announcements.push(message);
+      });
     const snapshot = gameDaySnapshotFromProjection({
       userId: "19191919-1919-4919-8919-191919191919",
       teamName: "U14 Boys",
@@ -42,10 +63,15 @@ describe("offline game day view", () => {
       />,
     );
     expect(
-      screen.getByText("Offline · Last updated 2026-10-07T01:00:00.000Z"),
+      screen.getByText("Offline · Last updated 2026-10-07T01:00:00.000Z").props
+        .accessibilityLiveRegion,
+    ).toBe("polite");
+    expect(
+      screen.getByText("This snapshot is stale.").props.accessibilityLiveRegion,
+    ).toBe("polite");
+    expect(
+      screen.getByRole("header", { name: "U14 Boys: Visitors" }),
     ).toBeTruthy();
-    expect(screen.getByText("This snapshot is stale.")).toBeTruthy();
-    expect(screen.getByText("U14 Boys: Visitors")).toBeTruthy();
     expect(
       screen.getByText(
         "Reconnect to update RSVP, attendance, fixtures, duties, or check-in.",
@@ -55,5 +81,11 @@ describe("offline game day view", () => {
       disabled: true,
     });
     expect(screen.queryByText(/Fever/)).toBeNull();
+    expect(
+      announcements.includes(
+        "Offline. Last updated 2026-10-07T01:00:00.000Z. This snapshot is stale.",
+      ),
+    ).toBe(true);
+    announce.mockRestore();
   });
 });

@@ -146,4 +146,71 @@ describe("post-game review panel", () => {
       screen.getByRole("textbox", { name: "Taylor S. private coaching note" }),
     ).toBeTruthy();
   });
+
+  it("renders a completed review and historical recognition without edit controls", () => {
+    render(
+      <PostGameReviewPanel
+        review={{
+          ...review,
+          completedAt: "2026-10-07T00:00:00.000Z",
+          recognitions: [
+            {
+              playerId: "77777777-7777-4777-8777-777777777777",
+              category: "HUSTLE",
+              note: null,
+            },
+          ],
+        }}
+        players={[player]}
+        privateNotes={new Map()}
+        canWrite={false}
+        canWritePrivateNotes={false}
+        saveReviewAction={noop}
+        saveRecognitionAction={noop}
+        removeRecognitionAction={noop}
+        savePrivateNoteAction={noop}
+      />,
+    );
+
+    expect(screen.getByText("Completed 2026-10-07T00:00:00.000Z")).toBeTruthy();
+    expect(screen.getByText("Player: Hustle")).toBeTruthy();
+    expect(screen.queryByRole("button", { name: /Remove/ })).toBeNull();
+    expect(
+      screen.getByText(
+        "Private notes are available to active coaches for this team.",
+      ),
+    ).toBeTruthy();
+  });
+
+  it("shows a recognized player's optional staff note and coach removal action", () => {
+    render(
+      <PostGameReviewPanel
+        review={{
+          ...review,
+          recognitions: [
+            {
+              playerId: player.playerId,
+              category: "TEAMWORK",
+              note: "Helped every teammate.",
+            },
+          ],
+        }}
+        players={[player]}
+        privateNotes={new Map()}
+        canWrite
+        canWritePrivateNotes={false}
+        saveReviewAction={noop}
+        saveRecognitionAction={noop}
+        removeRecognitionAction={noop}
+        savePrivateNoteAction={noop}
+      />,
+    );
+
+    expect(
+      screen.getByText("Jordan R.: Teamwork — Helped every teammate."),
+    ).toBeTruthy();
+    expect(
+      screen.getByRole("button", { name: "Remove Teamwork recognition" }),
+    ).toBeTruthy();
+  });
 });
