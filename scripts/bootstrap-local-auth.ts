@@ -22,9 +22,11 @@ import {
 const CLUB_ID = "11111111-1111-4111-8111-111111111111";
 const MEMBER_ID = "22222222-2222-4222-8222-222222222222";
 const OUTSIDER_ID = "33333333-3333-4333-8333-333333333333";
+const GUARDIAN_ID = "55555555-5555-4555-8555-555555555555";
 const MEMBERSHIP_ID = "44444444-4444-4444-8444-444444444444";
 const MEMBER_EMAIL = "member@local.stable.test";
 const OUTSIDER_EMAIL = "outsider@local.stable.test";
+const GUARDIAN_EMAIL = "guardian@local.stable.test";
 const LOCAL_PASSWORD = "local-dev-password";
 
 type JsonRecord = Record<string, unknown>;
@@ -326,6 +328,7 @@ async function main(): Promise<void> {
 
   await ensureLoginUser(url, secret, MEMBER_ID, MEMBER_EMAIL);
   await ensureLoginUser(url, secret, OUTSIDER_ID, OUTSIDER_EMAIL);
+  await ensureLoginUser(url, secret, GUARDIAN_ID, GUARDIAN_EMAIL);
 
   await upsertRow(url, secret, "profiles", "user_id", {
     user_id: MEMBER_ID,
@@ -343,6 +346,14 @@ async function main(): Promise<void> {
     email: OUTSIDER_EMAIL,
     locale: "en-AU",
   });
+  await upsertRow(url, secret, "profiles", "user_id", {
+    user_id: GUARDIAN_ID,
+    display_name: "Local Guardian",
+    first_name: "Local",
+    last_name: "Guardian",
+    email: GUARDIAN_EMAIL,
+    locale: "en-AU",
+  });
   await upsertRow(url, secret, "club_memberships", "id", {
     id: MEMBERSHIP_ID,
     club_id: CLUB_ID,
@@ -354,6 +365,7 @@ async function main(): Promise<void> {
   console.log("bootstrapped local auth users");
   console.log(`member ${MEMBER_ID} ${MEMBER_EMAIL}`);
   console.log(`outsider ${OUTSIDER_ID} ${OUTSIDER_EMAIL}`);
+  console.log(`guardian ${GUARDIAN_ID} ${GUARDIAN_EMAIL}`);
   console.log("club membership CLUB_ADMIN for member only");
 }
 
