@@ -1,6 +1,6 @@
 # Milestone 5 — Pilot Hardening Execution
 
-Status: **Remediation underway**
+Status: **Final candidate hardening and exit review in progress**
 
 Base: `342fea896d44e4224fddfe705f7ea92d0292c933` (frozen Milestone 4)
 
@@ -55,7 +55,7 @@ Planned remediation lanes, subject to path and contract review before dispatch:
 
 ## Independent review remediation
 
-Initial independent reads found actionable P2 issues: audit metadata remained visible after team deactivation; mobile React Query and SecureStore data was not cleared on identity change; mobile announcement actions lacked 44-point targets and screen-reader error announcements; web and mobile sign-in step changes lacked accessible transitions; and iOS VoiceOver had no offline/stale status announcement. The audit-backfill concern was withdrawn after the database trigger path was confirmed. All six read-only review domains completed on reviewed code/evidence candidate `b5fe7126941b54f8fbe81401cbb8edc45c24e746`. No product behavior or security/domain source changed since that review. Later changes update release evidence and allow one CI-slow mobile Jest test more than the default five seconds; its test-only timeout and ambient Jest declaration passed all local checks and the exact-head CI run. Final SHA confirmations on `ff8089f6a53ad402d0ada4d2ed77126aa4327e3e` found no changed contract or evidence claims. No P1/P2 findings remain. An on-device storage-hygiene P3 and physical VoiceOver/TalkBack validation remain. No physical-device accessibility result is claimed.
+Initial independent reads found actionable P2 issues: audit metadata remained visible after team deactivation; mobile React Query and SecureStore data was not cleared on identity change; mobile announcement actions lacked 44-point targets and screen-reader error announcements; web and mobile sign-in step changes lacked accessible transitions; and iOS VoiceOver had no offline/stale status announcement. The audit-backfill concern was withdrawn after the database trigger path was confirmed. Six read-only review domains completed on earlier integrated M5 candidates. The final exit reviews must recheck the exact current candidate because it adds mobile offline reconnect and web Auth recovery E2E coverage and refreshes release evidence. No production source, database, policy, or authorization behavior changed in this final delta. The mobile auth-gate test's Jest timeout changed from the default 5,000 ms to 15,000 ms; 20 sequential runs passed while web Vitest ran concurrently, and no retry policy, assertion, setup, or behavior changed. The evidence and residual P3/device limitations are recorded in `MILESTONE_5_RELEASE_EVIDENCE.md`.
 
 ## Verification gates
 

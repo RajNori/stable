@@ -28,6 +28,40 @@ test("a rejected callback can recover through a fresh email code", async ({
   expect(page.url()).not.toContain("stale-local-callback-code");
 });
 
+test("a transient auth network failure can recover through explicit retry", async ({
+  page,
+}) => {
+  const email = `auth-network-${crypto.randomUUID()}@local.stable.test`;
+  let otpRequests = 0;
+  await page.route("**/auth/v1/otp**", async (route) => {
+    otpRequests += 1;
+    if (otpRequests === 1) {
+      await route.abort("failed");
+      return;
+    }
+    await route.continue();
+  });
+
+  await page.goto("/");
+  await page.getByRole("button", { name: "Continue with email" }).click();
+  await page.getByLabel("Email address").fill(email);
+  await page.getByRole("button", { name: "Send code" }).click();
+  await expect(
+    page.getByText("Sign-in is unavailable right now."),
+  ).toBeVisible();
+  await expect(page.getByLabel("Email address")).toHaveValue(email);
+  expect(page.url()).not.toContain(email);
+  await expect(page.getByTestId("club-admin-frame")).toHaveCount(0);
+
+  await page.getByRole("button", { name: "Send code" }).click();
+  await expect(page.getByLabel("6-digit code")).toBeVisible();
+  await page.getByLabel("6-digit code").fill(await emailCode(email));
+  await page.getByRole("button", { name: "Continue" }).click();
+
+  await expect(page.getByTestId("club-admin-frame")).toBeVisible();
+  expect(otpRequests).toBe(2);
+});
+
 function localInbucketUrl(): string {
   const value = process.env.LOCAL_INBUCKET_URL ?? "http://127.0.0.1:54324";
   const url = new URL(value);

@@ -52,6 +52,13 @@ test("magic link returns to the app without exposing the code", async ({
   page,
 }) => {
   const email = `auth-link-${Date.now()}@local.stable.test`;
+  let consumedCallback: string | null = null;
+  page.on("request", (request) => {
+    const url = new URL(request.url());
+    if (url.pathname === "/auth/callback" && url.searchParams.has("code")) {
+      consumedCallback = url.href;
+    }
+  });
   await clearLocalMail();
   await wait(1_200);
   await openEmail(page, email);
@@ -61,6 +68,14 @@ test("magic link returns to the app without exposing the code", async ({
   await expect(page).toHaveURL(/^http:\/\/127\.0\.0\.1:3000\/?$/);
   await expect(page.getByTestId("club-admin-frame")).toBeVisible();
   expect(page.url().includes("access_token")).toBe(false);
+  expect(page.url().includes("code=")).toBe(false);
+
+  if (consumedCallback === null) {
+    throw new Error("The magic link did not visit the app callback route.");
+  }
+  await page.goto(consumedCallback);
+  await expect(page).toHaveURL(/\/?auth=validation$/u);
+  await expect(page.getByTestId("club-admin-frame")).toBeVisible();
   expect(page.url().includes("code=")).toBe(false);
 });
 

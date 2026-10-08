@@ -211,6 +211,87 @@ describe("team game day screen", () => {
     expect(writes).toEqual([]);
   });
 
+  it("keeps the stale snapshot read-only until reconnect refresh succeeds", async () => {
+    const store = memoryGameDaySnapshotStore();
+    const client = new QueryClient({
+      defaultOptions: { queries: { retry: false, gcTime: 0 } },
+    });
+    await persistOfflineGameDay(
+      store,
+      gameDaySnapshotFromProjection({
+        userId: context.userId,
+        teamName: "U14 Boys",
+        projection,
+        savedAt: "2026-10-07T01:00:00.000Z",
+      }),
+    );
+
+    let contextCalls = 0;
+    let gameDayCalls = 0;
+    let resolveRefresh: ((value: GameDayProjection) => void) | undefined;
+    const refreshedProjection = { ...projection, opponentName: "Updated" };
+    const { rerender } = await render(
+      screenTree({
+        client,
+        store,
+        localUserId: context.userId,
+        online: false,
+        now: Date.parse("2026-10-07T08:00:00.000Z"),
+        loadContext: async () => {
+          contextCalls += 1;
+          return context;
+        },
+        loadGameDay: async () => {
+          gameDayCalls += 1;
+          return await new Promise<GameDayProjection>((resolve) => {
+            resolveRefresh = resolve;
+          });
+        },
+      }),
+    );
+
+    expect(await screen.findByText("U14 Boys: Visitors")).toBeTruthy();
+    expect(contextCalls).toBe(0);
+    expect(gameDayCalls).toBe(0);
+
+    await rerender(
+      screenTree({
+        client,
+        store,
+        localUserId: context.userId,
+        online: true,
+        now: Date.parse("2026-10-07T08:00:00.000Z"),
+        loadContext: async () => {
+          contextCalls += 1;
+          return context;
+        },
+        loadGameDay: async () => {
+          gameDayCalls += 1;
+          return await new Promise<GameDayProjection>((resolve) => {
+            resolveRefresh = resolve;
+          });
+        },
+      }),
+    );
+
+    await waitFor(() => expect(gameDayCalls).toBe(1));
+    expect(contextCalls).toBe(1);
+    expect(screen.getByText("U14 Boys: Visitors")).toBeTruthy();
+    expect(screen.getByText("This snapshot is stale.")).toBeTruthy();
+    expect(screen.getByText("Save RSVP").props.accessibilityState).toEqual({
+      disabled: true,
+    });
+
+    resolveRefresh?.(refreshedProjection);
+    expect(
+      await screen.findByRole("header", { name: "Round 1: Updated" }),
+    ).toBeTruthy();
+    expect(screen.queryByText("U14 Boys: Visitors")).toBeNull();
+    expect(
+      await readGameDaySnapshot(store, context.userId, teamId),
+    ).toMatchObject({ opponentName: "Updated" });
+  });
+
   it("does not show a snapshot when there is no local session", async () => {
     const store = memoryGameDaySnapshotStore();
     await persistOfflineGameDay(
