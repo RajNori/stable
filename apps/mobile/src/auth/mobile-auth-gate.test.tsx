@@ -10,7 +10,7 @@ import {
   waitFor,
 } from "@testing-library/react-native";
 import React from "react";
-import { Text } from "react-native";
+import { AccessibilityInfo, Text } from "react-native";
 
 import { memoryGameDaySnapshotStore } from "../game-day-snapshot";
 import {
@@ -25,6 +25,14 @@ declare const jest: {
   fn: <T extends (...args: never[]) => unknown>(
     implementation: T,
   ) => T & { mock: { calls: unknown[][] } };
+  spyOn: (
+    object: typeof AccessibilityInfo,
+    method: "announceForAccessibility",
+  ) => {
+    mockImplementation: (implementation: (message: string) => void) => unknown;
+    mockRestore: () => void;
+    mock: { calls: unknown[][] };
+  };
 };
 
 const userId = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
@@ -398,6 +406,8 @@ describe("mobile auth gate", () => {
 
   it("hides the previous account while an account-switch callback is pending", async () => {
     let receive: ((url: string) => void) | undefined;
+    const announce = jest.spyOn(AccessibilityInfo, "announceForAccessibility");
+    announce.mockImplementation(() => undefined);
     let resolveCallback: ((snapshot: AuthSessionSnapshot) => void) | undefined;
     const callback = new Promise<AuthSessionSnapshot>((resolve) => {
       resolveCallback = resolve;
@@ -425,6 +435,9 @@ describe("mobile auth gate", () => {
     expect(await screen.findByText(`Signed in as ${userId}`)).toBeTruthy();
     receive?.("stable://auth/callback?code=account-b");
     expect(await screen.findByText("Completing sign-in…")).toBeTruthy();
+    expect(
+      announce.mock.calls.some(([message]) => message === "Completing sign-in"),
+    ).toBe(true);
     expect(screen.queryByText(`Signed in as ${userId}`)).toBeNull();
 
     await act(async () => {
@@ -435,6 +448,7 @@ describe("mobile auth gate", () => {
     expect(
       await screen.findByText(`Signed in as ${secondUserId}`),
     ).toBeTruthy();
+    announce.mockRestore();
   });
 
   it("clears stale callback pending state when email OTP completes first", async () => {

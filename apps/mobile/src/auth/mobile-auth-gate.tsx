@@ -6,7 +6,13 @@ import {
 } from "@stable/contracts";
 import { themeFor } from "@stable/design-tokens";
 import React, { useEffect, useState } from "react";
-import { Pressable, StyleSheet, Text, View } from "react-native";
+import {
+  AccessibilityInfo,
+  Pressable,
+  StyleSheet,
+  Text,
+  View,
+} from "react-native";
 
 import { AuthScreen } from "./auth-screen";
 
@@ -80,6 +86,12 @@ export function MobileAuthGate({
     },
     [clearPrivateCache],
   );
+
+  useEffect(() => {
+    if (callbackPending && session.state === "authenticated") {
+      AccessibilityInfo.announceForAccessibility("Completing sign-in");
+    }
+  }, [callbackPending, session.state]);
 
   useEffect(() => {
     let active = true;
@@ -157,9 +169,7 @@ export function MobileAuthGate({
     if (callbackPending) {
       return (
         <View style={styles.app}>
-          <Text accessibilityRole="text" accessibilityLiveRegion="polite">
-            Completing sign-in…
-          </Text>
+          <Text accessibilityRole="text">Completing sign-in…</Text>
         </View>
       );
     }
