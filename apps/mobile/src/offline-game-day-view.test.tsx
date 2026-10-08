@@ -42,9 +42,12 @@ describe("offline game day view", () => {
       />,
     );
     expect(
-      screen.getByText("Offline · Last updated 2026-10-07T01:00:00.000Z"),
-    ).toBeTruthy();
-    expect(screen.getByText("This snapshot is stale.")).toBeTruthy();
+      screen.getByText("Offline · Last updated 2026-10-07T01:00:00.000Z").props
+        .accessibilityLiveRegion,
+    ).toBe("polite");
+    expect(
+      screen.getByText("This snapshot is stale.").props.accessibilityLiveRegion,
+    ).toBe("polite");
     expect(
       screen.getByRole("header", { name: "U14 Boys: Visitors" }),
     ).toBeTruthy();

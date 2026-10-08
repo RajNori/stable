@@ -47,9 +47,13 @@ export function OfflineGameDayView({
       <Text accessibilityRole="header" style={styles.title}>
         {snapshot.teamName}: {snapshot.opponentName}
       </Text>
-      <Text style={styles.body}>Offline · Last updated {snapshot.savedAt}</Text>
+      <Text accessibilityLiveRegion="polite" style={styles.body}>
+        Offline · Last updated {snapshot.savedAt}
+      </Text>
       {freshness === "stale" ? (
-        <Text style={styles.body}>This snapshot is stale.</Text>
+        <Text accessibilityLiveRegion="polite" style={styles.body}>
+          This snapshot is stale.
+        </Text>
       ) : null}
       <Text style={styles.body}>RSVP {snapshot.ownRsvp}</Text>
       <Text style={styles.body}>Duty {snapshot.ownDutyLabel ?? "None"}</Text>

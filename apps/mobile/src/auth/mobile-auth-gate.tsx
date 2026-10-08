@@ -11,6 +11,7 @@ import { Pressable, StyleSheet, Text, View } from "react-native";
 import { AuthScreen } from "./auth-screen";
 
 const theme = themeFor("mustangs");
+const noopClearPrivateCache = (): void => undefined;
 
 export type MobileLinking = {
   getInitialUrl: () => Promise<string | null>;
@@ -30,6 +31,7 @@ type MobileAuthGateProps = {
   readonly signOut: () => Promise<AuthSessionSnapshot>;
   readonly actions: GateActions;
   readonly linking?: MobileLinking;
+  readonly clearPrivateCache?: () => void;
   readonly authenticated: (userId: string) => React.ReactNode;
 };
 
@@ -38,29 +40,43 @@ export function MobileAuthGate({
   signOut,
   actions,
   linking,
+  clearPrivateCache = noopClearPrivateCache,
   authenticated,
 }: MobileAuthGateProps) {
   const [session, setSession] = useState<AuthSessionSnapshot>({
     state: "loading",
   });
+  const sessionUserId = React.useRef<string | null>(null);
+  const updateSession = React.useCallback(
+    (next: AuthSessionSnapshot) => {
+      const nextUserId =
+        next.state === "authenticated" ? next.principal.userId : null;
+      if (sessionUserId.current !== nextUserId) {
+        clearPrivateCache();
+        sessionUserId.current = nextUserId;
+      }
+      setSession(next);
+    },
+    [clearPrivateCache],
+  );
 
   useEffect(() => {
     let active = true;
     restore()
       .then((next) => {
         if (active) {
-          setSession(next);
+          updateSession(next);
         }
       })
       .catch((error: unknown) => {
         if (active) {
-          setSession(recoverySnapshot(error));
+          updateSession(recoverySnapshot(error));
         }
       });
     return () => {
       active = false;
     };
-  }, [restore]);
+  }, [restore, updateSession]);
 
   useEffect(() => {
     if (linking === undefined) {
@@ -75,12 +91,12 @@ export function MobileAuthGate({
         .completeCallback(url)
         .then((next) => {
           if (active) {
-            setSession(next);
+            updateSession(next);
           }
         })
         .catch((error: unknown) => {
           if (active) {
-            setSession(recoverySnapshot(error));
+            updateSession(recoverySnapshot(error));
           }
         });
     };
@@ -93,7 +109,7 @@ export function MobileAuthGate({
       })
       .catch((error: unknown) => {
         if (active) {
-          setSession(recoverySnapshot(error));
+          updateSession(recoverySnapshot(error));
         }
       });
     const unsubscribe = linking.subscribe(accept);
@@ -101,7 +117,7 @@ export function MobileAuthGate({
       active = false;
       unsubscribe();
     };
-  }, [actions, linking]);
+  }, [actions, linking, updateSession]);
 
   if (session.state === "authenticated") {
     return (
@@ -111,9 +127,9 @@ export function MobileAuthGate({
           accessibilityLabel="Sign out"
           onPress={() => {
             void signOut()
-              .then(setSession)
+              .then(updateSession)
               .catch((error: unknown) => {
-                setSession(recoverySnapshot(error));
+                updateSession(recoverySnapshot(error));
               });
           }}
           style={styles.signOut}
@@ -132,14 +148,14 @@ export function MobileAuthGate({
         actions={{
           requestPhone: actions.requestPhone,
           verifyPhone: async (phone, token) => {
-            setSession(await actions.verifyPhone(phone, token));
+            updateSession(await actions.verifyPhone(phone, token));
           },
           requestEmail: actions.requestEmail,
           verifyEmail: async (email, token) => {
-            setSession(await actions.verifyEmail(email, token));
+            updateSession(await actions.verifyEmail(email, token));
           },
           retry: async () => {
-            setSession(await restore());
+            updateSession(await restore());
           },
         }}
       />

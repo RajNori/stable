@@ -145,6 +145,8 @@ describe("club sign-in", () => {
     fireEvent.click(
       screen.getByRole("button", { name: "Continue with mobile" }),
     );
+    const mobileInput = screen.getByLabelText("Mobile number");
+    expect(document.activeElement).toBe(mobileInput);
     fireEvent.change(screen.getByLabelText("Mobile number"), {
       target: { value: "0412345678" },
     });
@@ -152,7 +154,9 @@ describe("club sign-in", () => {
       (screen.getByLabelText("Mobile number") as HTMLInputElement).value,
     ).toBe("0412 345 678");
     fireEvent.click(screen.getByRole("button", { name: "Continue" }));
-    fireEvent.change(await screen.findByLabelText("6-digit code"), {
+    const codeInput = await screen.findByLabelText("6-digit code");
+    expect(document.activeElement).toBe(codeInput);
+    fireEvent.change(codeInput, {
       target: { value: "12 34 56" },
     });
     fireEvent.click(screen.getByRole("button", { name: "Continue" }));

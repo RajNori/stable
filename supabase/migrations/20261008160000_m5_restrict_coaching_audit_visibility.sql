@@ -171,6 +171,13 @@ create policy audit_events_select_active_member
       and team_id is not null
       and exists (
         select 1
+        from public.teams as audited_team
+        where audited_team.id = audit_events.team_id
+          and audited_team.club_id = audit_events.club_id
+          and audited_team.active
+      )
+      and exists (
+        select 1
         from public.team_memberships as coach_membership
         where coach_membership.team_id = audit_events.team_id
           and coach_membership.club_id = audit_events.club_id

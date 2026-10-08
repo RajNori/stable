@@ -200,6 +200,16 @@ select is(pg_temp.sqlerrm_of($$select * from public.read_game_player_stat_histor
 select is((select count(*) from public.audit_events where action='game_player_stats.corrected'),0::bigint,'revoked coach loses M4 stats audit metadata access immediately');
 reset role;
 
+update public.team_memberships set active=true
+where user_id='71410000-0000-4000-8000-000000000003'
+  and team_id='71410000-0000-4000-8000-000000000012';
+update public.teams set active=false
+where id='71410000-0000-4000-8000-000000000012';
+do $$ begin perform pg_temp.assume_user('71410000-0000-4000-8000-000000000003'); end $$;
+set local role authenticated;
+select is((select count(*) from public.audit_events where action='game_player_stats.corrected'),0::bigint,'coach cannot read M4 audit metadata after the assigned team is deactivated');
+reset role;
+
 select is((select action from public.audit_events where action='game.result_saved' and target_id='71410000-0000-4000-8000-000000000030'),'game.result_saved','score save has opaque generic audit target');
 select is((select count(*) from public.audit_events where action='game_player_stats.corrected' and target_id='71410000-0000-4000-8000-000000000020' and team_id='71410000-0000-4000-8000-000000000012'),1::bigint,'correction audit references an opaque player id and the exact game team');
 select is((select count(*) from public.audit_events where action='game_player_stats.corrected' and team_id is null),0::bigint,'new correction audit rows cannot omit team scope');

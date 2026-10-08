@@ -204,14 +204,21 @@ describe("team announcements", () => {
     );
     const user = userEvent.setup();
 
-    await user.press(
-      await screen.findByRole("button", { name: "Mark read Bring water" }),
-    );
+    const markReadButton = await screen.findByRole("button", {
+      name: "Mark read Bring water",
+    });
+    expect(markReadButton.props.style).toMatchObject({
+      minHeight: 44,
+      minWidth: 44,
+    });
+    await user.press(markReadButton);
+    expect(await screen.findByRole("alert")).toBeTruthy();
     expect(await screen.findByText("Cannot mark read")).toBeTruthy();
 
     await user.press(
       await screen.findByRole("button", { name: "Acknowledge Bring water" }),
     );
+    expect(await screen.findByRole("alert")).toBeTruthy();
     expect(
       await screen.findByText(announcementMessages.readFailed),
     ).toBeTruthy();

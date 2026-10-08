@@ -2,7 +2,13 @@
 
 import type { AuthSessionSnapshot } from "@stable/contracts";
 import { themeFor } from "@stable/design-tokens";
-import { useEffect, useState, type CSSProperties, type FormEvent } from "react";
+import {
+  useEffect,
+  useRef,
+  useState,
+  type CSSProperties,
+  type FormEvent,
+} from "react";
 
 import { formatAustralianMobileInput } from "../lib/format-au-mobile";
 import {
@@ -53,6 +59,8 @@ export function ClubSignIn({
   const [error, setError] = useState<string | null>(notice);
   const [busy, setBusy] = useState(false);
   const [resendIn, setResendIn] = useState(0);
+  const welcomeHeadingRef = useRef<HTMLHeadingElement>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     setError(notice);
@@ -69,6 +77,14 @@ export function ClubSignIn({
       clearTimeout(timer);
     };
   }, [resendIn]);
+
+  useEffect(() => {
+    if (step.kind === "welcome") {
+      welcomeHeadingRef.current?.focus();
+    } else {
+      inputRef.current?.focus();
+    }
+  }, [step.kind]);
 
   if (session.state === "authenticated") {
     return null;
@@ -256,7 +272,9 @@ export function ClubSignIn({
             ) : null}
             {step.kind === "welcome" ? (
               <>
-                <h2>Sign in</h2>
+                <h2 ref={welcomeHeadingRef} tabIndex={-1}>
+                  Sign in
+                </h2>
                 <button
                   className="club-sign-in-primary"
                   type="button"
@@ -308,6 +326,7 @@ export function ClubSignIn({
             {step.kind === "phone" ? (
               <Field
                 label="Mobile number"
+                inputRef={inputRef}
                 value={phone}
                 inputMode="tel"
                 autoComplete="tel"
@@ -325,6 +344,7 @@ export function ClubSignIn({
             {step.kind === "email" ? (
               <Field
                 label="Email address"
+                inputRef={inputRef}
                 value={email}
                 inputMode="email"
                 autoComplete="email"
@@ -343,6 +363,7 @@ export function ClubSignIn({
             {step.kind === "phone-otp" || step.kind === "email-otp" ? (
               <CodeField
                 sentTo={step.kind === "phone-otp" ? step.phone : step.email}
+                inputRef={inputRef}
                 code={code}
                 busy={busy}
                 resendIn={resendIn}
@@ -424,6 +445,7 @@ export function ClubSignIn({
 
 function Field({
   label,
+  inputRef,
   value,
   inputMode,
   autoComplete,
@@ -434,6 +456,7 @@ function Field({
   onBack,
 }: {
   label: string;
+  inputRef: React.RefObject<HTMLInputElement | null>;
   value: string;
   inputMode: "tel" | "email";
   autoComplete: string;
@@ -448,6 +471,7 @@ function Field({
       <label>
         {label}
         <input
+          ref={inputRef}
           value={value}
           inputMode={inputMode}
           autoComplete={autoComplete}
@@ -469,6 +493,7 @@ function Field({
 
 function CodeField({
   sentTo,
+  inputRef,
   code,
   busy,
   resendIn,
@@ -478,6 +503,7 @@ function CodeField({
   onResend,
 }: {
   sentTo: string;
+  inputRef: React.RefObject<HTMLInputElement | null>;
   code: string;
   busy: boolean;
   resendIn: number;
@@ -494,6 +520,7 @@ function CodeField({
       <label>
         6-digit code
         <input
+          ref={inputRef}
           className="club-sign-in-code"
           value={code}
           inputMode="numeric"

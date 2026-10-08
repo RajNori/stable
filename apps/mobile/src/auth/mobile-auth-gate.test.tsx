@@ -1,5 +1,6 @@
 import { ApplicationError, AUTH_ERROR_MESSAGES } from "@stable/contracts";
 import type { AuthSessionSnapshot } from "@stable/contracts";
+import { QueryClient } from "@tanstack/react-query";
 import {
   render,
   screen,
@@ -22,6 +23,11 @@ const userId = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
 const authenticated = {
   state: "authenticated",
   principal: { userId },
+} as const satisfies AuthSessionSnapshot;
+const secondUserId = "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb";
+const secondAuthenticated = {
+  state: "authenticated",
+  principal: { userId: secondUserId },
 } as const satisfies AuthSessionSnapshot;
 
 describe("mobile auth gate", () => {
@@ -66,6 +72,60 @@ describe("mobile auth gate", () => {
       await screen.findByText("Know what's next. Show up ready."),
     ).toBeTruthy();
     expect(scopes).toEqual(["local"]);
+  });
+
+  it("clears private cached data on sign-out and account switch", async () => {
+    let receive: ((url: string) => void) | undefined;
+    const queryClient = new QueryClient();
+    const clearPrivateCache = jest.fn(() => {
+      void queryClient.cancelQueries();
+      queryClient.clear();
+    });
+    await render(
+      <MobileAuthGate
+        restore={async () => authenticated}
+        signOut={async () => ({ state: "unauthenticated" })}
+        actions={idleActions({
+          async completeCallback() {
+            return secondAuthenticated;
+          },
+        })}
+        clearPrivateCache={clearPrivateCache}
+        linking={{
+          async getInitialUrl() {
+            return null;
+          },
+          subscribe(listener) {
+            receive = listener;
+            return () => {
+              receive = undefined;
+            };
+          },
+        }}
+        authenticated={(id) => <Text>Signed in as {id}</Text>}
+      />,
+    );
+
+    expect(await screen.findByText(`Signed in as ${userId}`)).toBeTruthy();
+    queryClient.setQueryData(["current-club-context"], {
+      displayName: "first account private club",
+    });
+    queryClient.setQueryData(["team-roster", "first-team"], ["private roster"]);
+    receive?.("stable://auth/callback?code=account-switch");
+    expect(
+      await screen.findByText(`Signed in as ${secondUserId}`),
+    ).toBeTruthy();
+    expect(queryClient.getQueryCache().getAll()).toEqual([]);
+
+    queryClient.setQueryData(["current-club-context"], {
+      displayName: "second account private club",
+    });
+    await userEvent.press(screen.getByLabelText("Sign out"));
+    expect(
+      await screen.findByText("Know what's next. Show up ready."),
+    ).toBeTruthy();
+    expect(queryClient.getQueryCache().getAll()).toEqual([]);
+    expect(clearPrivateCache.mock.calls.length).toBeGreaterThanOrEqual(3);
   });
 
   it("shows expired and recovery without pretending the adult signed out", async () => {

@@ -1,4 +1,5 @@
 import { themeFor } from "@stable/design-tokens";
+import { useQueryClient } from "@tanstack/react-query";
 import * as Linking from "expo-linking";
 import React, { useCallback, useMemo } from "react";
 import { SafeAreaView } from "react-native-safe-area-context";
@@ -41,6 +42,11 @@ const theme = themeFor("mustangs");
 const boot = loadMobileBootEnv();
 
 export default function CurrentClubContextRoute() {
+  const queryClient = useQueryClient();
+  const clearPrivateCache = useCallback(() => {
+    void queryClient.cancelQueries();
+    queryClient.clear();
+  }, [queryClient]);
   const loadContext = useCallback(() => loadMobileCurrentClubContext(), []);
   const actions = useMemo(
     () =>
@@ -77,6 +83,7 @@ export default function CurrentClubContextRoute() {
         signOut={signOutLiveMobileAuthSession}
         actions={actions}
         linking={linking}
+        clearPrivateCache={clearPrivateCache}
         authenticated={(userId) => (
           <MobileDestinations
             home={<CurrentClubContextScreen loadContext={loadContext} />}
