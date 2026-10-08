@@ -13,9 +13,9 @@
     },
     "preview": {
       "distribution": "internal",
+      "environment": "preview",
       "env": {
-        "EXPO_PUBLIC_APP_ENV": "staging",
-        "EXPO_PUBLIC_SUPABASE_URL": "https://staging.invalid"
+        "EXPO_PUBLIC_APP_ENV": "staging"
       }
     },
     "production": {

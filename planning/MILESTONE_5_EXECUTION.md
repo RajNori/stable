@@ -30,7 +30,7 @@ Four reviewers inspected isolated detached worktrees at the frozen base. They ma
 | Critical E2E | No composed guardian invite → auth → child/team → Game Day → RSVP path. No E2E for coach auth → stats → review → next-practice focus → planner. Recovery has component/session tests but no complete recovery journey. | P1 release evidence gap; Web/Mobile E2E owners |
 | Security/privacy/observability | Sentry/PostHog are not connected to app runtimes; capture helpers no-op without a sink. Generic club-readable `audit_events` includes M4 stat-correction and private-note lifecycle metadata with player UUID targets; verify against restricted-history/privacy contract. Existing correction detail and private-note contents have coach-only tests. | P1 observability gate; P2 metadata access review; Coordinator + DB/security |
 | Accessibility/performance | No measured performance baseline. App UI code is outside current package coverage thresholds. No current accessibility review evidence or device session. Game Day online/offline titles lack header semantics; browser E2E uses desktop-only viewport. | P1 evidence gates; one concrete mobile semantics fix; Web/Mobile QA |
-| Operations/environment/mobile | EAS preview hard-codes `https://staging.invalid` and omits the staging publishable key. No backup/restore runbook or drill evidence, no pilot-specific synthetic setup/operator procedure, and no TestFlight/Android internal build evidence. | P1 readiness gates; Coordinator + Mobile/Ops |
+| Operations/environment/mobile | EAS preview initially hard-coded `https://staging.invalid` and omitted the staging publishable key (repository config now selects the EAS `preview` environment; the actual staging variables still need external verification). No backup/restore runbook or drill evidence, no pilot-specific synthetic setup/operator procedure, and no TestFlight/Android internal build evidence. | P1 readiness gates; Coordinator + Mobile/Ops |
 
 ### External status found during audit
 
@@ -45,7 +45,7 @@ The coordinator owns shared contracts, authorization/privacy decisions, SQL migr
 
 Planned remediation lanes, subject to path and contract review before dispatch:
 
-1. **Mobile runtime / staging configuration:** remove the invalid staging endpoint and use an explicit EAS preview environment contract; add safe configuration validation/tests. No account or secret creation.
+1. **Mobile runtime / staging configuration:** select EAS `preview` for the internal preview profile and keep staging URL/publishable key in that external environment; verify its values and build target before distribution. No account or secret creation.
 2. **Critical journey coverage:** add non-superficial browser/device-boundary flows for guardian Game Day/RSVP and M4 coaching; cover auth recovery and offline failure scenarios without weakening the M2 read-only offline rule.
 3. **Accessibility and performance evidence:** address Game Day header semantics, add appropriately scoped app UI coverage, viewport/keyboard/device checks, and repeatable baseline measurements. Optimize only measured bottlenecks.
 4. **Operations evidence:** add backup/restore runbook and disposable local rehearsal, staging-only pilot configuration procedure, and production configuration checklist. No hosted restore or mutation.

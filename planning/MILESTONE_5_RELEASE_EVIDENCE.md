@@ -29,7 +29,7 @@ This record contains repository/process evidence only. Never add secrets, signin
 | pgTAP files/assertions | Pending | |
 | Privacy and audit review | Pending | Confirm M4 generic club-readable audit metadata does not expose restricted stat/note history. |
 | Sentry | Pending | No app runtime initialization or delivery verification found. |
-| Staging separation | **Blocked in repo config** | EAS preview points to `https://staging.invalid` and does not configure a staging publishable key. |
+| Staging separation | **Repo config corrected; external verification pending** | EAS preview now selects the EAS `preview` environment and sets staging app mode. Staging Supabase URL and publishable key must be configured and verified in that environment. |
 | Backup/restore rehearsal | Pending | No runbook or rehearsal evidence found; only disposable local rehearsal is authorized without human approval. |
 | Vercel Preview/staging | **Failed / unclassified** | M4 Preview failed; current CLI account context cannot inspect deployment. |
 | TestFlight internal build | Pending | EAS/account/signing/tester state not inspected. |
