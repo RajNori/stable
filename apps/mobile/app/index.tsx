@@ -30,10 +30,8 @@ import { loadMobileTeamRoster } from "../src/load-mobile-team-roster";
 import { loadMobileTeamSchedule } from "../src/load-mobile-team-schedule";
 import { MobileDestinations } from "../src/mobile-destinations";
 import { expoNetworkMonitor } from "../src/expo-network-monitor";
-import {
-  clearUserGameDaySnapshots,
-  secureGameDaySnapshotStore,
-} from "../src/game-day-snapshot";
+import { secureGameDaySnapshotStore } from "../src/game-day-snapshot";
+import { clearStoredOfflineGameDay } from "../src/offline-context";
 import { useMobileOnline } from "../src/mobile-connectivity";
 import { TeamAnnouncementsScreen } from "../src/team-announcements-screen";
 import { TeamGameDayScreen } from "../src/team-game-day-screen";
@@ -52,7 +50,7 @@ export default function CurrentClubContextRoute() {
       void queryClient.cancelQueries();
       queryClient.clear();
       if (previousUserId !== null) {
-        await clearUserGameDaySnapshots(snapshotStore, previousUserId);
+        await clearStoredOfflineGameDay(snapshotStore, previousUserId);
       }
     },
     [queryClient, snapshotStore],

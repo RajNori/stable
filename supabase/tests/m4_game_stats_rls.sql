@@ -132,10 +132,24 @@ set local role authenticated;
 select lives_ok($$select public.save_game_player_stat('71410000-0000-4000-8000-000000000030','71410000-0000-4000-8000-000000000020',13,5,3,1,2,39)$$,'current game-team coach can correct transferred historical line');
 select is((select count(*) from public.read_game_player_stat_history('71410000-0000-4000-8000-000000000030')),1::bigint,'active head coach reads game correction history');
 select is((select count(*) from public.audit_events where action='game_player_stats.corrected' and target_id='71410000-0000-4000-8000-000000000020' and team_id='71410000-0000-4000-8000-000000000012'),1::bigint,'stats audit records carry the authoritative game team');
+select is((select context_event_id from public.audit_events where action='game_player_stats.corrected' and target_id='71410000-0000-4000-8000-000000000020' and team_id='71410000-0000-4000-8000-000000000012' limit 1),'71410000-0000-4000-8000-000000000030'::uuid,'stats audit records carry opaque game context');
 select is((select count(*) from public.audit_events where action='game.result_saved' and target_id='71410000-0000-4000-8000-000000000030' and team_id='71410000-0000-4000-8000-000000000012'),1::bigint,'result audit resolves the authoritative event team');
 reset role;
-insert into public.audit_events (club_id, team_id, actor_user_id, action, target_id)
-values ('71410000-0000-4000-8000-000000000010','71410000-0000-4000-8000-000000000013','71410000-0000-4000-8000-000000000002','game_player_stats.corrected','71410000-0000-4000-8000-000000000020');
+select is(
+  pg_temp.sqlerrm_of($$insert into public.audit_events (club_id, team_id, context_event_id, actor_user_id, action, target_id) values ('71410000-0000-4000-8000-000000000010','71410000-0000-4000-8000-000000000013','71410000-0000-4000-8000-000000000030','71410000-0000-4000-8000-000000000002','game_player_stats.corrected','71410000-0000-4000-8000-000000000020')$$),
+  'COACHING_AUDIT_TEAM_MISMATCH',
+  'stats audit rejects a supplied team that differs from its opaque game context'
+);
+select is(
+  pg_temp.sqlerrm_of($$insert into public.audit_events (club_id, team_id, actor_user_id, action, target_id) values ('71410000-0000-4000-8000-000000000010','71410000-0000-4000-8000-000000000013','71410000-0000-4000-8000-000000000002','game_player_stats.corrected','71410000-0000-4000-8000-000000000020')$$),
+  'COACHING_AUDIT_EVENT_REQUIRED',
+  'stats audit rejects missing game context'
+);
+select is(
+  pg_temp.sqlerrm_of($$insert into public.audit_events (club_id, team_id, actor_user_id, action, target_id) values ('71410000-0000-4000-8000-000000000010','71410000-0000-4000-8000-000000000013','71410000-0000-4000-8000-000000000002','game.result_saved','71410000-0000-4000-8000-000000000030')$$),
+  'COACHING_AUDIT_TEAM_MISMATCH',
+  'result audit rejects a supplied team that differs from its target event'
+);
 select is((select count(*) from public.game_player_stat_revisions where game_event_id='71410000-0000-4000-8000-000000000030' and player_id='71410000-0000-4000-8000-000000000020'),1::bigint,'correction appends revision');
 select is((select actor_user_id from public.game_player_stat_revisions where game_event_id='71410000-0000-4000-8000-000000000030' and player_id='71410000-0000-4000-8000-000000000020'),'71410000-0000-4000-8000-000000000002'::uuid,'revision stores actor id');
 select is(

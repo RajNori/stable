@@ -45,6 +45,7 @@ export function MobileAuthGate({
   clearPrivateCache = noopClearPrivateCache,
   authenticated,
 }: MobileAuthGateProps) {
+  const [callbackPending, setCallbackPending] = useState(false);
   const [session, setSession] = useState<AuthSessionSnapshot>({
     state: "loading",
   });
@@ -109,18 +110,27 @@ export function MobileAuthGate({
         return;
       }
       const transition = beginSessionTransition();
-      actions
-        .completeCallback(url)
-        .then((next) => {
-          if (active) {
-            void updateSession(next, transition);
+      setCallbackPending(true);
+      void (async () => {
+        try {
+          await updateSession(await actions.completeCallback(url), transition);
+        } catch (error: unknown) {
+          let restored: AuthSessionSnapshot;
+          try {
+            restored = await restore();
+          } catch {
+            restored = recoverySnapshot(error);
           }
-        })
-        .catch((error: unknown) => {
-          if (active) {
-            void updateSession(recoverySnapshot(error), transition);
+          if (restored.state !== "authenticated") {
+            restored = recoverySnapshot(error);
           }
-        });
+          await updateSession(restored, transition);
+        } finally {
+          if (active && transition === sessionTransition.current) {
+            setCallbackPending(false);
+          }
+        }
+      })();
     };
     const transitionAtLinkStart = sessionTransition.current;
     linking
@@ -144,6 +154,15 @@ export function MobileAuthGate({
   }, [actions, beginSessionTransition, linking, updateSession]);
 
   if (session.state === "authenticated") {
+    if (callbackPending) {
+      return (
+        <View style={styles.app}>
+          <Text accessibilityRole="text" accessibilityLiveRegion="polite">
+            Completing sign-in…
+          </Text>
+        </View>
+      );
+    }
     return (
       <View style={styles.app}>
         <Pressable

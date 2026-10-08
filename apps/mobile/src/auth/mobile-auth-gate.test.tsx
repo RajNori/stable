@@ -11,10 +11,12 @@ import {
 import React from "react";
 import { Text } from "react-native";
 
+import { memoryGameDaySnapshotStore } from "../game-day-snapshot";
 import {
-  clearUserGameDaySnapshots,
-  memoryGameDaySnapshotStore,
-} from "../game-day-snapshot";
+  clearStoredOfflineGameDay,
+  readOfflineContextPointer,
+  saveOfflineContextPointer,
+} from "../offline-context";
 import { MobileAuthGate } from "./mobile-auth-gate";
 
 declare const jest: {
@@ -133,7 +135,7 @@ describe("mobile auth gate", () => {
     expect(clearPrivateCache.mock.calls.length).toBeGreaterThanOrEqual(3);
   });
 
-  it("clears only the prior user's Game Day snapshots on callback account switch", async () => {
+  it("clears only the prior user's offline data on callback account switch", async () => {
     let receive: ((url: string) => void) | undefined;
     const store = memoryGameDaySnapshotStore();
     const previousTeamId = "previous-team";
@@ -154,10 +156,20 @@ describe("mobile auth gate", () => {
       `stable.game-day.v1.${secondUserId}`,
       JSON.stringify({ teams: [nextTeamId] }),
     );
+    await saveOfflineContextPointer(store, {
+      version: 1,
+      userId,
+      teamId: previousTeamId,
+    });
+    await saveOfflineContextPointer(store, {
+      version: 1,
+      userId: secondUserId,
+      teamId: nextTeamId,
+    });
 
     const clearPrivateCache = jest.fn(async (previousUserId: string | null) => {
       if (previousUserId !== null) {
-        await clearUserGameDaySnapshots(store, previousUserId);
+        await clearStoredOfflineGameDay(store, previousUserId);
       }
     });
     await render(
@@ -206,6 +218,12 @@ describe("mobile auth gate", () => {
     expect(await store.getItem(`stable.game-day.v1.${secondUserId}`)).toBe(
       JSON.stringify({ teams: [nextTeamId] }),
     );
+    expect(await readOfflineContextPointer(store, userId)).toBeNull();
+    expect(await readOfflineContextPointer(store, secondUserId)).toEqual({
+      version: 1,
+      userId: secondUserId,
+      teamId: nextTeamId,
+    });
   });
 
   it("does not activate the next account when private cache cleanup fails", async () => {
@@ -375,6 +393,87 @@ describe("mobile auth gate", () => {
 
     expect(screen.getByText(`Signed in as ${secondUserId}`)).toBeTruthy();
     expect(screen.queryByText(`Signed in as ${userId}`)).toBeNull();
+  });
+
+  it("hides the previous account while an account-switch callback is pending", async () => {
+    let receive: ((url: string) => void) | undefined;
+    let resolveCallback: ((snapshot: AuthSessionSnapshot) => void) | undefined;
+    const callback = new Promise<AuthSessionSnapshot>((resolve) => {
+      resolveCallback = resolve;
+    });
+    await render(
+      <MobileAuthGate
+        restore={async () => authenticated}
+        signOut={async () => ({ state: "unauthenticated" })}
+        actions={idleActions({ completeCallback: () => callback })}
+        linking={{
+          async getInitialUrl() {
+            return null;
+          },
+          subscribe(listener) {
+            receive = listener;
+            return () => {
+              receive = undefined;
+            };
+          },
+        }}
+        authenticated={(id) => <Text>Signed in as {id}</Text>}
+      />,
+    );
+
+    expect(await screen.findByText(`Signed in as ${userId}`)).toBeTruthy();
+    receive?.("stable://auth/callback?code=account-b");
+    expect(await screen.findByText("Completing sign-in…")).toBeTruthy();
+    expect(screen.queryByText(`Signed in as ${userId}`)).toBeNull();
+
+    await act(async () => {
+      resolveCallback?.(secondAuthenticated);
+      await callback;
+      await Promise.resolve();
+    });
+    expect(
+      await screen.findByText(`Signed in as ${secondUserId}`),
+    ).toBeTruthy();
+  });
+
+  it("uses safe recovery when both a callback and session restore fail", async () => {
+    let receive: ((url: string) => void) | undefined;
+    let restoreCount = 0;
+    await render(
+      <MobileAuthGate
+        restore={async () => {
+          restoreCount += 1;
+          if (restoreCount > 1) {
+            throw new Error("private provider details");
+          }
+          return authenticated;
+        }}
+        signOut={async () => ({ state: "unauthenticated" })}
+        actions={idleActions({
+          completeCallback: async () => {
+            throw new Error("private callback details");
+          },
+        })}
+        linking={{
+          async getInitialUrl() {
+            return null;
+          },
+          subscribe(listener) {
+            receive = listener;
+            return () => {
+              receive = undefined;
+            };
+          },
+        }}
+        authenticated={(id) => <Text>Signed in as {id}</Text>}
+      />,
+    );
+
+    expect(await screen.findByText(`Signed in as ${userId}`)).toBeTruthy();
+    receive?.("stable://auth/callback?code=private");
+    expect(await screen.findByText(AUTH_ERROR_MESSAGES.INTERNAL)).toBeTruthy();
+    expect(JSON.stringify(screen.toJSON())).not.toContain("private provider");
+    expect(JSON.stringify(screen.toJSON())).not.toContain("private callback");
   });
 
   it("ignores unrelated links and accepts a later callback once", async () => {
