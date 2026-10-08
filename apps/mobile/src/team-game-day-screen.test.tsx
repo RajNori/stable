@@ -73,7 +73,9 @@ describe("team game day screen", () => {
       </QueryClientProvider>,
     );
 
-    expect(await screen.findByText("Round 1: Visitors")).toBeTruthy();
+    expect(
+      await screen.findByRole("header", { name: "Round 1: Visitors" }),
+    ).toBeTruthy();
     expect(screen.getByText("RSVP UNANSWERED")).toBeTruthy();
     expect(screen.getByText("Duty Scorebook")).toBeTruthy();
     expect(screen.queryByText(/Attending/)).toBeNull();

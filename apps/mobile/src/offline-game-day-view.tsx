@@ -44,7 +44,7 @@ export function OfflineGameDayView({
   const freshness = gameDaySnapshotFreshness(snapshot.savedAt, now);
   return (
     <View style={styles.screen}>
-      <Text style={styles.title}>
+      <Text accessibilityRole="header" style={styles.title}>
         {snapshot.teamName}: {snapshot.opponentName}
       </Text>
       <Text style={styles.body}>Offline · Last updated {snapshot.savedAt}</Text>

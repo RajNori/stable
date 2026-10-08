@@ -45,7 +45,9 @@ describe("offline game day view", () => {
       screen.getByText("Offline · Last updated 2026-10-07T01:00:00.000Z"),
     ).toBeTruthy();
     expect(screen.getByText("This snapshot is stale.")).toBeTruthy();
-    expect(screen.getByText("U14 Boys: Visitors")).toBeTruthy();
+    expect(
+      screen.getByRole("header", { name: "U14 Boys: Visitors" }),
+    ).toBeTruthy();
     expect(
       screen.getByText(
         "Reconnect to update RSVP, attendance, fixtures, duties, or check-in.",

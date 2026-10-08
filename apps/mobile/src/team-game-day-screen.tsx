@@ -209,7 +209,7 @@ export function TeamGameDayScreen({
     }
     return (
       <View style={styles.screen}>
-        <Text style={styles.title}>
+        <Text accessibilityRole="header" style={styles.title}>
           {context.isError ? message(context.error) : gameDayMessages.forbidden}
         </Text>
       </View>
@@ -225,7 +225,9 @@ export function TeamGameDayScreen({
     }
     return (
       <View style={styles.screen}>
-        <Text style={styles.title}>Use a context with one team.</Text>
+        <Text accessibilityRole="header" style={styles.title}>
+          Use a context with one team.
+        </Text>
       </View>
     );
   }
@@ -237,7 +239,9 @@ export function TeamGameDayScreen({
     if (gameDay.isError) {
       return (
         <View style={styles.screen}>
-          <Text style={styles.title}>{message(gameDay.error)}</Text>
+          <Text accessibilityRole="header" style={styles.title}>
+            {message(gameDay.error)}
+          </Text>
         </View>
       );
     }
@@ -259,7 +263,7 @@ export function TeamGameDayScreen({
   const projection = gameDay.data;
   return (
     <View style={styles.screen}>
-      <Text style={styles.title}>
+      <Text accessibilityRole="header" style={styles.title}>
         {projection.roundLabel ?? "Game"}: {projection.opponentName}
       </Text>
       <Text style={styles.body}>RSVP {projection.ownRsvp}</Text>
