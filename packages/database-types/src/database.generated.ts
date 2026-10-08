@@ -207,6 +207,7 @@ export type Database = {
           club_id: string;
           created_at: string;
           id: string;
+          team_id: string | null;
           target_id: string;
         };
         Insert: {
@@ -215,6 +216,7 @@ export type Database = {
           club_id: string;
           created_at?: string;
           id?: string;
+          team_id?: string | null;
           target_id: string;
         };
         Update: {
@@ -223,6 +225,7 @@ export type Database = {
           club_id?: string;
           created_at?: string;
           id?: string;
+          team_id?: string | null;
           target_id?: string;
         };
         Relationships: [

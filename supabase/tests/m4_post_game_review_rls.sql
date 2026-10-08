@@ -63,6 +63,7 @@ select ok(not has_table_privilege('authenticated','public.private_player_game_no
 select lives_ok($$select public.save_post_game_review('72410000-0000-4000-8000-000000000030','Good passing','Box out','["PASSING","TEAMWORK"]',false)$$,'head coach saves a draft with typed focus');
 select lives_ok($$select public.save_post_game_review('72410000-0000-4000-8000-000000000030','Good passing','Box out','["PASSING","TEAMWORK"]',true)$$,'head coach explicitly completes review');
 select lives_ok($$select public.save_post_game_review('72410000-0000-4000-8000-000000000030','Good passing','Box out','["PASSING","TEAMWORK"]',true)$$,'identical completion retry succeeds idempotently');
+select is((select count(*) from public.audit_events where action like 'post_game_review.%' and team_id='72410000-0000-4000-8000-000000000012'),2::bigint,'active head coach reads review audit metadata for the assigned team');
 select lives_ok($$select public.save_post_game_review('72410000-0000-4000-8000-000000000030','Good passing','Box out earlier','["PASSING","TEAMWORK"]',false)$$,'editing review reopens completion');
 reset role;
 select is((select completed_at from public.post_game_reviews where game_event_id='72410000-0000-4000-8000-000000000030'),null,'reopened review clears completion metadata');
@@ -96,6 +97,8 @@ select is(pg_temp.sqlerrm_of($$select public.save_player_game_recognition('72410
 select is(pg_temp.sqlerrm_of($$select public.remove_player_game_recognition('72410000-0000-4000-8000-000000000030','72410000-0000-4000-8000-000000000020','MVP')$$),'FORBIDDEN','Club Admin without coach membership cannot remove recognition');
 select is(pg_temp.sqlerrm_of($$select public.read_private_player_game_note('72410000-0000-4000-8000-000000000030','72410000-0000-4000-8000-000000000020')$$),'FORBIDDEN','Club Admin without coach membership cannot read private note');
 select is(pg_temp.sqlerrm_of($$select public.save_private_player_game_note('72410000-0000-4000-8000-000000000030','72410000-0000-4000-8000-000000000020','no')$$),'FORBIDDEN','Club Admin without coach membership cannot write private note');
+select is((select count(*) from public.audit_events where action like 'private_player_note.%'),0::bigint,'Club Admin without coach membership cannot read private-note audit metadata');
+select is((select count(*) from public.audit_events where action like 'post_game_review.%'),0::bigint,'Club Admin without coach membership cannot read review audit metadata');
 reset role;
 
 do $$ begin perform pg_temp.assume_user('72410000-0000-4000-8000-000000000006'); end $$;
@@ -106,17 +109,20 @@ select is(public.read_private_player_game_note('72410000-0000-4000-8000-00000000
 select lives_ok($$select public.save_private_player_game_note('72410000-0000-4000-8000-000000000030','72410000-0000-4000-8000-000000000020','Updated private confidence note')$$,'dual-role actor writes note through coach membership');
 select lives_ok($$select public.save_private_player_game_note('72410000-0000-4000-8000-000000000030','72410000-0000-4000-8000-000000000020',null)$$,'null explicitly clears private note');
 select is(public.read_private_player_game_note('72410000-0000-4000-8000-000000000030','72410000-0000-4000-8000-000000000020'),null,'cleared note is absent');
+select is((select count(*) from public.audit_events where action like 'private_player_note.%' and team_id='72410000-0000-4000-8000-000000000012'),3::bigint,'active assistant reads private-note audit metadata for the assigned team');
 reset role;
 
 do $$ begin perform pg_temp.assume_user('72410000-0000-4000-8000-000000000004'); end $$;
 set local role authenticated;
 select is(pg_temp.sqlerrm_of($$select * from public.read_post_game_review('72410000-0000-4000-8000-000000000030')$$),'FORBIDDEN','team manager cannot read review');
 select is(pg_temp.sqlerrm_of($$select public.read_private_player_game_note('72410000-0000-4000-8000-000000000030','72410000-0000-4000-8000-000000000020')$$),'FORBIDDEN','team manager cannot read private note');
+select is((select count(*) from public.audit_events where action like 'private_player_note.%'),0::bigint,'team manager cannot read private-note audit metadata');
 reset role;
 do $$ begin perform pg_temp.assume_user('72410000-0000-4000-8000-000000000005'); end $$;
 set local role authenticated;
 select is(pg_temp.sqlerrm_of($$select * from public.read_post_game_review('72410000-0000-4000-8000-000000000030')$$),'FORBIDDEN','guardian cannot read team review');
 select is(pg_temp.sqlerrm_of($$select * from public.list_private_player_game_notes('72410000-0000-4000-8000-000000000030')$$),'FORBIDDEN','guardian cannot list private notes');
+select is((select count(*) from public.audit_events where action like 'private_player_note.%'),0::bigint,'guardian cannot read private-note audit metadata');
 reset role;
 do $$ begin perform pg_temp.assume_user('72410000-0000-4000-8000-000000000002'); end $$;
 set local role authenticated;
@@ -137,6 +143,7 @@ set local role authenticated;
 select is(pg_temp.sqlerrm_of($$select * from public.read_post_game_review('72410000-0000-4000-8000-000000000030')$$),'FORBIDDEN','dual-role Club Admin loses M4 review access after coach membership revocation');
 select is(pg_temp.sqlerrm_of($$select public.save_player_game_recognition('72410000-0000-4000-8000-000000000030','72410000-0000-4000-8000-000000000020','DEFENCE',null)$$),'FORBIDDEN','dual-role Club Admin loses recognition access after coach membership revocation');
 select is(pg_temp.sqlerrm_of($$select public.read_private_player_game_note('72410000-0000-4000-8000-000000000030','72410000-0000-4000-8000-000000000020')$$),'FORBIDDEN','dual-role Club Admin loses private-note access after coach membership revocation');
+select is((select count(*) from public.audit_events where action like 'private_player_note.%'),0::bigint,'revoked coach loses private-note audit metadata access immediately');
 reset role;
 
 select is((select count(*) from public.audit_events where action='post_game_review.completed'),2::bigint,'initial and repeated completion each write one lifecycle audit');
@@ -144,7 +151,8 @@ select is((select count(*) from public.audit_events where action='post_game_revi
 select is((select count(*) from public.audit_events where action='private_player_note.created'),1::bigint,'private note creation writes audit without text');
 select is((select count(*) from public.audit_events where action='private_player_note.updated'),1::bigint,'private note edit writes audit without text');
 select is((select count(*) from public.audit_events where action='private_player_note.cleared'),1::bigint,'private note clear writes audit without text');
-select is((select count(*) from public.audit_events where action like 'private_player_note.%' and target_id='72410000-0000-4000-8000-000000000020'),3::bigint,'private note audit uses opaque player identifier only');
+select is((select count(*) from public.audit_events where action like 'private_player_note.%' and target_id='72410000-0000-4000-8000-000000000020' and team_id='72410000-0000-4000-8000-000000000012'),3::bigint,'private note audit uses opaque player identifier and exact team only');
+select is((select count(*) from public.audit_events where action like 'private_player_note.%' and team_id='72410000-0000-4000-8000-000000000012'),3::bigint,'private note audit rows retain authoritative team scope');
 select is((select count(*) from information_schema.columns where table_schema='public' and table_name='private_player_game_notes' and column_name ilike '%name%'),0::bigint,'private note storage has no player-name field');
 select * from finish();
 rollback;

@@ -131,7 +131,11 @@ insert into public.player_team_registrations(club_id,team_id,player_id,active) v
 set local role authenticated;
 select lives_ok($$select public.save_game_player_stat('71410000-0000-4000-8000-000000000030','71410000-0000-4000-8000-000000000020',13,5,3,1,2,39)$$,'current game-team coach can correct transferred historical line');
 select is((select count(*) from public.read_game_player_stat_history('71410000-0000-4000-8000-000000000030')),1::bigint,'active head coach reads game correction history');
+select is((select count(*) from public.audit_events where action='game_player_stats.corrected' and target_id='71410000-0000-4000-8000-000000000020' and team_id='71410000-0000-4000-8000-000000000012'),1::bigint,'stats audit records carry the authoritative game team');
+select is((select count(*) from public.audit_events where action='game.result_saved' and target_id='71410000-0000-4000-8000-000000000030' and team_id='71410000-0000-4000-8000-000000000012'),1::bigint,'result audit resolves the authoritative event team');
 reset role;
+insert into public.audit_events (club_id, team_id, actor_user_id, action, target_id)
+values ('71410000-0000-4000-8000-000000000010','71410000-0000-4000-8000-000000000013','71410000-0000-4000-8000-000000000002','game_player_stats.corrected','71410000-0000-4000-8000-000000000020');
 select is((select count(*) from public.game_player_stat_revisions where game_event_id='71410000-0000-4000-8000-000000000030' and player_id='71410000-0000-4000-8000-000000000020'),1::bigint,'correction appends revision');
 select is((select actor_user_id from public.game_player_stat_revisions where game_event_id='71410000-0000-4000-8000-000000000030' and player_id='71410000-0000-4000-8000-000000000020'),'71410000-0000-4000-8000-000000000002'::uuid,'revision stores actor id');
 select is(
@@ -151,28 +155,34 @@ select is(pg_temp.sqlerrm_of($$select * from public.read_game_coaching_stats('71
 select is(pg_temp.sqlerrm_of($$select public.save_game_player_stat('71410000-0000-4000-8000-000000000030','71410000-0000-4000-8000-000000000020',14,5,3,1,2,38)$$),'FORBIDDEN','Club Admin without coach membership cannot correct stats');
 select is(pg_temp.sqlerrm_of($$select * from public.read_game_player_stat_history('71410000-0000-4000-8000-000000000030')$$),'FORBIDDEN','Club Admin without coach membership cannot read correction history');
 select is(pg_temp.sqlerrm_of($$select public.save_manual_game_result('71410000-0000-4000-8000-000000000030',73,68)$$),'FORBIDDEN','Club Admin without coach membership cannot write coaching score');
+select is((select count(*) from public.audit_events where action='game_player_stats.corrected'),0::bigint,'Club Admin without coach membership cannot read M4 stats audit metadata');
+select is((select count(*) from public.audit_events where action='game.result_saved'),0::bigint,'Club Admin without coach membership cannot read M4 result audit metadata');
 reset role;
 select is((select recorded_by from public.game_player_stats where game_event_id='71410000-0000-4000-8000-000000000030' and player_id='71410000-0000-4000-8000-000000000020'),'71410000-0000-4000-8000-000000000003'::uuid,'corrections preserve the original recorder');
 select is((select updated_by from public.game_player_stats where game_event_id='71410000-0000-4000-8000-000000000030' and player_id='71410000-0000-4000-8000-000000000020'),'71410000-0000-4000-8000-000000000002'::uuid,'correction records the most recent authorized coach');
 do $$ begin perform pg_temp.assume_user('71410000-0000-4000-8000-000000000003'); end $$;
 set local role authenticated;
 select is((select count(*) from public.read_game_player_stat_history('71410000-0000-4000-8000-000000000030')),1::bigint,'dual-role Club Admin reads history through active assistant membership');
+select is((select count(*) from public.audit_events where action='game_player_stats.corrected'),1::bigint,'active assistant reads M4 stats audit metadata for the assigned team');
 reset role;
 
 do $$ begin perform pg_temp.assume_user('71410000-0000-4000-8000-000000000004'); end $$;
 set local role authenticated;
 select is(pg_temp.sqlerrm_of($$select * from public.read_game_player_stat_history('71410000-0000-4000-8000-000000000030')$$),'FORBIDDEN','team manager cannot read correction history');
+select is((select count(*) from public.audit_events where action='game_player_stats.corrected'),0::bigint,'team manager cannot read M4 stats audit metadata');
 reset role;
 
 do $$ begin perform pg_temp.assume_user('71410000-0000-4000-8000-000000000002'); end $$;
 set local role authenticated;
 select is(pg_temp.sqlerrm_of($$select * from public.read_game_player_stat_history('71410000-0000-4000-8000-000000000032')$$),'FORBIDDEN','coach cannot read another team game correction history');
+select is((select count(*) from public.audit_events where action='game_player_stats.corrected' and team_id='71410000-0000-4000-8000-000000000013'),0::bigint,'coach cannot read another team M4 audit metadata');
 reset role;
 
 do $$ begin perform pg_temp.assume_user('71410000-0000-4000-8000-000000000005'); end $$;
 set local role authenticated;
 select is(pg_temp.sqlerrm_of($$select * from public.read_game_coaching_stats('71410000-0000-4000-8000-000000000030')$$),'FORBIDDEN','guardian cannot read coaching stats');
 select is(pg_temp.sqlerrm_of($$select * from public.read_game_player_stat_history('71410000-0000-4000-8000-000000000030')$$),'FORBIDDEN','guardian cannot read correction history');
+select is((select count(*) from public.audit_events where action='game_player_stats.corrected'),0::bigint,'guardian cannot read M4 stats audit metadata');
 reset role;
 
 do $$ begin perform pg_temp.assume_user('71410000-0000-4000-8000-000000000002'); end $$;
@@ -187,10 +197,12 @@ do $$ begin perform pg_temp.assume_user('71410000-0000-4000-8000-000000000003');
 set local role authenticated;
 select is(pg_temp.sqlerrm_of($$select public.read_game_coaching_stats('71410000-0000-4000-8000-000000000030')$$),'FORBIDDEN','revoked coach loses access immediately');
 select is(pg_temp.sqlerrm_of($$select * from public.read_game_player_stat_history('71410000-0000-4000-8000-000000000030')$$),'FORBIDDEN','revoked coach loses correction history access immediately');
+select is((select count(*) from public.audit_events where action='game_player_stats.corrected'),0::bigint,'revoked coach loses M4 stats audit metadata access immediately');
 reset role;
 
 select is((select action from public.audit_events where action='game.result_saved' and target_id='71410000-0000-4000-8000-000000000030'),'game.result_saved','score save has opaque generic audit target');
-select is((select count(*) from public.audit_events where action='game_player_stats.corrected' and target_id='71410000-0000-4000-8000-000000000020'),1::bigint,'correction audits reference only opaque player id');
+select is((select count(*) from public.audit_events where action='game_player_stats.corrected' and target_id='71410000-0000-4000-8000-000000000020' and team_id='71410000-0000-4000-8000-000000000012'),1::bigint,'correction audit references an opaque player id and the exact game team');
+select is((select count(*) from public.audit_events where action='game_player_stats.corrected' and team_id is null),0::bigint,'new correction audit rows cannot omit team scope');
 select is((select count(*) from information_schema.columns where table_schema='public' and table_name='game_player_stat_revisions' and column_name ilike '%name%'),0::bigint,'revision history has no name column');
 select is(pg_get_function_result('public.read_game_player_stat_history(uuid)'::regprocedure) ~* 'name',false,'history read RPC exposes no name field');
 select * from finish();
