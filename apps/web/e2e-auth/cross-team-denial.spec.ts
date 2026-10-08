@@ -85,7 +85,7 @@ test("a Team A coach keeps fixture visibility but is denied Team B coaching data
   await addPlayer.getByRole("button", { name: "Add player" }).click();
   const player = page.getByRole("listitem").filter({ hasText: playerName });
   await expect(player).toBeVisible();
-  await player.getByLabel("Team").selectOption(teamBId);
+  await player.locator('select[name="teamId"]').selectOption(teamBId);
   await player.getByRole("button", { name: "Register team" }).click();
   await expect(player).toContainText(teamBName);
   const playerId = await player
