@@ -109,9 +109,12 @@ test("a non-admin team manager maintains fixtures and team operations", async ({
   await guardian.waitForLoadState("networkidle");
   await guardian.goto(gameHref);
   const gameDay = guardian.getByRole("region", { name: "Game day" });
-  await gameDay.getByLabel("Status").selectOption("ATTENDING");
-  await gameDay.getByRole("button", { name: "Save RSVP" }).click();
-  await expect(gameDay.getByText("RSVP ATTENDING")).toBeVisible();
+  const playerRsvp = gameDay.locator("form").filter({ hasText: playerName });
+  await playerRsvp.getByLabel("Status").selectOption("ATTENDING");
+  await playerRsvp.getByRole("button", { name: "Save RSVP" }).click();
+  await expect(
+    gameDay.getByText("RSVP ATTENDING", { exact: true }),
+  ).toBeVisible();
 
   // Confirm the staff-facing announcement was persisted through the UI.
   await manager.goto(`/teams/${TEAM_ID}/announcements`);
