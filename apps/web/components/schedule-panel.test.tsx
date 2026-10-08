@@ -45,4 +45,27 @@ describe("schedule panel", () => {
     render(<SchedulePanel teamName="U14 Boys" entries={[]} />);
     expect(screen.getByText("No events in this range.")).toBeTruthy();
   });
+
+  it("uses safe labels for games with missing provider labels and shows load errors", () => {
+    render(
+      <SchedulePanel
+        teamName="U14 Boys"
+        error="Schedule could not be refreshed."
+        entries={[
+          {
+            ...entry("GAME"),
+            opponentName: null,
+            roundLabel: null,
+          },
+        ]}
+      />,
+    );
+
+    expect(screen.getByRole("alert").textContent).toBe(
+      "Schedule could not be refreshed.",
+    );
+    expect(screen.getByRole("list", { name: "Agenda" }).textContent).toContain(
+      "Game: Opponent at",
+    );
+  });
 });

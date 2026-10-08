@@ -294,6 +294,128 @@ describe("club sign-in", () => {
     ).toBeNull();
   });
 
+  it("retries a recovery session and keeps busy state until the retry settles", async () => {
+    let finishRetry: (() => void) | undefined;
+    const retry = () =>
+      new Promise<void>((resolve) => {
+        finishRetry = resolve;
+      });
+    render(
+      <ClubSignIn
+        session={{
+          state: "recovery",
+          errorCode: "UPSTREAM_UNAVAILABLE",
+          message: AUTH_ERROR_MESSAGES.UPSTREAM_UNAVAILABLE,
+        }}
+        actions={idleActions({ retry })}
+      />,
+    );
+
+    const button = screen.getByRole("button", { name: "Try again" });
+    fireEvent.click(button);
+    expect((button as HTMLButtonElement).disabled).toBe(true);
+    finishRetry?.();
+    await waitFor(() =>
+      expect((button as HTMLButtonElement).disabled).toBe(false),
+    );
+    expect(screen.getByRole("alert").textContent).toBe(
+      AUTH_ERROR_MESSAGES.UPSTREAM_UNAVAILABLE,
+    );
+  });
+
+  it("returns to the welcome step and updates an external notice", () => {
+    const { rerender } = render(
+      <ClubSignIn
+        session={unauthenticated}
+        notice="The sign-in link has expired."
+        actions={idleActions()}
+      />,
+    );
+    expect(screen.getByRole("alert").textContent).toBe(
+      "The sign-in link has expired.",
+    );
+    fireEvent.click(
+      screen.getByRole("button", { name: "Continue with email" }),
+    );
+    expect(screen.getByLabelText("Email address")).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: "Back" }));
+    expect(
+      screen.getByRole("button", { name: "Continue with email" }),
+    ).toBeTruthy();
+
+    rerender(
+      <ClubSignIn
+        session={unauthenticated}
+        notice="Please try signing in again."
+        actions={idleActions()}
+      />,
+    );
+    expect(screen.getByRole("alert").textContent).toBe(
+      "Please try signing in again.",
+    );
+  });
+
+  it("hides the sign-in flow for an authenticated snapshot", () => {
+    const { container } = render(
+      <ClubSignIn
+        session={{ state: "authenticated", principal: { userId: "adult-1" } }}
+        actions={idleActions()}
+      />,
+    );
+    expect(container.firstChild).toBeNull();
+  });
+
+  it("resends a phone code after cooldown and lets the adult change the number", async () => {
+    const requests: string[] = [];
+    render(
+      <ClubSignIn
+        session={unauthenticated}
+        resendCooldownSeconds={1}
+        actions={idleActions({
+          async requestPhone(phone) {
+            requests.push(phone);
+          },
+        })}
+      />,
+    );
+    fireEvent.click(
+      screen.getByRole("button", { name: "Continue with mobile" }),
+    );
+    fireEvent.change(screen.getByLabelText("Mobile number"), {
+      target: { value: "0412345678" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Continue" }));
+    expect(await screen.findByLabelText("6-digit code")).toBeTruthy();
+    expect(requests).toEqual(["0412 345 678"]);
+
+    const cooldownButton = screen.getByRole("button", {
+      name: "Resend code in 1s",
+    });
+    expect((cooldownButton as HTMLButtonElement).disabled).toBe(true);
+    expect(
+      await screen.findByRole(
+        "button",
+        { name: "Resend code" },
+        { timeout: 2500 },
+      ),
+    ).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: "Resend code" }));
+    await waitFor(() =>
+      expect(requests).toEqual(["0412 345 678", "0412 345 678"]),
+    );
+    fireEvent.click(
+      screen.getByRole("button", { name: "Change mobile number" }),
+    );
+    expect(screen.getByLabelText("Mobile number")).toHaveProperty(
+      "value",
+      "0412 345 678",
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Back" }));
+    expect(
+      screen.getByRole("button", { name: "Continue with mobile" }),
+    ).toBeTruthy();
+  });
+
   it("shows the admin surface only for an authenticated snapshot", () => {
     render(
       <ClubAdminShell

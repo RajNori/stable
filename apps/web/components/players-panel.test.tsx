@@ -45,6 +45,22 @@ describe("players panel", () => {
         reactivatePlayer={noop}
         linkGuardian={noop}
         unlinkGuardian={noop}
+        invitations={[
+          {
+            id: "dddddddd-dddd-4ddd-8ddd-dddddddddddd",
+            status: "pending",
+            label: "Guardian invitation",
+            playerId: player.id,
+          },
+          {
+            id: "eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee",
+            status: "pending",
+            label: "Other player invitation",
+            playerId: "27272727-2727-4727-8727-272727272727",
+          },
+        ]}
+        createInvitation={() => Promise.resolve({ token: "one-time-token" })}
+        revokeInvitation={noop}
       />,
     );
 
@@ -55,6 +71,8 @@ describe("players panel", () => {
     expect(screen.queryByLabelText("Phone")).toBeNull();
     expect(screen.queryByRole("searchbox")).toBeNull();
     expect(document.body.textContent).not.toContain("@");
+    expect(screen.getByText("Guardian invitation pending")).toBeTruthy();
+    expect(screen.queryByText("Other player invitation pending")).toBeNull();
   });
 
   it("registers one team and does not show a roster", () => {
@@ -87,5 +105,66 @@ describe("players panel", () => {
     ).toBeTruthy();
     expect(screen.queryByLabelText("Jersey")).toBeNull();
     expect(screen.queryByLabelText("Position")).toBeNull();
+  });
+
+  it("keeps inactive player and unlinked-guardian actions clear without a club context", () => {
+    const guardian = player.guardians[0];
+    if (guardian === undefined) throw new Error("Expected guardian fixture");
+    render(
+      <PlayersPanel
+        clubId={null}
+        players={[
+          {
+            ...player,
+            active: false,
+            teamName: null,
+            guardians: [{ ...guardian, active: false }],
+          },
+        ]}
+        adults={[]}
+        createPlayer={noop}
+        importPlayers={noop}
+        updatePlayer={noop}
+        deactivatePlayer={noop}
+        reactivatePlayer={noop}
+        linkGuardian={noop}
+        unlinkGuardian={noop}
+        error="Player data could not be refreshed."
+      />,
+    );
+
+    expect(screen.getByRole("alert").textContent).toBe(
+      "Player data could not be refreshed.",
+    );
+    expect(screen.getByText("Inactive")).toBeTruthy();
+    expect(screen.getByText("No team")).toBeTruthy();
+    expect(screen.getByText("Local Member (unlinked)")).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Reactivate" })).toBeTruthy();
+    expect(screen.queryByRole("button", { name: "Deactivate" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Unlink" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Link guardian" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Add player" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Import players" })).toBeNull();
+  });
+
+  it("explains when no club adults are available for a guardian link", () => {
+    render(
+      <PlayersPanel
+        clubId="11111111-1111-4111-8111-111111111111"
+        players={[{ ...player, guardians: [] }]}
+        adults={[]}
+        createPlayer={noop}
+        importPlayers={noop}
+        updatePlayer={noop}
+        deactivatePlayer={noop}
+        reactivatePlayer={noop}
+        linkGuardian={noop}
+        unlinkGuardian={noop}
+      />,
+    );
+    expect(
+      screen.getByText("No club adults are available to link."),
+    ).toBeTruthy();
+    expect(screen.queryByRole("button", { name: "Link guardian" })).toBeNull();
   });
 });

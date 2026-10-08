@@ -61,4 +61,27 @@ describe("training panel", () => {
     expect(screen.queryByRole("button", { name: "Add practice" })).toBeNull();
     expect(screen.getByText("No training in this range.")).toBeTruthy();
   });
+
+  it("does not expose check-in when the caller only has schedule visibility", () => {
+    render(
+      <TrainingPanel
+        clubId={clubId}
+        teamId={teamId}
+        timezone="Australia/Melbourne"
+        sessions={[{ eventId: "event-1", startsAt: "2026-10-14T07:30:00Z" }]}
+        canManage={false}
+        canCheckIn={false}
+        createSession={() => Promise.resolve()}
+        createSeries={() => Promise.resolve()}
+        checkIn={() => Promise.resolve()}
+      />,
+    );
+
+    expect(screen.getByText("Training at 2026-10-14T07:30:00Z")).toBeTruthy();
+    expect(screen.queryByRole("button", { name: "Check in" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Add practice" })).toBeNull();
+    expect(
+      screen.queryByRole("button", { name: "Add weekly series" }),
+    ).toBeNull();
+  });
 });
