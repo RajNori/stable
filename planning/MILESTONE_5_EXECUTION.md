@@ -1,6 +1,6 @@
 # Milestone 5 — Pilot Hardening Execution
 
-Status: **Wave A audit complete; remediation not started**
+Status: **Remediation underway**
 
 Base: `342fea896d44e4224fddfe705f7ea92d0292c933` (frozen Milestone 4)
 
@@ -28,7 +28,7 @@ Four reviewers inspected isolated detached worktrees at the frozen base. They ma
 | Workstream | Initial finding | Priority / owner |
 |---|---|---|
 | Critical E2E | No composed guardian invite → auth → child/team → Game Day → RSVP path. No E2E for coach auth → stats → review → next-practice focus → planner. Recovery has component/session tests but no complete recovery journey. | P1 release evidence gap; Web/Mobile E2E owners |
-| Security/privacy/observability | Sentry/PostHog are not connected to app runtimes; capture helpers no-op without a sink. Generic club-readable `audit_events` includes M4 stat-correction and private-note lifecycle metadata with player UUID targets; verify against restricted-history/privacy contract. Existing correction detail and private-note contents have coach-only tests. | P1 observability gate; P2 metadata access review; Coordinator + DB/security |
+| Security/privacy/observability | Sentry/PostHog are not connected to app runtimes; capture helpers no-op without a sink. A new M5 migration scopes M4 audit rows by active team-coach membership. The complete local pgTAP suite now passes all 912 assertions, including admin-only, manager, guardian, revoked, and other-team denies. | P1 observability gate; audit metadata fix verified locally; Coordinator |
 | Accessibility/performance | No measured performance baseline. App UI code is outside current package coverage thresholds. No current accessibility review evidence or device session. Game Day online/offline titles lack header semantics; browser E2E uses desktop-only viewport. | P1 evidence gates; one concrete mobile semantics fix; Web/Mobile QA |
 | Operations/environment/mobile | EAS preview initially hard-coded `https://staging.invalid` and omitted the staging publishable key (repository config now selects the EAS `preview` environment; the actual staging variables still need external verification). No backup/restore runbook or drill evidence, no pilot-specific synthetic setup/operator procedure, and no TestFlight/Android internal build evidence. | P1 readiness gates; Coordinator + Mobile/Ops |
 
@@ -45,12 +45,12 @@ The coordinator owns shared contracts, authorization/privacy decisions, SQL migr
 
 Planned remediation lanes, subject to path and contract review before dispatch:
 
-1. **Mobile runtime / staging configuration:** select EAS `preview` for the internal preview profile and keep staging URL/publishable key in that external environment; verify its values and build target before distribution. No account or secret creation.
-2. **Critical journey coverage:** add non-superficial browser/device-boundary flows for guardian Game Day/RSVP and M4 coaching; cover auth recovery and offline failure scenarios without weakening the M2 read-only offline rule.
-3. **Accessibility and performance evidence:** address Game Day header semantics, add appropriately scoped app UI coverage, viewport/keyboard/device checks, and repeatable baseline measurements. Optimize only measured bottlenecks.
-4. **Operations evidence:** add backup/restore runbook and disposable local rehearsal, staging-only pilot configuration procedure, and production configuration checklist. No hosted restore or mutation.
-5. **Observability:** integrate or precisely document external setup gates for staging Sentry. Any integration must minimize event fields and prove scrubbing with synthetic errors; do not send child data.
-6. **Audit privacy:** coordinator to determine whether generic M4 lifecycle events disclose restricted history; add a narrowly scoped SQL/RLS regression test and remediation if evidence confirms cross-role visibility violates the frozen contract.
+1. **Mobile runtime / staging configuration:** select EAS `preview` for the internal preview profile and keep staging URL/publishable key in that external environment; verify its values and build target before distribution. Repository config fix is committed; no account or secret was created. Remote values, TestFlight, Android internal build, push setup, and app-owner credentials remain unverified.
+2. **Critical journey coverage:** existing authenticated Playwright suite passes 18/18 on isolated local Supabase, including OTP/magic-link/sign-out, invitation acceptance contract, admin fixture/duty/fill-in, and outsider denials. The parameterized Inbucket URL now enforces loopback isolation. Full guardian child/team → Game Day → RSVP, coach M4 stats/review/planner, manager-only, cross-team E2E, and deeper auth-recovery journeys remain open. Offline locator/snapshot failure tests are integrated; `planning/OFFLINE.md` records the frozen read-only/refresh behavior.
+3. **Accessibility and performance evidence:** expose Game Day headers, add app/offline and responsive browser checks, and establish repeatable baseline measurements. Focused mobile and web checks pass; device/manual review and performance measurements remain pending. Optimize only measured bottlenecks.
+4. **Operations evidence:** added backup/restore, production configuration, and first-team operator procedures. A local dump → migration rebuild → public data restore → pgTAP rehearsal passes in two disposable local projects. Hosted backup retention and Storage-object recovery remain staging-owner verification; no hosted restore or mutation occurred.
+5. **Observability:** the shared capture helper now forwards a constant exception message and bounded classification, never raw message/context. Focused package tests pass. Sentry remains unwired in app runtimes and no synthetic delivery, environment tag, source-map, or external Sentry project verification is claimed; staging DSN/project-owner setup and event receipt remain explicit release gates.
+6. **Audit privacy:** M5 scopes generic M4 lifecycle audit rows to active coaches for the exact team. Full pgTAP tests cover coach allow and admin-only, manager, guardian, revoked, and other-team denial; local restore rehearsal also passes the full suite. Independent exit review is still required.
 7. **Vercel:** obtain read-only deployment log/settings evidence if access becomes available; make repository-only preview-safe changes only when the failure cause is evidenced. No linking, deployment, production configuration, or secrets changes.
 
 ## Verification gates

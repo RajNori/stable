@@ -60,13 +60,13 @@ describe("captureException", () => {
     expect(forwarded).toEqual({
       name: "Error",
       classification: "Error",
-      message: "reported",
+      message: "An application error occurred.",
     });
     expect(forwarded).not.toBe(error);
     expect(forwarded).not.toBeInstanceOf(Error);
   });
 
-  it("redacts sensitive values from the message, cause, and context", () => {
+  it("never forwards error messages or arbitrary context", () => {
     const token = "sb_secret_example";
     const note = "coach-only note";
     const error = new ApplicationError(
@@ -112,6 +112,8 @@ describe("captureException", () => {
     expect(encoded).not.toContain("sick today");
     expect(encoded).not.toContain('"context"');
     expect(encoded).not.toContain('"email"');
+    expect(encoded).not.toContain("member");
+    expect(encoded).not.toContain("nested");
   });
 
   it("normalizes strings, unnamed values, and nested sensitive lists", () => {
@@ -146,15 +148,15 @@ describe("captureException", () => {
     });
     expect(sink.mock.calls[2]?.[0]).toMatchObject({
       classification: "unknown",
-      message: "Unavailable",
+      message: "An application error occurred.",
     });
     expect(sink.mock.calls[3]?.[0]).toMatchObject({
       classification: "unknown",
-      message: "Unavailable",
+      message: "An application error occurred.",
     });
-    expect(JSON.stringify(sink.mock.calls[1]?.[0])).toContain(
-      `"message":"${"a".repeat(300)}"`,
-    );
+    expect(sink.mock.calls[1]?.[0]).toMatchObject({
+      message: "An application error occurred.",
+    });
 
     const circular: { context?: object; playerName: string } = {
       playerName: "Alex Player",
@@ -198,7 +200,7 @@ describe("captureException", () => {
 
     expect(() => captureException(error)).not.toThrow();
     expect(sink.mock.calls[0]?.[0]).toMatchObject({
-      message: "loop",
+      message: "An application error occurred.",
       cause: { message: "[redacted]" },
     });
   });

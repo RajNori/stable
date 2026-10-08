@@ -19,24 +19,24 @@ This record contains repository/process evidence only. Never add secrets, signin
 
 | Gate | Result | Evidence / limitation |
 |---|---|---|
-| Candidate commit / migration list | Pending | |
-| Critical guardian, coach, manager, admin and cross-team E2E | Pending | Wave A found composed guardian Game Day/RSVP and M4 coaching flows absent. |
-| Auth recovery | Pending | Existing component/session coverage only; composed recovery journey not evidenced. |
-| Offline read-only failure matrix | Pending | Must retain no offline mutation/pending RSVP queue. |
-| Accessibility | Pending | No current manual/device review; online/offline Game Day heading semantics need correction. |
+| Candidate commit / migration list | Pending | M5 migration: `20261008160000_m5_restrict_coaching_audit_visibility.sql`. Planning baseline, EAS preview safety, mobile/web accessibility and offline tests are also committed. |
+| Critical guardian, coach, manager, admin and cross-team E2E | **Partial** | Authenticated Playwright suite passes 18/18 against clean disposable local Supabase, covering club/team admin, guardian invitation acceptance contract, fixture/duty/fill-in, announcement, roster/player access, and outsider denial. No composed guardian child/team → Game Day → RSVP journey or coach stats → review → next-practice focus → planner journey exists yet. Manager-only workflow and explicit Team A → Team B denial E2E also remain open. |
+| Auth recovery | **Partial** | Authenticated Playwright proves email OTP, phone OTP, magic-link callback, sign-out, and invitation one-time/identity binding. Expired/revoked/stale/repeated OTP, callback failure/replay, network loss, account switch/cache clearing, and revoked team membership with a valid session are not yet composed E2E journeys. |
+| Offline read-only failure matrix | Partial | Focused mobile tests now cover corrupt and mismatched snapshot/locator data and unauthenticated/not-found failures; full transition/reconnect journey still pending. No offline mutation/pending RSVP queue. |
+| Accessibility | Partial | Game Day header roles and responsive browser/keyboard check added. Full mobile suite passes 95 tests; responsive Playwright passes 1 test. Manual VoiceOver/TalkBack, touch target and dynamic text/device review remain pending. |
 | Performance baseline | Pending | No repeatable measurements found. |
-| Coverage | Pending | Current shared thresholds do not include app UI code. |
-| pgTAP files/assertions | Pending | |
-| Privacy and audit review | Pending | Confirm M4 generic club-readable audit metadata does not expose restricted stat/note history. |
-| Sentry | Pending | No app runtime initialization or delivery verification found. |
-| Staging separation | **Repo config corrected; external verification pending** | EAS preview now selects the EAS `preview` environment and sets staging app mode. Staging Supabase URL and publishable key must be configured and verified in that environment. |
-| Backup/restore rehearsal | Pending | No runbook or rehearsal evidence found; only disposable local rehearsal is authorized without human approval. |
+| Coverage | **Partial** | Full `pnpm test` passes 47 Turbo tasks, including package coverage gates at lines/statements/functions ≥95% and branches ≥90%. Web component suite passes 89 tests and mobile suite 95 tests, but web/mobile app UI coverage is not collected or gated, so the milestone-wide numerical coverage target is not proven. Jest completed 95 mobile tests but once reported a worker force-exit warning; `--detectOpenHandles` also remained alive after reporting all tests, so lifecycle stability needs follow-up. |
+| pgTAP files/assertions | **PASS** | 23 files, 912 assertions, isolated local Supabase project with separate ID/ports; no hosted Supabase access. |
+| Privacy and audit review | In progress | M4 generic coaching audit metadata is now visible only to active HEAD_COACH/ASSISTANT_COACH for its exact team. Legacy rows without a provable team remain hidden through the generic table; detailed correction history remains separately restricted. Independent exit review pending. |
+| Sentry | **Partial / release gate open** | Shared capture helper now emits a constant message and bounded classification, never raw exception messages/context. Focused observability suite: 19/19 tests; 98.24% lines, 98.03% branches, 100% functions. App runtimes still do not initialize Sentry; no configured staging DSN, synthetic event receipt, environment/release tag, or source-map access was verified. Configure a dedicated staging Sentry project/DSN through the account owner's approved secret/config path, wire initialization with request-body/user/replay capture disabled, and verify a synthetic event before pilot. |
+| Staging separation | **Repo config corrected; external verification pending** | EAS preview now selects the EAS `preview` environment and sets staging app mode. Staging Supabase URL and publishable key must be configured and verified in that environment. Expo config check passed; EAS cloud values/build remain unverified. |
+| Backup/restore rehearsal | **PASS — disposable local only** | Added `planning/MILESTONE_5_OPERATIONS.md`. Exported synthetic application `public` data from disposable local Supabase, rebuilt schema from repository migrations on a second isolated local project, restored data with `ON_ERROR_STOP`, compared synthetic club/team counts (1/1 in source and restore), and passed all 23 pgTAP files / 912 assertions against the restored database. Hosted retention, hosted backup verification, and Storage-object recovery remain unverified; no hosted project was accessed or mutated. |
 | Vercel Preview/staging | **Failed / unclassified** | M4 Preview failed; current CLI account context cannot inspect deployment. |
 | TestFlight internal build | Pending | EAS/account/signing/tester state not inspected. |
 | Android internal build | Pending | EAS/account/signing/tester state not inspected. |
 | Pilot configuration procedure | Pending | No pilot-specific synthetic configuration/operator procedure found. |
 | Dependency advisories | **Unresolved High** | `node-forge` and `braces`; current reviewed GitHub advisories list no patched versions. Existing exception remains in force. |
-| Local release gate | Pending | |
+| Local release gate | **Partial** | Passed `pnpm format:check`, `pnpm lint`, `pnpm typecheck` (25 packages), web production build, Expo public config, Expo Doctor (21/21), workspace tests (47 Turbo tasks), authenticated Playwright (18/18), responsive Playwright (1/1), full mobile tests (95/95), pgTAP before/after local Auth bootstrap (23 files/912 assertions each), and club-context integration (2/2). Full M5 gate remains open for critical missing journeys, app UI coverage, performance/accessibility/manual device evidence, Maestro validation, and external setup/build verification. |
 | Independent exit reviews | Pending | Six required read-only reviews after implementation and local gates. |
 | Required GitHub Actions on M5 head | Pending | quality, dependency-audit, supabase, web-build, expo, playwright, playwright-auth, maestro. |
 

@@ -3,7 +3,19 @@ import { join } from "node:path";
 
 import { expect, test, type Page } from "@playwright/test";
 
-const INBUCKET = "http://127.0.0.1:54324";
+const INBUCKET = localInbucketUrl();
+
+function localInbucketUrl(): string {
+  const value = process.env.LOCAL_INBUCKET_URL ?? "http://127.0.0.1:54324";
+  const url = new URL(value);
+  if (
+    url.protocol !== "http:" ||
+    (url.hostname !== "127.0.0.1" && url.hostname !== "localhost")
+  ) {
+    throw new Error("LOCAL_INBUCKET_URL must use a loopback HTTP origin.");
+  }
+  return url.origin;
+}
 
 test.describe.configure({ mode: "serial", timeout: 60_000 });
 
