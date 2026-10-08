@@ -49,9 +49,7 @@ test("a non-admin team manager maintains fixtures and team operations", async ({
     has: manager.getByRole("button", { name: "Add fixture" }),
   });
   await createFixture.getByLabel("Opponent").fill(opponent);
-  await createFixture
-    .getByLabel("Official start")
-    .fill("2026-10-10T18:30");
+  await createFixture.getByLabel("Official start").fill("2026-10-10T18:30");
   await createFixture.getByLabel("Home or away").selectOption("HOME");
   await createFixture.getByRole("button", { name: "Add fixture" }).click();
 
@@ -59,12 +57,8 @@ test("a non-admin team manager maintains fixtures and team operations", async ({
   await expect(fixture).toBeVisible();
   await fixture.getByLabel(`Opponent for ${opponent}`).fill(updatedOpponent);
   await fixture.getByLabel(`Round for ${opponent}`).fill("M5 pilot round");
-  await fixture
-    .getByRole("button", { name: "Save official fixture" })
-    .click();
-  fixture = manager
-    .getByRole("listitem")
-    .filter({ hasText: updatedOpponent });
+  await fixture.getByRole("button", { name: "Save official fixture" }).click();
+  fixture = manager.getByRole("listitem").filter({ hasText: updatedOpponent });
   await expect(fixture).toContainText("M5 pilot round");
 
   await fixture
@@ -139,9 +133,13 @@ test("a non-admin team manager maintains fixtures and team operations", async ({
   ).toHaveCount(0);
   await manager.getByLabel("Label").fill(dutyLabel);
   await manager.getByRole("button", { name: "Add open duty" }).click();
-  await expect(manager.getByRole("button", { name: "Commit allocation" })).toBeVisible();
+  await expect(
+    manager.getByRole("button", { name: "Commit allocation" }),
+  ).toBeVisible();
   await manager.getByRole("button", { name: "Commit allocation" }).click();
-  await expect(manager.getByRole("button", { name: "Commit allocation" })).toHaveCount(0);
+  await expect(
+    manager.getByRole("button", { name: "Commit allocation" }),
+  ).toHaveCount(0);
 
   await guardian.reload();
   await expect(gameDay.getByText(`Duty ${dutyLabel}`)).toBeVisible();
