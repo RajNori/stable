@@ -169,6 +169,7 @@ export function MobileAuthGate({
           accessibilityRole="button"
           accessibilityLabel="Sign out"
           onPress={() => {
+            setCallbackPending(false);
             const transition = beginSessionTransition();
             void signOut()
               .then((next) => updateSession(next, transition))
@@ -192,6 +193,7 @@ export function MobileAuthGate({
         actions={{
           requestPhone: actions.requestPhone,
           verifyPhone: async (phone, token) => {
+            setCallbackPending(false);
             const transition = beginSessionTransition();
             await updateSession(
               await actions.verifyPhone(phone, token),
@@ -200,6 +202,7 @@ export function MobileAuthGate({
           },
           requestEmail: actions.requestEmail,
           verifyEmail: async (email, token) => {
+            setCallbackPending(false);
             const transition = beginSessionTransition();
             await updateSession(
               await actions.verifyEmail(email, token),
@@ -207,6 +210,7 @@ export function MobileAuthGate({
             );
           },
           retry: async () => {
+            setCallbackPending(false);
             const transition = beginSessionTransition();
             await updateSession(await restore(), transition);
           },

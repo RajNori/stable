@@ -3,6 +3,7 @@ import type { AuthSessionSnapshot } from "@stable/contracts";
 import { QueryClient } from "@tanstack/react-query";
 import {
   act,
+  fireEvent,
   render,
   screen,
   userEvent,
@@ -434,6 +435,74 @@ describe("mobile auth gate", () => {
     expect(
       await screen.findByText(`Signed in as ${secondUserId}`),
     ).toBeTruthy();
+  });
+
+  it("clears stale callback pending state when email OTP completes first", async () => {
+    let receive: ((url: string) => void) | undefined;
+    let callbackStarted: (() => void) | undefined;
+    let resolveCallback: ((snapshot: AuthSessionSnapshot) => void) | undefined;
+    const callback = new Promise<AuthSessionSnapshot>((resolve) => {
+      resolveCallback = resolve;
+    });
+    await render(
+      <MobileAuthGate
+        restore={async () => ({ state: "unauthenticated" })}
+        signOut={async () => ({ state: "unauthenticated" })}
+        actions={idleActions({
+          completeCallback: () => {
+            callbackStarted?.();
+            return callback;
+          },
+          async verifyEmail() {
+            return secondAuthenticated;
+          },
+        })}
+        linking={{
+          async getInitialUrl() {
+            return null;
+          },
+          subscribe(listener) {
+            receive = listener;
+            return () => {
+              receive = undefined;
+            };
+          },
+        }}
+        authenticated={(id) => <Text>Signed in as {id}</Text>}
+      />,
+    );
+
+    expect(
+      await screen.findByText("Know what's next. Show up ready."),
+    ).toBeTruthy();
+    const callbackHasStarted = new Promise<void>((resolve) => {
+      callbackStarted = resolve;
+    });
+    receive?.("stable://auth/callback?code=pending");
+    await callbackHasStarted;
+
+    await userEvent.press(screen.getByLabelText("Continue with email"));
+    fireEvent.changeText(
+      screen.getByLabelText("Email address"),
+      "adult@example.com",
+    );
+    await userEvent.press(screen.getByLabelText("Send code"));
+    fireEvent.changeText(
+      await screen.findByLabelText("6-digit code"),
+      "123456",
+    );
+    await userEvent.press(screen.getByLabelText("Continue"));
+
+    expect(
+      await screen.findByText(`Signed in as ${secondUserId}`),
+    ).toBeTruthy();
+    await act(async () => {
+      resolveCallback?.(authenticated);
+      await callback;
+      await Promise.resolve();
+    });
+    expect(screen.getByText(`Signed in as ${secondUserId}`)).toBeTruthy();
+    expect(screen.queryByText("Completing sign-in…")).toBeNull();
   });
 
   it("uses safe recovery when both a callback and session restore fail", async () => {
