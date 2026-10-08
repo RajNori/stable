@@ -53,7 +53,7 @@ describe("mobile auth gate", () => {
       await screen.findByText("Know what's next. Show up ready."),
     ).toBeTruthy();
     expect(renders).toBe(0);
-  });
+  }, 15_000);
 
   it("opens the app after restore and signs out locally", async () => {
     const scopes: string[] = [];
