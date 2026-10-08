@@ -10,7 +10,9 @@ import {
   secureGameDaySnapshotStore,
 } from "./game-day-snapshot";
 
-declare const jest: any;
+declare const jest: {
+  mock: (moduleName: string, factory: () => unknown) => void;
+};
 
 jest.mock("expo-secure-store", () => ({
   getItemAsync: async (key: string) => {

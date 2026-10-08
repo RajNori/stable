@@ -10,7 +10,9 @@ import {
   type MobileAuthClient,
   type MobileAuthStorage,
 } from "./auth-session";
-declare const jest: any;
+declare const jest: {
+  mock: (moduleName: string, factory: () => unknown) => void;
+};
 
 jest.mock("./supabase-client", () => ({
   getMobileSessionStorage: () => mockLiveMocks().storage,

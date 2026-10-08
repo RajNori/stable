@@ -11,7 +11,12 @@ import { Text } from "react-native";
 
 import { MobileAuthGate } from "./mobile-auth-gate";
 
-declare const jest: any;
+declare const jest: {
+  mock: (moduleName: string, factory: () => unknown) => void;
+  fn: <T extends (...args: never[]) => unknown>(
+    implementation: T,
+  ) => T & { mock: { calls: unknown[][] } };
+};
 
 const userId = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
 const authenticated = {

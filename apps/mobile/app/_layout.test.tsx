@@ -3,7 +3,9 @@ import React from "react";
 
 import RootLayout from "./_layout";
 
-declare const jest: any;
+declare const jest: {
+  mock: (moduleName: string, factory: () => unknown) => void;
+};
 
 jest.mock("expo-router", () => ({ Slot: () => null }));
 jest.mock("expo-status-bar", () => ({ StatusBar: () => null }));

@@ -1,12 +1,7 @@
 import React from "react";
 import { StyleSheet } from "react-native";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import {
-  render,
-  screen,
-  userEvent,
-  waitFor,
-} from "@testing-library/react-native";
+import { render, screen, userEvent } from "@testing-library/react-native";
 import { themeFor } from "@stable/design-tokens";
 import type {
   ClubContextReader,

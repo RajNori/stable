@@ -8,7 +8,9 @@ import {
   mobileSecureStoreOptions,
 } from "./supabase-client";
 
-declare const jest: any;
+declare const jest: {
+  mock: (moduleName: string, factory: () => unknown) => void;
+};
 
 jest.mock("@supabase/supabase-js", () => ({
   createClient: (url: string, key: string, options: unknown) => {
