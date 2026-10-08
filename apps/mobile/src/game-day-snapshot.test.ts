@@ -110,4 +110,33 @@ describe("game day snapshot", () => {
     );
     expect(await readGameDaySnapshot(store, userId, teamId)).toBeNull();
   });
+
+  it("fails closed for corrupt JSON and a snapshot stored under the wrong identity", async () => {
+    const store = memoryGameDaySnapshotStore();
+    const snapshot = gameDaySnapshotFromProjection({
+      userId,
+      teamName: "U14 Boys",
+      projection,
+      savedAt,
+    });
+    const key = `stable.game-day.v1.${userId}.${teamId}`;
+
+    await store.setItem(key, "{not-json");
+    expect(await readGameDaySnapshot(store, userId, teamId)).toBeNull();
+
+    await store.setItem(
+      key,
+      JSON.stringify({ ...snapshot, userId: otherUserId }),
+    );
+    expect(await readGameDaySnapshot(store, userId, teamId)).toBeNull();
+
+    await store.setItem(
+      key,
+      JSON.stringify({
+        ...snapshot,
+        teamId: "88888888-8888-4888-8888-888888888888",
+      }),
+    );
+    expect(await readGameDaySnapshot(store, userId, teamId)).toBeNull();
+  });
 });

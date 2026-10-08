@@ -194,6 +194,41 @@ describe("offline game day locator", () => {
     expect(await readGameDaySnapshot(store, userId, teamId)).not.toBeNull();
   });
 
+  it("fails closed when the locator is missing, corrupt, or names another user", async () => {
+    const store = memoryGameDaySnapshotStore();
+    expect(await readOfflineGameDay(store, userId)).toBeNull();
+
+    const key = `stable.offline-context.v1.${userId}`;
+    await store.setItem(key, "{not-json");
+    expect(await readOfflineContextPointer(store, userId)).toBeNull();
+    expect(await readOfflineGameDay(store, userId)).toBeNull();
+
+    await store.setItem(
+      key,
+      JSON.stringify({ version: 1, userId: otherUserId, teamId }),
+    );
+    expect(await readOfflineContextPointer(store, userId)).toBeNull();
+    expect(await readOfflineGameDay(store, userId)).toBeNull();
+  });
+
+  it("fails closed when a valid locator points at a corrupt or wrong-team snapshot", async () => {
+    const store = memoryGameDaySnapshotStore();
+    await persistOfflineGameDay(store, snapshotFor(userId, teamId));
+    const snapshotKey = `stable.game-day.v1.${userId}.${teamId}`;
+
+    await store.setItem(snapshotKey, "{not-json");
+    expect(await readOfflineGameDay(store, userId)).toBeNull();
+
+    await store.setItem(
+      snapshotKey,
+      JSON.stringify({
+        ...snapshotFor(userId, teamId),
+        teamId: otherTeamId,
+      }),
+    );
+    expect(await readOfflineGameDay(store, userId)).toBeNull();
+  });
+
   it("does not read another user's snapshot", async () => {
     const inner = memoryGameDaySnapshotStore();
     await persistOfflineGameDay(inner, snapshotFor(userId, teamId, "Visitors"));
@@ -269,6 +304,16 @@ describe("offline game day locator", () => {
     expect(
       isOfflineAuthorizationFailure(
         new ApplicationError("FORBIDDEN", "This game day is not available."),
+      ),
+    ).toBe(true);
+    expect(
+      isOfflineAuthorizationFailure(
+        new ApplicationError("UNAUTHENTICATED", "Sign in is required."),
+      ),
+    ).toBe(true);
+    expect(
+      isOfflineAuthorizationFailure(
+        new ApplicationError("NOT_FOUND", "This game day is not available."),
       ),
     ).toBe(true);
   });
