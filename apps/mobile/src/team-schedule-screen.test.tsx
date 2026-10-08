@@ -1,6 +1,8 @@
 import React from "react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { render, screen } from "@testing-library/react-native";
+import { ApplicationError } from "@stable/contracts";
+import { scheduleMessages } from "@stable/schedule";
 import type { CurrentClubContext } from "@stable/contracts";
 import type { ScheduleEntry } from "@stable/schedule";
 
@@ -90,5 +92,137 @@ describe("team schedule screen", () => {
     );
 
     expect(await screen.findByText("No events in this range.")).toBeTruthy();
+  });
+
+  it("fails closed when club context is unavailable", async () => {
+    const queryClient = new QueryClient({
+      defaultOptions: { queries: { retry: false, gcTime: 0 } },
+    });
+    await render(
+      <QueryClientProvider client={queryClient}>
+        <TeamScheduleScreen
+          loadContext={() => Promise.reject(new Error("network details"))}
+          loadSchedule={() => Promise.reject(new Error("must not load"))}
+        />
+      </QueryClientProvider>,
+    );
+
+    expect(await screen.findByText(scheduleMessages.readFailed)).toBeTruthy();
+    expect(screen.queryByText("network details")).toBeNull();
+  });
+
+  it("shows a safe forbidden state when no club is available", async () => {
+    const queryClient = new QueryClient({
+      defaultOptions: { queries: { retry: false, gcTime: 0 } },
+    });
+    await render(
+      <QueryClientProvider client={queryClient}>
+        <TeamScheduleScreen
+          loadContext={() =>
+            Promise.resolve({
+              ...context,
+              club: null,
+              activeTeam: null,
+              availableTeams: [],
+            })
+          }
+          loadSchedule={() => Promise.reject(new Error("must not load"))}
+        />
+      </QueryClientProvider>,
+    );
+
+    expect(await screen.findByText(scheduleMessages.forbidden)).toBeTruthy();
+  });
+
+  it("shows a domain schedule error but no provider response details", async () => {
+    const queryClient = new QueryClient({
+      defaultOptions: { queries: { retry: false, gcTime: 0 } },
+    });
+    await render(
+      <QueryClientProvider client={queryClient}>
+        <TeamScheduleScreen
+          loadContext={() => Promise.resolve(context)}
+          loadSchedule={() =>
+            Promise.reject(new ApplicationError("FORBIDDEN", "Schedule hidden"))
+          }
+        />
+      </QueryClientProvider>,
+    );
+
+    expect(await screen.findByText("Schedule hidden")).toBeTruthy();
+  });
+
+  it("shows a generic schedule failure without provider response details", async () => {
+    const queryClient = new QueryClient({
+      defaultOptions: { queries: { retry: false, gcTime: 0 } },
+    });
+    await render(
+      <QueryClientProvider client={queryClient}>
+        <TeamScheduleScreen
+          loadContext={() => Promise.resolve(context)}
+          loadSchedule={() =>
+            Promise.reject(new Error("provider response with private data"))
+          }
+        />
+      </QueryClientProvider>,
+    );
+
+    expect(await screen.findByText(scheduleMessages.readFailed)).toBeTruthy();
+    expect(screen.queryByText(/private data/)).toBeNull();
+  });
+
+  it("requires one active team before loading its schedule", async () => {
+    const queryClient = new QueryClient({
+      defaultOptions: { queries: { retry: false, gcTime: 0 } },
+    });
+    let loaded = false;
+    await render(
+      <QueryClientProvider client={queryClient}>
+        <TeamScheduleScreen
+          loadContext={() =>
+            Promise.resolve({
+              ...context,
+              activeTeam: null,
+              availableTeams: [],
+            })
+          }
+          loadSchedule={() => {
+            loaded = true;
+            return Promise.reject(new Error("must not load"));
+          }}
+        />
+      </QueryClientProvider>,
+    );
+
+    expect(
+      await screen.findByText("Use a context with one team."),
+    ).toBeTruthy();
+    expect(loaded).toBe(false);
+  });
+
+  it("uses neutral labels when round and opponent details are absent", async () => {
+    const queryClient = new QueryClient({
+      defaultOptions: { queries: { retry: false, gcTime: 0 } },
+    });
+    await render(
+      <QueryClientProvider client={queryClient}>
+        <TeamScheduleScreen
+          loadContext={() => Promise.resolve(context)}
+          loadSchedule={() =>
+            Promise.resolve([
+              {
+                ...entry("GAME", "2026-10-10T07:30:00.000Z"),
+                roundLabel: null,
+                opponentName: null,
+              },
+            ])
+          }
+        />
+      </QueryClientProvider>,
+    );
+
+    expect(
+      await screen.findByText("Game: Opponent at 2026-10-10T07:30:00.000Z"),
+    ).toBeTruthy();
   });
 });
