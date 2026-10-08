@@ -9,6 +9,7 @@ import {
 } from "@testing-library/react-native";
 import React from "react";
 import { AccessibilityInfo } from "react-native";
+import type { Text } from "react-native";
 
 import { AuthScreen, type AuthActions } from "./auth-screen";
 import {
@@ -23,12 +24,31 @@ type AccessibilitySpy = {
   ) => AccessibilitySpy;
   mockRestore: () => void;
 };
-
+type FocusSpy = {
+  mockImplementation: (implementation: (tag: number) => void) => FocusSpy;
+  mockRestore: () => void;
+  mock: { calls: number[][] };
+};
+type ScreenReaderSpy = {
+  mockImplementation: (
+    implementation: () => Promise<boolean>,
+  ) => ScreenReaderSpy;
+  mockRestore: () => void;
+  mock: { calls: unknown[][] };
+};
 declare const jest: {
-  spyOn: (
+  spyOn(
     object: typeof AccessibilityInfo,
     method: "announceForAccessibility",
-  ) => AccessibilitySpy;
+  ): AccessibilitySpy;
+  spyOn(
+    object: typeof AccessibilityInfo,
+    method: "setAccessibilityFocus",
+  ): FocusSpy;
+  spyOn(
+    object: typeof AccessibilityInfo,
+    method: "isScreenReaderEnabled",
+  ): ScreenReaderSpy;
 };
 
 const unauthenticated = {
@@ -216,6 +236,124 @@ describe("mobile auth screen", () => {
         `Sign-in is paused. ${AUTH_ERROR_MESSAGES.UPSTREAM_UNAVAILABLE}`,
       );
     });
+    announce.mockRestore();
+  });
+
+  it("moves screen-reader focus to each newly mounted auth heading", async () => {
+    const focusedTargets: number[] = [];
+    const resolvedHeadings: Array<Text | null> = [];
+    let nextTarget = 0;
+    const announce = jest
+      .spyOn(AccessibilityInfo, "announceForAccessibility")
+      .mockImplementation(() => undefined);
+    const screenReader = jest
+      .spyOn(AccessibilityInfo, "isScreenReaderEnabled")
+      .mockImplementation(async () => true);
+    const focus = jest
+      .spyOn(AccessibilityInfo, "setAccessibilityFocus")
+      .mockImplementation((target) => {
+        focusedTargets.push(target);
+      });
+    const accessibilityFocusTarget = (heading: Text | null): number => {
+      resolvedHeadings.push(heading);
+      nextTarget += 1;
+      return nextTarget;
+    };
+    const actions = idleActions();
+    const { rerender } = await render(
+      <AuthScreen
+        session={unauthenticated}
+        actions={actions}
+        accessibilityFocusTarget={accessibilityFocusTarget}
+      />,
+    );
+
+    let lastTarget = 0;
+    let lastHeading: Text | null | undefined;
+    let lastScreenReaderCheck = 0;
+    const expectHeadingFocus = async (name: string): Promise<void> => {
+      expect(screen.getByRole("header", { name })).toBeTruthy();
+      await waitFor(() => {
+        expect(screenReader.mock.calls.length).toBeGreaterThan(
+          lastScreenReaderCheck,
+        );
+      });
+      lastScreenReaderCheck = screenReader.mock.calls.length;
+      await waitFor(() => {
+        expect(focusedTargets.at(-1)).toBeGreaterThan(lastTarget);
+      });
+      lastTarget = focusedTargets.at(-1) ?? lastTarget;
+      expect(lastTarget).toBe(nextTarget);
+      const heading = resolvedHeadings.at(-1);
+      expect(heading).toBeDefined();
+      if (lastHeading !== undefined) {
+        expect(heading).not.toBe(lastHeading);
+      }
+      lastHeading = heading;
+    };
+
+    await expectHeadingFocus("Know what's next. Show up ready.");
+    await userEvent.press(screen.getByLabelText("Continue with mobile"));
+    await expectHeadingFocus("Your mobile");
+    fireEvent.changeText(screen.getByLabelText("Mobile number"), "0412345678");
+    await userEvent.press(screen.getByLabelText("Continue"));
+    await screen.findByLabelText("6-digit code");
+    await expectHeadingFocus("Enter the code");
+    await userEvent.press(screen.getByLabelText("Change mobile number"));
+    await expectHeadingFocus("Your mobile");
+    await userEvent.press(screen.getByLabelText("Back"));
+    await expectHeadingFocus("Know what's next. Show up ready.");
+
+    await userEvent.press(screen.getByLabelText("Continue with email"));
+    await expectHeadingFocus("Your email");
+    fireEvent.changeText(
+      screen.getByLabelText("Email address"),
+      "adult@example.com",
+    );
+    await userEvent.press(screen.getByLabelText("Send code"));
+    await screen.findByLabelText("6-digit code");
+    await expectHeadingFocus("Enter the code");
+    await userEvent.press(screen.getByLabelText("Change email"));
+    await expectHeadingFocus("Your email");
+
+    await rerender(
+      <AuthScreen
+        session={{
+          state: "recovery",
+          errorCode: "UPSTREAM_UNAVAILABLE",
+          message: AUTH_ERROR_MESSAGES.UPSTREAM_UNAVAILABLE,
+        }}
+        actions={actions}
+        accessibilityFocusTarget={accessibilityFocusTarget}
+      />,
+    );
+    await expectHeadingFocus("Sign-in is paused");
+    expect(focusedTargets.length).toBeGreaterThanOrEqual(9);
+    focus.mockRestore();
+    screenReader.mockRestore();
+    announce.mockRestore();
+  });
+
+  it("does not move accessibility focus when a screen reader is off", async () => {
+    const focus = jest
+      .spyOn(AccessibilityInfo, "setAccessibilityFocus")
+      .mockImplementation(() => undefined);
+    const screenReader = jest
+      .spyOn(AccessibilityInfo, "isScreenReaderEnabled")
+      .mockImplementation(async () => false);
+    const announce = jest
+      .spyOn(AccessibilityInfo, "announceForAccessibility")
+      .mockImplementation(() => undefined);
+    await render(
+      <AuthScreen session={unauthenticated} actions={idleActions()} />,
+    );
+    await userEvent.press(screen.getByLabelText("Continue with email"));
+    await waitFor(() => {
+      expect(screenReader.mock.calls.length).toBeGreaterThanOrEqual(2);
+    });
+    expect(focus.mock.calls.length).toBe(0);
+    focus.mockRestore();
+    screenReader.mockRestore();
     announce.mockRestore();
   });
 
