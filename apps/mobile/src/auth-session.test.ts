@@ -1,11 +1,50 @@
 import {
+  createLiveMobileAuthSessionGateway,
+  mobileAuthSessionGatewayFromSupabase,
   mobileAuthStorageKey,
   refreshMobileAuthSession,
+  restoreLiveMobileAuthSession,
   restoreMobileAuthSession,
+  signOutLiveMobileAuthSession,
   signOutMobileAuthSession,
   type MobileAuthClient,
   type MobileAuthStorage,
 } from "./auth-session";
+declare const jest: any;
+
+jest.mock("./supabase-client", () => ({
+  getMobileSessionStorage: () => mockLiveMocks().storage,
+  getMobileSupabaseClient: () => mockLiveMocks().client,
+}));
+jest.mock("./game-day-snapshot", () => ({
+  secureGameDaySnapshotStore: () => mockLiveMocks().snapshotStore,
+}));
+jest.mock("./offline-context", () => ({
+  clearStoredOfflineGameDay: (store: unknown, id: string) => {
+    mockLiveMocks().offlineClearCalls.push([store, id]);
+    return Promise.resolve();
+  },
+}));
+
+type LiveMocks = {
+  client: MobileAuthClient | undefined;
+  storage: MobileAuthStorage | undefined;
+  snapshotStore: MobileAuthStorage | undefined;
+  offlineClearCalls: unknown[][];
+};
+
+function mockLiveMocks(): LiveMocks {
+  const holder = globalThis as typeof globalThis & {
+    __stableM5MobileAuthMocks?: LiveMocks;
+  };
+  holder.__stableM5MobileAuthMocks ??= {
+    client: undefined,
+    storage: undefined,
+    snapshotStore: undefined,
+    offlineClearCalls: [],
+  };
+  return holder.__stableM5MobileAuthMocks;
+}
 
 const userId = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
 const storageKey = "sb-127-auth-token";
@@ -74,6 +113,42 @@ describe("mobile auth session", () => {
     expect(snapshot).toEqual({ state: "unauthenticated" });
     expect(client.sessionCalls).toBe(0);
     expect(store.removed).toEqual([]);
+  });
+
+  it("treats blank storage as absent without consulting the provider", async () => {
+    const store = memoryStore({ [storageKey]: " \n  " });
+    const client = fakeClient({ session: { user: { id: userId } } });
+
+    const snapshot = await restoreMobileAuthSession({
+      client,
+      storage: store.storage,
+      storageKey,
+      now,
+    });
+
+    expect(snapshot).toEqual({ state: "unauthenticated" });
+    expect(client.sessionCalls).toBe(0);
+  });
+
+  it("does not expose unusable metadata and handles missing expiry", async () => {
+    const store = memoryStore({ [storageKey]: '{"persisted":true}' });
+    const client = fakeClient({
+      session: {
+        user: { id: userId, user_metadata: { display_name: "" } },
+      },
+    });
+
+    const snapshot = await restoreMobileAuthSession({
+      client,
+      storage: store.storage,
+      storageKey,
+      now,
+    });
+
+    expect(snapshot).toEqual({
+      state: "authenticated",
+      principal: { userId },
+    });
   });
 
   it("clears an unparseable stored value", async () => {
@@ -204,6 +279,43 @@ describe("mobile auth session", () => {
     expect(store.removed).toEqual([]);
   });
 
+  it("does not fall back to a session after a definitive refresh rejection", async () => {
+    const store = memoryStore();
+    const client = fakeClient({
+      session: null,
+      refreshError: { status: 400, code: "invalid_grant" },
+    });
+
+    const snapshot = await refreshMobileAuthSession({
+      client,
+      storage: store.storage,
+      storageKey,
+      now,
+    });
+
+    expect(snapshot).toEqual({ state: "expired" });
+    expect(client.sessionCalls).toBe(0);
+  });
+
+  it("expires when a refresh succeeds without a session", async () => {
+    const store = memoryStore({ [storageKey]: '{"persisted":true}' });
+    const client = fakeClient({ session: null, refreshed: null });
+
+    const snapshot = await refreshMobileAuthSession({
+      client,
+      storage: store.storage,
+      storageKey,
+      now,
+    });
+
+    expect(snapshot).toEqual({ state: "expired" });
+    expect(store.removed).toEqual([
+      storageKey,
+      `${storageKey}-code-verifier`,
+      `${storageKey}-user`,
+    ]);
+  });
+
   it("signs out locally only after storage is cleared", async () => {
     const store = memoryStore({ [storageKey]: '{"persisted":true}' });
     const client = fakeClient({
@@ -314,6 +426,90 @@ describe("mobile auth session", () => {
     });
     expect(client.scopes).toEqual(["global"]);
     expect(JSON.stringify(snapshot).includes(leakedToken)).toBe(false);
+  });
+
+  it("adapts a Supabase client to the common session gateway", async () => {
+    const store = memoryStore({ [storageKey]: '{"persisted":true}' });
+    const client = fakeClient({ session: { user: { id: userId } } });
+    const gateway = mobileAuthSessionGatewayFromSupabase(
+      client as never,
+      store.storage,
+      "http://127.0.0.1:54321",
+    );
+
+    expect(await gateway.readPersisted()).toMatchObject({
+      kind: "principal",
+      principal: { userId },
+    });
+    await gateway.revoke("local");
+    expect(client.scopes).toEqual(["local"]);
+  });
+
+  it("requires the Expo Supabase URL before creating a live gateway", () => {
+    const previous = process.env.EXPO_PUBLIC_SUPABASE_URL;
+    delete process.env.EXPO_PUBLIC_SUPABASE_URL;
+    expect(() => createLiveMobileAuthSessionGateway()).toThrow(
+      "EXPO_PUBLIC_SUPABASE_URL is required.",
+    );
+    if (previous === undefined) {
+      delete process.env.EXPO_PUBLIC_SUPABASE_URL;
+    } else {
+      process.env.EXPO_PUBLIC_SUPABASE_URL = previous;
+    }
+  });
+
+  it("restores through the configured live client", async () => {
+    const previous = process.env.EXPO_PUBLIC_SUPABASE_URL;
+    process.env.EXPO_PUBLIC_SUPABASE_URL = "http://127.0.0.1:54321";
+    const client = fakeClient({ session: { user: { id: userId } } });
+    const store = memoryStore({ [storageKey]: '{"persisted":true}' });
+    mockLiveMocks().client = client;
+    mockLiveMocks().storage = store.storage;
+
+    try {
+      expect(await restoreLiveMobileAuthSession()).toEqual({
+        state: "authenticated",
+        principal: { userId },
+      });
+    } finally {
+      if (previous === undefined) {
+        delete process.env.EXPO_PUBLIC_SUPABASE_URL;
+      } else {
+        process.env.EXPO_PUBLIC_SUPABASE_URL = previous;
+      }
+    }
+  });
+
+  it("clears the signed-out user's offline snapshot after a live local logout", async () => {
+    const previous = process.env.EXPO_PUBLIC_SUPABASE_URL;
+    process.env.EXPO_PUBLIC_SUPABASE_URL = "http://127.0.0.1:54321";
+    const client = fakeClient({
+      session: { user: { id: userId } },
+      signOutClears: true,
+    });
+    mockLiveMocks().client = client;
+    mockLiveMocks().storage = memoryStore({
+      [storageKey]: '{"persisted":true}',
+    }).storage;
+    const snapshotStore = memoryStore();
+    mockLiveMocks().snapshotStore = snapshotStore.storage;
+    mockLiveMocks().offlineClearCalls.length = 0;
+
+    try {
+      expect(await signOutLiveMobileAuthSession()).toEqual({
+        state: "unauthenticated",
+      });
+      expect(mockLiveMocks().offlineClearCalls[0]).toEqual([
+        snapshotStore.storage,
+        userId,
+      ]);
+    } finally {
+      if (previous === undefined) {
+        delete process.env.EXPO_PUBLIC_SUPABASE_URL;
+      } else {
+        process.env.EXPO_PUBLIC_SUPABASE_URL = previous;
+      }
+    }
   });
 });
 

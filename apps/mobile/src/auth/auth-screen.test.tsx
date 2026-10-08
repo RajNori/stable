@@ -294,6 +294,51 @@ describe("mobile auth screen", () => {
     expect(emails).toEqual(["adult@example.com", "adult@example.com:123456"]);
   });
 
+  it("changes and resends an email code without retaining the previous code", async () => {
+    const requests: string[] = [];
+    await render(
+      <AuthScreen
+        session={unauthenticated}
+        resendCooldownSeconds={0}
+        actions={idleActions({
+          async requestEmail(email) {
+            requests.push(email);
+          },
+        })}
+      />,
+    );
+
+    await userEvent.press(screen.getByLabelText("Continue with email"));
+    fireEvent.changeText(
+      screen.getByLabelText("Email address"),
+      "adult@example.com",
+    );
+    await userEvent.press(screen.getByLabelText("Send code"));
+    fireEvent.changeText(
+      await screen.findByLabelText("6-digit code"),
+      "123456",
+    );
+    await userEvent.press(screen.getByLabelText("Change email"));
+    expect(screen.getByLabelText("Email address")).toBeTruthy();
+    expect(screen.queryByLabelText("6-digit code")).toBeNull();
+    await userEvent.press(screen.getByLabelText("Back"));
+    expect(screen.getByLabelText("Continue with email")).toBeTruthy();
+
+    await userEvent.press(screen.getByLabelText("Continue with email"));
+    fireEvent.changeText(
+      screen.getByLabelText("Email address"),
+      "adult@example.com",
+    );
+    await userEvent.press(screen.getByLabelText("Send code"));
+    await screen.findByLabelText("6-digit code");
+    await userEvent.press(screen.getByLabelText("Resend code"));
+    expect(requests).toEqual([
+      "adult@example.com",
+      "adult@example.com",
+      "adult@example.com",
+    ]);
+  });
+
   it("shows a catalog sentence for an invalid email", async () => {
     await render(
       <AuthScreen

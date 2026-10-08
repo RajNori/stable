@@ -11,6 +11,8 @@ import { Text } from "react-native";
 
 import { MobileAuthGate } from "./mobile-auth-gate";
 
+declare const jest: any;
+
 const userId = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
 const authenticated = {
   state: "authenticated",
@@ -127,6 +129,183 @@ describe("mobile auth gate", () => {
         false,
       );
     });
+  });
+
+  it("uses a successful initial auth callback to open the app", async () => {
+    const complete = jest.fn(async () => authenticated);
+    await render(
+      <MobileAuthGate
+        restore={async () => ({ state: "unauthenticated" })}
+        signOut={async () => ({ state: "unauthenticated" })}
+        actions={idleActions({ completeCallback: complete })}
+        linking={{
+          async getInitialUrl() {
+            return "stable://auth/callback?code=local-code";
+          },
+          subscribe() {
+            return () => undefined;
+          },
+        }}
+        authenticated={(id) => <Text>Signed in as {id}</Text>}
+      />,
+    );
+
+    expect(await screen.findByText(`Signed in as ${userId}`)).toBeTruthy();
+    expect(complete.mock.calls[0]).toEqual([
+      "stable://auth/callback?code=local-code",
+    ]);
+  });
+
+  it("ignores unrelated links and accepts a later callback once", async () => {
+    let receive: ((url: string) => void) | undefined;
+    const complete = jest.fn(async () => authenticated);
+    await render(
+      <MobileAuthGate
+        restore={async () => ({ state: "unauthenticated" })}
+        signOut={async () => ({ state: "unauthenticated" })}
+        actions={idleActions({ completeCallback: complete })}
+        linking={{
+          async getInitialUrl() {
+            return "stable://teams/current";
+          },
+          subscribe(listener) {
+            receive = listener;
+            return () => {
+              receive = undefined;
+            };
+          },
+        }}
+        authenticated={() => <Text>Club home</Text>}
+      />,
+    );
+
+    expect(screen.queryByText("Club home")).toBeNull();
+    expect(complete.mock.calls.length).toBe(0);
+    receive?.("stable://teams/current");
+    expect(complete.mock.calls.length).toBe(0);
+    receive?.("stable://auth/callback?code=local-code");
+    expect(await screen.findByText("Club home")).toBeTruthy();
+    expect(complete.mock.calls.length).toBe(1);
+  });
+
+  it("maps an unexpected restore failure to a safe recovery message", async () => {
+    await render(
+      <MobileAuthGate
+        restore={async () => {
+          throw new Error("provider returned private detail");
+        }}
+        signOut={async () => ({ state: "unauthenticated" })}
+        actions={idleActions()}
+        authenticated={() => <Text>Club home</Text>}
+      />,
+    );
+
+    expect(await screen.findByText(AUTH_ERROR_MESSAGES.INTERNAL)).toBeTruthy();
+    expect(screen.queryByText("provider returned private detail")).toBeNull();
+  });
+
+  it("returns to recovery if sign-out cannot reach the provider", async () => {
+    await render(
+      <MobileAuthGate
+        restore={async () => authenticated}
+        signOut={async () => {
+          throw new TypeError("network failed for private account");
+        }}
+        actions={idleActions()}
+        authenticated={() => <Text>Club home</Text>}
+      />,
+    );
+
+    await userEvent.press(await screen.findByLabelText("Sign out"));
+    expect(await screen.findByText(AUTH_ERROR_MESSAGES.INTERNAL)).toBeTruthy();
+    expect(screen.queryByText("private account")).toBeNull();
+  });
+
+  it("surfaces a catalog callback error without exposing its URL", async () => {
+    await render(
+      <MobileAuthGate
+        restore={async () => ({ state: "unauthenticated" })}
+        signOut={async () => ({ state: "unauthenticated" })}
+        actions={idleActions({
+          async completeCallback() {
+            throw new ApplicationError(
+              "UPSTREAM_UNAVAILABLE",
+              AUTH_ERROR_MESSAGES.UPSTREAM_UNAVAILABLE,
+            );
+          },
+        })}
+        linking={{
+          async getInitialUrl() {
+            return null;
+          },
+          subscribe(listener) {
+            listener("stable://auth/callback?access_token=private");
+            return () => undefined;
+          },
+        }}
+        authenticated={() => <Text>Club home</Text>}
+      />,
+    );
+
+    expect(
+      await screen.findByText(AUTH_ERROR_MESSAGES.UPSTREAM_UNAVAILABLE),
+    ).toBeTruthy();
+    expect(JSON.stringify(screen.toJSON())).not.toContain("private");
+  });
+
+  it("does not trust an application error with a non-catalog message", async () => {
+    await render(
+      <MobileAuthGate
+        restore={async () => ({ state: "unauthenticated" })}
+        signOut={async () => ({ state: "unauthenticated" })}
+        actions={idleActions({
+          async completeCallback() {
+            throw new ApplicationError("VALIDATION_FAILED", "contains a token");
+          },
+        })}
+        linking={{
+          async getInitialUrl() {
+            return "stable://auth/callback?code=private";
+          },
+          subscribe() {
+            return () => undefined;
+          },
+        }}
+        authenticated={() => <Text>Club home</Text>}
+      />,
+    );
+
+    expect(await screen.findByText(AUTH_ERROR_MESSAGES.INTERNAL)).toBeTruthy();
+    expect(JSON.stringify(screen.toJSON())).not.toContain("token");
+  });
+
+  it("maps a failed subscribed callback to a safe recovery message", async () => {
+    let receive: ((url: string) => void) | undefined;
+    await render(
+      <MobileAuthGate
+        restore={async () => ({ state: "unauthenticated" })}
+        signOut={async () => ({ state: "unauthenticated" })}
+        actions={idleActions({
+          async completeCallback() {
+            throw new Error("provider token=private");
+          },
+        })}
+        linking={{
+          async getInitialUrl() {
+            return null;
+          },
+          subscribe(listener) {
+            receive = listener;
+            return () => undefined;
+          },
+        }}
+        authenticated={() => <Text>Club home</Text>}
+      />,
+    );
+
+    receive?.("stable://auth/callback?code=private");
+    expect(await screen.findByText(AUTH_ERROR_MESSAGES.INTERNAL)).toBeTruthy();
+    expect(JSON.stringify(screen.toJSON())).not.toContain("private");
   });
 });
 
