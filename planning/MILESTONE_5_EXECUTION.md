@@ -55,7 +55,7 @@ Planned remediation lanes, subject to path and contract review before dispatch:
 
 ## Independent review remediation
 
-Initial independent reads found actionable P2 issues: audit metadata remained visible after team deactivation; mobile React Query and SecureStore data was not cleared on identity change; mobile announcement actions lacked 44-point targets and screen-reader error announcements; web and mobile sign-in step changes lacked accessible transitions; and iOS VoiceOver had no offline/stale status announcement. The audit-backfill concern was withdrawn after the database trigger path was confirmed. Remediations and focused tests are committed; required read-only delta reviews on the final pushed SHA remain pending. No physical-device accessibility result is claimed.
+Initial independent reads found actionable P2 issues: audit metadata remained visible after team deactivation; mobile React Query and SecureStore data was not cleared on identity change; mobile announcement actions lacked 44-point targets and screen-reader error announcements; web and mobile sign-in step changes lacked accessible transitions; and iOS VoiceOver had no offline/stale status announcement. The audit-backfill concern was withdrawn after the database trigger path was confirmed. All six read-only review domains completed on exact final pushed HEAD `b5fe7126941b54f8fbe81401cbb8edc45c24e746`; no P1/P2 findings remain. An on-device storage-hygiene P3 and physical VoiceOver/TalkBack validation remain. No physical-device accessibility result is claimed.
 
 ## Verification gates
 
