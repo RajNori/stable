@@ -30,7 +30,10 @@ import { loadMobileTeamRoster } from "../src/load-mobile-team-roster";
 import { loadMobileTeamSchedule } from "../src/load-mobile-team-schedule";
 import { MobileDestinations } from "../src/mobile-destinations";
 import { expoNetworkMonitor } from "../src/expo-network-monitor";
-import { secureGameDaySnapshotStore } from "../src/game-day-snapshot";
+import {
+  clearUserGameDaySnapshots,
+  secureGameDaySnapshotStore,
+} from "../src/game-day-snapshot";
 import { useMobileOnline } from "../src/mobile-connectivity";
 import { TeamAnnouncementsScreen } from "../src/team-announcements-screen";
 import { TeamGameDayScreen } from "../src/team-game-day-screen";
@@ -43,10 +46,17 @@ const boot = loadMobileBootEnv();
 
 export default function CurrentClubContextRoute() {
   const queryClient = useQueryClient();
-  const clearPrivateCache = useCallback(() => {
-    void queryClient.cancelQueries();
-    queryClient.clear();
-  }, [queryClient]);
+  const snapshotStore = useMemo(() => secureGameDaySnapshotStore(), []);
+  const clearPrivateCache = useCallback(
+    async (previousUserId: string | null) => {
+      void queryClient.cancelQueries();
+      queryClient.clear();
+      if (previousUserId !== null) {
+        await clearUserGameDaySnapshots(snapshotStore, previousUserId);
+      }
+    },
+    [queryClient, snapshotStore],
+  );
   const loadContext = useCallback(() => loadMobileCurrentClubContext(), []);
   const actions = useMemo(
     () =>
@@ -58,7 +68,6 @@ export default function CurrentClubContextRoute() {
   );
   const monitor = useMemo(() => expoNetworkMonitor(), []);
   const online = useMobileOnline(monitor);
-  const snapshotStore = useMemo(() => secureGameDaySnapshotStore(), []);
   const linking = useMemo(
     () => ({
       getInitialUrl: () => Linking.getInitialURL(),

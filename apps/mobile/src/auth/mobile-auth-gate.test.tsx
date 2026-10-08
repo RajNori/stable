@@ -10,6 +10,10 @@ import {
 import React from "react";
 import { Text } from "react-native";
 
+import {
+  clearUserGameDaySnapshots,
+  memoryGameDaySnapshotStore,
+} from "../game-day-snapshot";
 import { MobileAuthGate } from "./mobile-auth-gate";
 
 declare const jest: {
@@ -126,6 +130,118 @@ describe("mobile auth gate", () => {
     ).toBeTruthy();
     expect(queryClient.getQueryCache().getAll()).toEqual([]);
     expect(clearPrivateCache.mock.calls.length).toBeGreaterThanOrEqual(3);
+  });
+
+  it("clears only the prior user's Game Day snapshots on callback account switch", async () => {
+    let receive: ((url: string) => void) | undefined;
+    const store = memoryGameDaySnapshotStore();
+    const previousTeamId = "previous-team";
+    const nextTeamId = "next-team";
+    await store.setItem(
+      `stable.game-day.v1.${userId}.${previousTeamId}`,
+      "previous-user snapshot",
+    );
+    await store.setItem(
+      `stable.game-day.v1.${userId}`,
+      JSON.stringify({ teams: [previousTeamId] }),
+    );
+    await store.setItem(
+      `stable.game-day.v1.${secondUserId}.${nextTeamId}`,
+      "next-user snapshot",
+    );
+    await store.setItem(
+      `stable.game-day.v1.${secondUserId}`,
+      JSON.stringify({ teams: [nextTeamId] }),
+    );
+
+    const clearPrivateCache = jest.fn(async (previousUserId: string | null) => {
+      if (previousUserId !== null) {
+        await clearUserGameDaySnapshots(store, previousUserId);
+      }
+    });
+    await render(
+      <MobileAuthGate
+        restore={async () => authenticated}
+        signOut={async () => ({ state: "unauthenticated" })}
+        actions={idleActions({
+          async completeCallback() {
+            return secondAuthenticated;
+          },
+        })}
+        clearPrivateCache={clearPrivateCache}
+        linking={{
+          async getInitialUrl() {
+            return null;
+          },
+          subscribe(listener) {
+            receive = listener;
+            return () => {
+              receive = undefined;
+            };
+          },
+        }}
+        authenticated={(id) => <Text>Signed in as {id}</Text>}
+      />,
+    );
+
+    expect(await screen.findByText(`Signed in as ${userId}`)).toBeTruthy();
+    receive?.("stable://auth/callback?code=account-switch");
+    expect(
+      await screen.findByText(`Signed in as ${secondUserId}`),
+    ).toBeTruthy();
+
+    expect(
+      clearPrivateCache.mock.calls.some(([previousUserId]) =>
+        Object.is(previousUserId, userId),
+      ),
+    ).toBe(true);
+    expect(
+      await store.getItem(`stable.game-day.v1.${userId}.${previousTeamId}`),
+    ).toBeNull();
+    expect(await store.getItem(`stable.game-day.v1.${userId}`)).toBeNull();
+    expect(
+      await store.getItem(`stable.game-day.v1.${secondUserId}.${nextTeamId}`),
+    ).toBe("next-user snapshot");
+    expect(await store.getItem(`stable.game-day.v1.${secondUserId}`)).toBe(
+      JSON.stringify({ teams: [nextTeamId] }),
+    );
+  });
+
+  it("does not activate the next account when private cache cleanup fails", async () => {
+    let receive: ((url: string) => void) | undefined;
+    await render(
+      <MobileAuthGate
+        restore={async () => authenticated}
+        signOut={async () => ({ state: "unauthenticated" })}
+        actions={idleActions({
+          async completeCallback() {
+            return secondAuthenticated;
+          },
+        })}
+        clearPrivateCache={async (previousUserId) => {
+          if (previousUserId === userId) {
+            throw new Error("SecureStore cleanup failed");
+          }
+        }}
+        linking={{
+          async getInitialUrl() {
+            return null;
+          },
+          subscribe(listener) {
+            receive = listener;
+            return () => {
+              receive = undefined;
+            };
+          },
+        }}
+        authenticated={(id) => <Text>Signed in as {id}</Text>}
+      />,
+    );
+
+    expect(await screen.findByText(`Signed in as ${userId}`)).toBeTruthy();
+    receive?.("stable://auth/callback?code=account-switch");
+    expect(await screen.findByText(AUTH_ERROR_MESSAGES.INTERNAL)).toBeTruthy();
+    expect(screen.queryByText(`Signed in as ${secondUserId}`)).toBeNull();
   });
 
   it("shows expired and recovery without pretending the adult signed out", async () => {

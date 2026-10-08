@@ -11,7 +11,8 @@ import { Pressable, StyleSheet, Text, View } from "react-native";
 import { AuthScreen } from "./auth-screen";
 
 const theme = themeFor("mustangs");
-const noopClearPrivateCache = (): void => undefined;
+const noopClearPrivateCache = (_previousUserId: string | null): void =>
+  undefined;
 
 export type MobileLinking = {
   getInitialUrl: () => Promise<string | null>;
@@ -31,7 +32,9 @@ type MobileAuthGateProps = {
   readonly signOut: () => Promise<AuthSessionSnapshot>;
   readonly actions: GateActions;
   readonly linking?: MobileLinking;
-  readonly clearPrivateCache?: () => void;
+  readonly clearPrivateCache?: (
+    previousUserId: string | null,
+  ) => void | Promise<void>;
   readonly authenticated: (userId: string) => React.ReactNode;
 };
 
@@ -48,11 +51,16 @@ export function MobileAuthGate({
   });
   const sessionUserId = React.useRef<string | null>(null);
   const updateSession = React.useCallback(
-    (next: AuthSessionSnapshot) => {
+    async (next: AuthSessionSnapshot) => {
       const nextUserId =
         next.state === "authenticated" ? next.principal.userId : null;
       if (sessionUserId.current !== nextUserId) {
-        clearPrivateCache();
+        try {
+          await clearPrivateCache(sessionUserId.current);
+        } catch (error: unknown) {
+          setSession(recoverySnapshot(error));
+          return;
+        }
         sessionUserId.current = nextUserId;
       }
       setSession(next);
@@ -148,14 +156,14 @@ export function MobileAuthGate({
         actions={{
           requestPhone: actions.requestPhone,
           verifyPhone: async (phone, token) => {
-            updateSession(await actions.verifyPhone(phone, token));
+            await updateSession(await actions.verifyPhone(phone, token));
           },
           requestEmail: actions.requestEmail,
           verifyEmail: async (email, token) => {
-            updateSession(await actions.verifyEmail(email, token));
+            await updateSession(await actions.verifyEmail(email, token));
           },
           retry: async () => {
-            updateSession(await restore());
+            await updateSession(await restore());
           },
         }}
       />
