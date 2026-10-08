@@ -127,8 +127,9 @@ test("a non-admin team manager maintains fixtures and team operations", async ({
     .filter({ hasText: announcementTitle });
   await expect(announcement).toContainText(message);
 
-  // A manager can open a fill-in request and assign a duty. The guardian
-  // projection verifies the allocation reached the sole RSVP candidate.
+  // A manager can open a fill-in request and commit a duty allocation. The
+  // allocation chooses from eligible staff/admin/guardian candidates, so read
+  // the resulting duty through each synthetic candidate's own projection.
   await manager.goto(gameHref);
   await manager.getByRole("button", { name: "Request fill-in" }).click();
   await expect(
@@ -144,8 +145,19 @@ test("a non-admin team manager maintains fixtures and team operations", async ({
     manager.getByRole("button", { name: "Commit allocation" }),
   ).toHaveCount(0);
 
-  await guardian.reload();
-  await expect(gameDay.getByText(`Duty ${dutyLabel}`)).toBeVisible();
+  let persistedAssignment = false;
+  for (const candidatePage of [manager, admin, guardian]) {
+    await candidatePage.goto(gameHref);
+    if (
+      (await candidatePage
+        .getByText(`Duty ${dutyLabel}`, { exact: true })
+        .count()) > 0
+    ) {
+      persistedAssignment = true;
+      break;
+    }
+  }
+  expect(persistedAssignment).toBe(true);
 
   await adminContext.close();
   await managerContext.close();
