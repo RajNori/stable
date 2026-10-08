@@ -148,11 +148,11 @@ reset role;
 
 select is((select count(*) from public.audit_events where action='post_game_review.completed'),2::bigint,'initial and repeated completion each write one lifecycle audit');
 select is((select count(*) from public.audit_events where action='post_game_review.reopened'),1::bigint,'reopen writes one lifecycle audit');
-select is((select count(*) from public.audit_events where action='private_player_note.created'),1::bigint,'private note creation writes audit without text');
-select is((select count(*) from public.audit_events where action='private_player_note.updated'),1::bigint,'private note edit writes audit without text');
-select is((select count(*) from public.audit_events where action='private_player_note.cleared'),1::bigint,'private note clear writes audit without text');
-select is((select count(*) from public.audit_events where action like 'private_player_note.%' and target_id='72410000-0000-4000-8000-000000000020' and team_id='72410000-0000-4000-8000-000000000012'),3::bigint,'private note audit uses opaque player identifier and exact team only');
-select is((select count(*) from public.audit_events where action like 'private_player_note.%' and team_id='72410000-0000-4000-8000-000000000012'),3::bigint,'private note audit rows retain authoritative team scope');
+select is((select count(*) from public.audit_events where club_id='72410000-0000-4000-8000-000000000010' and action='private_player_note.created'),1::bigint,'private note creation writes audit without text');
+select is((select count(*) from public.audit_events where club_id='72410000-0000-4000-8000-000000000010' and action='private_player_note.updated'),1::bigint,'private note edit writes audit without text');
+select is((select count(*) from public.audit_events where club_id='72410000-0000-4000-8000-000000000010' and action='private_player_note.cleared'),1::bigint,'private note clear writes audit without text');
+select is((select count(*) from public.audit_events where club_id='72410000-0000-4000-8000-000000000010' and action like 'private_player_note.%' and target_id='72410000-0000-4000-8000-000000000020' and team_id='72410000-0000-4000-8000-000000000012'),3::bigint,'private note audit uses opaque player identifier and exact team only');
+select is((select count(*) from public.audit_events where club_id='72410000-0000-4000-8000-000000000010' and action like 'private_player_note.%' and team_id='72410000-0000-4000-8000-000000000012'),3::bigint,'private note audit rows retain authoritative team scope');
 select is((select count(*) from information_schema.columns where table_schema='public' and table_name='private_player_game_notes' and column_name ilike '%name%'),0::bigint,'private note storage has no player-name field');
 select * from finish();
 rollback;
