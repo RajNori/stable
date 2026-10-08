@@ -82,6 +82,16 @@ describe("captureException", () => {
       playerName: "Alex Player",
       privateNote: note,
       absenceNote: "sick today",
+      userId: "synthetic-user-id",
+      requestBody: {
+        childName: "Alex Player",
+        privatePlayerNote: note,
+        email: "person@example.com",
+        phone: "+61400111222",
+        access_token: token,
+      },
+      headers: { authorization: `Bearer ${token}` },
+      url: "https://staging.invalid/auth/callback?token=otp-918273",
       context: {
         playerName: "Alex Player",
         privateNote: note,
@@ -112,6 +122,12 @@ describe("captureException", () => {
     expect(encoded).not.toContain("sick today");
     expect(encoded).not.toContain('"context"');
     expect(encoded).not.toContain('"email"');
+    expect(encoded).not.toContain('"phone"');
+    expect(encoded).not.toContain('"userId"');
+    expect(encoded).not.toContain('"requestBody"');
+    expect(encoded).not.toContain('"headers"');
+    expect(encoded).not.toContain('"url"');
+    expect(encoded).not.toContain("staging.invalid");
     expect(encoded).not.toContain("member");
     expect(encoded).not.toContain("nested");
   });
