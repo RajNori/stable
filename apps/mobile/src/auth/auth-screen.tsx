@@ -2,6 +2,7 @@ import type { AuthSessionSnapshot } from "@stable/contracts";
 import { themeFor } from "@stable/design-tokens";
 import React, { useEffect, useState } from "react";
 import {
+  AccessibilityInfo,
   KeyboardAvoidingView,
   Platform,
   Pressable,
@@ -61,6 +62,24 @@ export function AuthScreen({
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [resendIn, setResendIn] = useState(0);
+  const announcement =
+    session.state === "recovery"
+      ? `Sign-in is paused. ${session.message}`
+      : session.state === "loading" || session.state === "authenticated"
+        ? null
+        : step.kind === "welcome"
+          ? "Know what's next. Show up ready."
+          : step.kind === "phone"
+            ? "Your mobile"
+            : step.kind === "email"
+              ? "Your email"
+              : `Enter the code. Sent to ${step.kind === "phone-otp" ? step.phone : step.email}`;
+
+  useEffect(() => {
+    if (announcement !== null) {
+      AccessibilityInfo.announceForAccessibility(announcement);
+    }
+  }, [announcement]);
 
   useEffect(() => {
     if (resendIn <= 0) {

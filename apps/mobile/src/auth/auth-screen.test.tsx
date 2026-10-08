@@ -8,6 +8,7 @@ import {
   waitFor,
 } from "@testing-library/react-native";
 import React from "react";
+import { AccessibilityInfo } from "react-native";
 
 import { AuthScreen, type AuthActions } from "./auth-screen";
 import {
@@ -15,6 +16,20 @@ import {
   visibleAuthProviders,
   type AuthProviderSettings,
 } from "./provider-visibility";
+
+type AccessibilitySpy = {
+  mockImplementation: (
+    implementation: (message: string) => void,
+  ) => AccessibilitySpy;
+  mockRestore: () => void;
+};
+
+declare const jest: {
+  spyOn: (
+    object: typeof AccessibilityInfo,
+    method: "announceForAccessibility",
+  ) => AccessibilitySpy;
+};
 
 const unauthenticated = {
   state: "unauthenticated",
@@ -148,6 +163,60 @@ describe("mobile auth screen", () => {
     );
     await userEvent.press(screen.getByLabelText("Send code"));
     expect(screen.getByRole("header", { name: "Enter the code" })).toBeTruthy();
+  });
+
+  it("announces each auth step when advancing and returning", async () => {
+    const announced: string[] = [];
+    const announce = jest
+      .spyOn(AccessibilityInfo, "announceForAccessibility")
+      .mockImplementation((message) => {
+        announced.push(message);
+      });
+    const actions = idleActions();
+    const { rerender } = await render(
+      <AuthScreen session={unauthenticated} actions={actions} />,
+    );
+
+    await userEvent.press(screen.getByLabelText("Continue with mobile"));
+    expect(announced.at(-1)).toBe("Your mobile");
+    fireEvent.changeText(screen.getByLabelText("Mobile number"), "0412345678");
+    await userEvent.press(screen.getByLabelText("Continue"));
+    await screen.findByLabelText("6-digit code");
+    expect(announced.at(-1)).toBe("Enter the code. Sent to 0412 345 678");
+
+    await userEvent.press(screen.getByLabelText("Change mobile number"));
+    expect(announced.at(-1)).toBe("Your mobile");
+    await userEvent.press(screen.getByLabelText("Back"));
+    expect(announced.at(-1)).toBe("Know what's next. Show up ready.");
+
+    await userEvent.press(screen.getByLabelText("Continue with email"));
+    expect(announced.at(-1)).toBe("Your email");
+    fireEvent.changeText(
+      screen.getByLabelText("Email address"),
+      "adult@example.com",
+    );
+    await userEvent.press(screen.getByLabelText("Send code"));
+    await screen.findByLabelText("6-digit code");
+    expect(announced.at(-1)).toBe("Enter the code. Sent to adult@example.com");
+    await userEvent.press(screen.getByLabelText("Change email"));
+    expect(announced.at(-1)).toBe("Your email");
+
+    await rerender(
+      <AuthScreen
+        session={{
+          state: "recovery",
+          errorCode: "UPSTREAM_UNAVAILABLE",
+          message: AUTH_ERROR_MESSAGES.UPSTREAM_UNAVAILABLE,
+        }}
+        actions={actions}
+      />,
+    );
+    await waitFor(() => {
+      expect(announced.at(-1)).toBe(
+        `Sign-in is paused. ${AUTH_ERROR_MESSAGES.UPSTREAM_UNAVAILABLE}`,
+      );
+    });
+    announce.mockRestore();
   });
 
   it("formats a mobile number and requests a code", async () => {

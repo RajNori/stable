@@ -11,8 +11,7 @@ import { Pressable, StyleSheet, Text, View } from "react-native";
 import { AuthScreen } from "./auth-screen";
 
 const theme = themeFor("mustangs");
-const noopClearPrivateCache = (_previousUserId: string | null): void =>
-  undefined;
+const noopClearPrivateCache = (): void => undefined;
 
 export type MobileLinking = {
   getInitialUrl: () => Promise<string | null>;

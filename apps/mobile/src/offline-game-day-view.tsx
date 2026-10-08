@@ -1,6 +1,12 @@
 import { themeFor } from "@stable/design-tokens";
-import React from "react";
-import { StyleSheet, Text, View } from "react-native";
+import React, { useEffect } from "react";
+import {
+  AccessibilityInfo,
+  Platform,
+  StyleSheet,
+  Text,
+  View,
+} from "react-native";
 
 import {
   gameDaySnapshotFreshness,
@@ -33,6 +39,19 @@ export function OfflineGameDayView({
   snapshot: GameDaySnapshot | null;
   now: number;
 }) {
+  const freshness =
+    snapshot === null ? null : gameDaySnapshotFreshness(snapshot.savedAt, now);
+  const statusAnnouncement =
+    snapshot === null
+      ? null
+      : `Offline. Last updated ${snapshot.savedAt}${freshness === "stale" ? ". This snapshot is stale." : "."}`;
+
+  useEffect(() => {
+    if (Platform.OS === "ios" && statusAnnouncement !== null) {
+      AccessibilityInfo.announceForAccessibility(statusAnnouncement);
+    }
+  }, [statusAnnouncement]);
+
   if (snapshot === null) {
     return (
       <View style={styles.screen}>
@@ -41,7 +60,6 @@ export function OfflineGameDayView({
     );
   }
 
-  const freshness = gameDaySnapshotFreshness(snapshot.savedAt, now);
   return (
     <View style={styles.screen}>
       <Text accessibilityRole="header" style={styles.title}>
