@@ -205,28 +205,31 @@ export type Database = {
           action: string;
           actor_user_id: string;
           club_id: string;
+          context_event_id: string | null;
           created_at: string;
           id: string;
-          team_id: string | null;
           target_id: string;
+          team_id: string | null;
         };
         Insert: {
           action: string;
           actor_user_id: string;
           club_id: string;
+          context_event_id?: string | null;
           created_at?: string;
           id?: string;
-          team_id?: string | null;
           target_id: string;
+          team_id?: string | null;
         };
         Update: {
           action?: string;
           actor_user_id?: string;
           club_id?: string;
+          context_event_id?: string | null;
           created_at?: string;
           id?: string;
-          team_id?: string | null;
           target_id?: string;
+          team_id?: string | null;
         };
         Relationships: [
           {
@@ -234,6 +237,13 @@ export type Database = {
             columns: ["club_id"];
             isOneToOne: false;
             referencedRelation: "clubs";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "audit_events_context_event_id_fkey";
+            columns: ["context_event_id"];
+            isOneToOne: false;
+            referencedRelation: "events";
             referencedColumns: ["id"];
           },
         ];
@@ -2797,6 +2807,13 @@ export type Database = {
         Returns: {
           display_name: string;
           player_id: string;
+        }[];
+      };
+      list_managed_attendance: {
+        Args: { p_event_id: string };
+        Returns: {
+          player_id: string;
+          status: string;
         }[];
       };
       list_notification_preferences: {

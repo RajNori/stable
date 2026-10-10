@@ -232,6 +232,9 @@ importers:
       '@stable/announcements':
         specifier: workspace:*
         version: link:../../packages/features/announcements
+      '@stable/attendance':
+        specifier: workspace:*
+        version: link:../../packages/features/attendance
       '@stable/auth':
         specifier: workspace:*
         version: link:../../packages/auth
@@ -256,6 +259,9 @@ importers:
       '@stable/observability':
         specifier: workspace:*
         version: link:../../packages/observability
+      '@stable/permissions':
+        specifier: workspace:*
+        version: link:../../packages/permissions
       '@stable/roster':
         specifier: workspace:*
         version: link:../../packages/features/roster

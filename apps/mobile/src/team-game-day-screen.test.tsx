@@ -2,7 +2,12 @@ import { ApplicationError } from "@stable/contracts";
 import type { CurrentClubContext } from "@stable/contracts";
 import type { GameDayProjection } from "@stable/game-day";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { render, screen, waitFor } from "@testing-library/react-native";
+import {
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+} from "@testing-library/react-native";
 import React from "react";
 
 import {
@@ -18,6 +23,7 @@ import {
   readOfflineGameDay,
 } from "./offline-context";
 import { TeamGameDayScreen } from "./team-game-day-screen";
+import type { MobileRsvpChoice } from "./load-mobile-rsvp";
 
 const teamId = "99999999-9999-4999-8999-999999999999";
 
@@ -79,6 +85,43 @@ describe("team game day screen", () => {
     expect(screen.getByText("RSVP UNANSWERED")).toBeTruthy();
     expect(screen.getByText("Duty Scorebook")).toBeTruthy();
     expect(screen.queryByText(/Attending/)).toBeNull();
+  });
+
+  it("submits the selected managed player's RSVP only after online reads land", async () => {
+    const saved: Array<{
+      teamId: string;
+      eventId: string;
+      playerId: string;
+      status: string;
+    }> = [];
+    const choice: MobileRsvpChoice = {
+      playerId: "88888888-8888-4888-8888-888888888888",
+      name: "Jamie S.",
+      status: "UNANSWERED",
+    };
+    await renderScreen({
+      loadContext: () => Promise.resolve(context),
+      loadGameDay: () => Promise.resolve(projection),
+      loadRsvpChoices: () => Promise.resolve([choice]),
+      saveRsvp: (input) => {
+        saved.push(input);
+        return Promise.resolve();
+      },
+    });
+
+    fireEvent.press(
+      await screen.findByRole("button", { name: "Jamie S.: attending" }),
+    );
+    await waitFor(() =>
+      expect(saved).toEqual([
+        {
+          teamId,
+          eventId: projection.eventId,
+          playerId: choice.playerId,
+          status: "ATTENDING",
+        },
+      ]),
+    );
   });
 
   it("shows fallbacks for omitted game labels and a guardian-safe count summary", async () => {
@@ -145,6 +188,8 @@ describe("team game day screen", () => {
       defaultOptions: { queries: { retry: false, gcTime: 0 } },
     });
     let contextCalls = 0;
+    let loadOfflineRsvpCalled = false;
+    let saveOfflineRsvpCalled = false;
     await render(
       <QueryClientProvider client={offlineClient}>
         <TeamGameDayScreen
@@ -156,6 +201,14 @@ describe("team game day screen", () => {
           snapshotStore={store}
           localUserId={context.userId}
           online={false}
+          loadRsvpChoices={() => {
+            loadOfflineRsvpCalled = true;
+            return Promise.resolve([]);
+          }}
+          saveRsvp={() => {
+            saveOfflineRsvpCalled = true;
+            return Promise.resolve();
+          }}
           now={Date.parse("2026-10-07T01:30:00.000Z")}
         />
       </QueryClientProvider>,
@@ -169,6 +222,8 @@ describe("team game day screen", () => {
       disabled: true,
     });
     expect(contextCalls).toBe(0);
+    expect(loadOfflineRsvpCalled).toBe(false);
+    expect(saveOfflineRsvpCalled).toBe(false);
   });
 
   it("opens the saved snapshot on a cold offline launch without a context request", async () => {
@@ -723,6 +778,8 @@ function screenTree({
   now,
   loadContext,
   loadGameDay,
+  loadRsvpChoices,
+  saveRsvp,
 }: ScreenInput) {
   const queryClient =
     client ??
@@ -738,6 +795,8 @@ function screenTree({
         loadGameDay={
           loadGameDay ?? (() => Promise.reject(new Error("offline")))
         }
+        {...(loadRsvpChoices === undefined ? {} : { loadRsvpChoices })}
+        {...(saveRsvp === undefined ? {} : { saveRsvp })}
         {...(store === undefined ? {} : { snapshotStore: store })}
         {...(localUserId === undefined ? {} : { localUserId })}
         {...(online === undefined ? {} : { online })}
@@ -755,4 +814,14 @@ type ScreenInput = {
   now?: number;
   loadContext?: () => Promise<CurrentClubContext>;
   loadGameDay?: (teamId: string) => Promise<GameDayProjection | null>;
+  loadRsvpChoices?: (
+    teamId: string,
+    eventId: string,
+  ) => Promise<readonly MobileRsvpChoice[]>;
+  saveRsvp?: (input: {
+    teamId: string;
+    eventId: string;
+    playerId: string;
+    status: "ATTENDING" | "UNAVAILABLE" | "UNSURE";
+  }) => Promise<void>;
 };

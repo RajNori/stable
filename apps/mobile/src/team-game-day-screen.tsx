@@ -3,9 +3,11 @@ import type { CurrentClubContext } from "@stable/contracts";
 import { themeFor } from "@stable/design-tokens";
 import type { GameDayProjection } from "@stable/game-day";
 import { gameDayMessages } from "@stable/game-day";
-import { useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import React, { useEffect, useRef } from "react";
-import { StyleSheet, Text, View } from "react-native";
+import { Pressable, StyleSheet, Text, View } from "react-native";
+
+import type { MobileRsvpChoice } from "./load-mobile-rsvp";
 
 import {
   gameDaySnapshotFromProjection,
@@ -39,6 +41,32 @@ const styles = StyleSheet.create({
     fontSize: theme.typeScale.bodyMd.fontSize,
     lineHeight: theme.typeScale.bodyMd.lineHeight,
   },
+  rsvpCard: {
+    gap: theme.space[2],
+    padding: theme.space[3],
+    borderWidth: 1,
+    borderColor: theme.color.border.default,
+    borderRadius: theme.radius.md,
+  },
+  rsvpActions: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: theme.space[2],
+  },
+  rsvpButton: {
+    minHeight: 44,
+    minWidth: 44,
+    alignItems: "center",
+    justifyContent: "center",
+    paddingHorizontal: theme.space[3],
+    borderWidth: 1,
+    borderColor: theme.color.border.default,
+    borderRadius: theme.radius.sm,
+  },
+  rsvpButtonSelected: {
+    backgroundColor: theme.color.brand.accent,
+    borderColor: theme.color.brand.accent,
+  },
 });
 
 function message(error: unknown): string {
@@ -55,6 +83,8 @@ export function TeamGameDayScreen({
   localUserId,
   online = true,
   now = Date.now(),
+  loadRsvpChoices,
+  saveRsvp,
 }: {
   loadContext: () => Promise<CurrentClubContext>;
   loadGameDay: (teamId: string) => Promise<GameDayProjection | null>;
@@ -62,7 +92,22 @@ export function TeamGameDayScreen({
   localUserId?: string | undefined;
   online?: boolean | null | undefined;
   now?: number | undefined;
+  loadRsvpChoices?:
+    | ((
+        teamId: string,
+        eventId: string,
+      ) => Promise<readonly MobileRsvpChoice[]>)
+    | undefined;
+  saveRsvp?:
+    | ((input: {
+        teamId: string;
+        eventId: string;
+        playerId: string;
+        status: "ATTENDING" | "UNAVAILABLE" | "UNSURE";
+      }) => Promise<void>)
+    | undefined;
 }) {
+  const queryClient = useQueryClient();
   const offlineEnabled =
     snapshotStore !== undefined && localUserId !== undefined;
   const offline = useQuery({
@@ -118,6 +163,53 @@ export function TeamGameDayScreen({
     enabled: online === true && teamId !== null,
     retry: false,
   });
+  const sawOnline = useRef(false);
+  const refreshFloor = useRef(0);
+  if (online === true) {
+    if (!sawOnline.current) {
+      sawOnline.current = true;
+      refreshFloor.current = Date.now();
+    }
+  } else {
+    sawOnline.current = false;
+  }
+  const refreshLanded = gameDay.dataUpdatedAt >= refreshFloor.current;
+  const rsvpChoices = useQuery({
+    queryKey: ["managed-attendance", teamId, gameDay.data?.eventId],
+    queryFn: () => {
+      if (
+        teamId === null ||
+        gameDay.data?.eventId === undefined ||
+        loadRsvpChoices === undefined
+      ) {
+        throw new Error(gameDayMessages.readFailed);
+      }
+      return loadRsvpChoices(teamId, gameDay.data.eventId);
+    },
+    enabled:
+      online === true &&
+      refreshLanded &&
+      teamId !== null &&
+      gameDay.data?.eventId !== undefined &&
+      loadRsvpChoices !== undefined,
+    retry: false,
+  });
+  const rsvpMutation = useMutation({
+    mutationFn: (input: {
+      teamId: string;
+      eventId: string;
+      playerId: string;
+      status: "ATTENDING" | "UNAVAILABLE" | "UNSURE";
+    }) => {
+      if (saveRsvp === undefined) throw new Error(gameDayMessages.readFailed);
+      return saveRsvp(input);
+    },
+    onSuccess: async (_result, input) => {
+      await queryClient.invalidateQueries({
+        queryKey: ["managed-attendance", input.teamId, input.eventId],
+      });
+    },
+  });
 
   useEffect(() => {
     if (
@@ -146,18 +238,6 @@ export function TeamGameDayScreen({
     online,
     snapshotStore,
   ]);
-
-  const sawOnline = useRef(false);
-  const refreshFloor = useRef(0);
-  if (online === true) {
-    if (!sawOnline.current) {
-      sawOnline.current = true;
-      refreshFloor.current = Date.now();
-    }
-  } else {
-    sawOnline.current = false;
-  }
-  const refreshLanded = gameDay.dataUpdatedAt >= refreshFloor.current;
 
   const cached = offline.data ?? null;
   const snapshot = visibleSnapshot({
@@ -266,11 +346,69 @@ export function TeamGameDayScreen({
       <Text accessibilityRole="header" style={styles.title}>
         {projection.roundLabel ?? "Game"}: {projection.opponentName}
       </Text>
-      <Text style={styles.body}>RSVP {projection.ownRsvp}</Text>
+      {loadRsvpChoices === undefined ? (
+        <Text style={styles.body}>RSVP {projection.ownRsvp}</Text>
+      ) : null}
       <Text style={styles.body}>Duty {projection.ownDutyLabel ?? "None"}</Text>
       <Text style={styles.body}>
         Fill-in {projection.fillInLabel ?? "None"}
       </Text>
+      {rsvpChoices.isPending && loadRsvpChoices !== undefined ? (
+        <Text style={styles.body} accessibilityRole="progressbar">
+          Loading your RSVP options
+        </Text>
+      ) : null}
+      {rsvpChoices.isError ? (
+        <Text style={styles.body} accessibilityRole="alert">
+          Your RSVP options could not be loaded. Reconnect and try again.
+        </Text>
+      ) : null}
+      {rsvpChoices.data?.map((choice) => (
+        <View key={choice.playerId} style={styles.rsvpCard}>
+          <Text style={styles.body}>{choice.name}</Text>
+          <Text style={styles.body}>RSVP {choice.status}</Text>
+          <View style={styles.rsvpActions}>
+            {(["ATTENDING", "UNAVAILABLE", "UNSURE"] as const).map((status) => (
+              <Pressable
+                key={status}
+                accessibilityRole="button"
+                accessibilityLabel={`${choice.name}: ${status.toLowerCase()}`}
+                accessibilityState={{
+                  disabled: rsvpMutation.isPending,
+                  selected: choice.status === status,
+                }}
+                disabled={rsvpMutation.isPending || saveRsvp === undefined}
+                onPress={() => {
+                  if (teamId === null || saveRsvp === undefined) return;
+                  rsvpMutation.mutate({
+                    teamId,
+                    eventId: projection.eventId,
+                    playerId: choice.playerId,
+                    status,
+                  });
+                }}
+                style={[
+                  styles.rsvpButton,
+                  choice.status === status ? styles.rsvpButtonSelected : null,
+                ]}
+              >
+                <Text style={styles.body}>
+                  {status === "ATTENDING"
+                    ? "Attending"
+                    : status === "UNAVAILABLE"
+                      ? "Unavailable"
+                      : "Unsure"}
+                </Text>
+              </Pressable>
+            ))}
+          </View>
+        </View>
+      ))}
+      {rsvpMutation.isError ? (
+        <Text style={styles.body} accessibilityRole="alert">
+          RSVP could not be saved. Refresh and try again.
+        </Text>
+      ) : null}
       {projection.attendingCount === null ? null : (
         <Text style={styles.body}>
           Attending {projection.attendingCount}, unanswered{" "}
