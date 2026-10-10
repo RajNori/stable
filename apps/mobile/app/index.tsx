@@ -104,18 +104,19 @@ export default function CurrentClubContextRoute() {
         clearPrivateCache={clearPrivateCache}
         authenticated={(userId) => (
           <MobileDestinations
-            home={(navigate) => (
+            loadContext={loadContext}
+            home={(navigate, scopedLoadContext) => (
               <GuardianHomeScreen
-                loadContext={loadContext}
+                loadContext={scopedLoadContext}
                 loadSchedule={loadMobileTeamSchedule}
                 loadGameDay={loadMobileGameDay}
                 onOpenSchedule={() => navigate("Schedule")}
               />
             )}
-            schedule={
+            schedule={(scopedLoadContext) => (
               <>
                 <TeamGameDayScreen
-                  loadContext={loadContext}
+                  loadContext={scopedLoadContext}
                   loadGameDay={loadMobileGameDay}
                   loadRsvpChoices={loadMobileRsvpChoices}
                   saveRsvp={saveMobileRsvp}
@@ -132,27 +133,27 @@ export default function CurrentClubContextRoute() {
                   online={online}
                 />
                 <TeamScheduleScreen
-                  loadContext={loadContext}
+                  loadContext={scopedLoadContext}
                   loadSchedule={loadMobileTeamSchedule}
                 />
               </>
-            }
-            team={
+            )}
+            team={(scopedLoadContext) => (
               <TeamRosterScreen
-                loadContext={loadContext}
+                loadContext={scopedLoadContext}
                 loadRoster={loadMobileTeamRoster}
               />
-            }
-            updates={
+            )}
+            updates={(scopedLoadContext) => (
               <TeamAnnouncementsScreen
-                loadContext={loadContext}
+                loadContext={scopedLoadContext}
                 loadAnnouncements={loadMobileAnnouncements}
                 acknowledge={acknowledgeMobileAnnouncement}
                 markRead={markMobileAnnouncementRead}
                 registerDevice={registerMobileDevice}
                 removeDevice={removeMobileDevice}
               />
-            }
+            )}
           />
         )}
       />

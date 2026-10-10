@@ -1,17 +1,22 @@
 import React from "react";
-import { Text } from "react-native";
+import { Pressable, Text } from "react-native";
 import { render, screen, userEvent } from "@testing-library/react-native";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import type { CurrentClubContext } from "@stable/contracts";
+import { useState } from "react";
 
 import { MobileDestinations } from "./mobile-destinations";
 
 describe("mobile destinations", () => {
   it("keeps home, schedule, team, updates, and profile on one tab bar", async () => {
     await render(
-      <MobileDestinations
-        home={<Text>Mentone Mustangs</Text>}
-        schedule={<Text>Training at Tuesday</Text>}
-        team={<Text>Alexander R.</Text>}
-      />,
+      <QueryClientProvider client={new QueryClient()}>
+        <MobileDestinations
+          home={<Text>Mentone Mustangs</Text>}
+          schedule={<Text>Training at Tuesday</Text>}
+          team={<Text>Alexander R.</Text>}
+        />
+      </QueryClientProvider>,
     );
     const user = userEvent.setup();
 
@@ -39,15 +44,87 @@ describe("mobile destinations", () => {
 
   it("lets the Home projection open Schedule", async () => {
     await render(
-      <MobileDestinations
-        home={(navigate) => (
-          <Text onPress={() => navigate("Schedule")}>Next game</Text>
-        )}
-        schedule={<Text>Schedule destination</Text>}
-        team={<Text>Team destination</Text>}
-      />,
+      <QueryClientProvider client={new QueryClient()}>
+        <MobileDestinations
+          home={(navigate) => (
+            <Text onPress={() => navigate("Schedule")}>Next game</Text>
+          )}
+          schedule={<Text>Schedule destination</Text>}
+          team={<Text>Team destination</Text>}
+        />
+      </QueryClientProvider>,
     );
     await userEvent.press(screen.getByText("Next game"));
     expect(screen.getByText("Schedule destination")).toBeTruthy();
+  });
+
+  it("limits context switching to server-returned teams and reloads scoped content", async () => {
+    const clubId = "11111111-1111-4111-8111-111111111111";
+    const teamA = "99999999-9999-4999-8999-999999999991";
+    const teamB = "99999999-9999-4999-8999-999999999992";
+    const context: CurrentClubContext = {
+      userId: "19191919-1919-4919-8919-191919191919",
+      displayName: "Guardian",
+      club: {
+        id: clubId,
+        name: "Club",
+        slug: "club",
+        timezone: "Australia/Melbourne",
+        themeKey: "mustangs",
+      },
+      activeTeam: null,
+      availableTeams: [
+        { id: teamA, name: "U12" },
+        { id: teamB, name: "U14" },
+      ],
+      capabilities: ["club.read"],
+      managedPlayerIds: [],
+    };
+    function ContextHome({
+      loadContext,
+    }: {
+      loadContext: () => Promise<CurrentClubContext>;
+    }) {
+      const [teamName, setTeamName] = useState("No team selected");
+      return (
+        <>
+          <Text>{teamName}</Text>
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="Read selected team"
+            onPress={() => {
+              void loadContext().then((value) => {
+                setTeamName(value.activeTeam?.name ?? "No team selected");
+              });
+            }}
+          >
+            <Text>Read selected team</Text>
+          </Pressable>
+        </>
+      );
+    }
+    await render(
+      <QueryClientProvider client={new QueryClient()}>
+        <MobileDestinations
+          loadContext={() => Promise.resolve(context)}
+          home={(_navigate, loadContext) => (
+            <ContextHome loadContext={loadContext} />
+          )}
+          schedule={<Text>Schedule destination</Text>}
+          team={<Text>Team destination</Text>}
+        />
+      </QueryClientProvider>,
+    );
+
+    expect(await screen.findByText("No team selected")).toBeTruthy();
+    await userEvent.press(await screen.findByRole("radio", { name: "U14" }));
+    await userEvent.press(
+      screen.getByRole("button", { name: "Read selected team" }),
+    );
+    expect((await screen.findAllByText("U14")).length).toBe(2);
+    expect(
+      screen.getByRole("radio", { name: "U14" }).props.accessibilityState,
+    ).toMatchObject({ checked: true });
+    expect(screen.queryByRole("radio", { name: teamB })).toBeNull();
   });
 });
