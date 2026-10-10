@@ -110,3 +110,21 @@ export async function acceptDutySwap(
   }
   return accepted;
 }
+
+export async function listOpenDutySwaps(
+  input: GameDayAccess & {
+    clubId: string;
+    teamId: string;
+    eventId: string;
+    writer: DutySwapWriter;
+  },
+): Promise<DutySwapRecord[]> {
+  const clubId = idSchema.safeParse(input.clubId);
+  const teamId = idSchema.safeParse(input.teamId);
+  const eventId = idSchema.safeParse(input.eventId);
+  if (!clubId.success || !teamId.success || !eventId.success) {
+    validationFailed();
+  }
+  assertResponder(input, clubId.data, teamId.data);
+  return input.writer.listOpenDutySwaps(eventId.data);
+}

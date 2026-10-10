@@ -23,6 +23,7 @@ export {
 } from "./application/duty-commands.js";
 export {
   acceptDutySwap,
+  listOpenDutySwaps,
   requestDutySwap,
 } from "./application/duty-swap-commands.js";
 export type { DutySwapRecord } from "./application/duty-swap-commands.js";

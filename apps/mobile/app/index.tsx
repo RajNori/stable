@@ -26,6 +26,12 @@ import {
   loadMobileFillIn,
   respondMobileFillIn,
 } from "../src/load-mobile-fill-in";
+import {
+  acceptMobileDutySwap,
+  acknowledgeMobileDuty,
+  loadMobileOpenDutySwaps,
+  requestMobileOpenDutySwap,
+} from "../src/load-mobile-duties";
 import { loadMobileRsvpChoices, saveMobileRsvp } from "../src/load-mobile-rsvp";
 import {
   registerMobileDevice,
@@ -108,6 +114,12 @@ export default function CurrentClubContextRoute() {
                   saveRsvp={saveMobileRsvp}
                   loadFillInOptions={loadMobileFillIn}
                   respondFillIn={respondMobileFillIn}
+                  loadDutySwaps={(teamId, eventId) =>
+                    loadMobileOpenDutySwaps({ teamId, eventId })
+                  }
+                  acknowledgeDuty={acknowledgeMobileDuty}
+                  requestDutySwap={requestMobileOpenDutySwap}
+                  acceptDutySwap={acceptMobileDutySwap}
                   snapshotStore={snapshotStore}
                   localUserId={userId}
                   online={online}

@@ -9,6 +9,7 @@ import { Pressable, StyleSheet, Text, View } from "react-native";
 
 import type { MobileRsvpChoice } from "./load-mobile-rsvp";
 import type { MobileFillInProjection } from "./load-mobile-fill-in";
+import type { DutySwapRecord } from "@stable/game-day";
 
 import {
   gameDaySnapshotFromProjection,
@@ -75,6 +76,13 @@ const styles = StyleSheet.create({
     borderColor: theme.color.border.default,
     borderRadius: theme.radius.md,
   },
+  dutyCard: {
+    gap: theme.space[2],
+    padding: theme.space[3],
+    borderWidth: 1,
+    borderColor: theme.color.border.default,
+    borderRadius: theme.radius.md,
+  },
 });
 
 function message(error: unknown): string {
@@ -95,6 +103,10 @@ export function TeamGameDayScreen({
   saveRsvp,
   loadFillInOptions,
   respondFillIn,
+  loadDutySwaps,
+  acknowledgeDuty,
+  requestDutySwap,
+  acceptDutySwap,
 }: {
   loadContext: () => Promise<CurrentClubContext>;
   loadGameDay: (teamId: string) => Promise<GameDayProjection | null>;
@@ -125,6 +137,18 @@ export function TeamGameDayScreen({
         requestId: string;
         playerId: string;
       }) => Promise<void>)
+    | undefined;
+  loadDutySwaps?:
+    | ((teamId: string, eventId: string) => Promise<readonly DutySwapRecord[]>)
+    | undefined;
+  acknowledgeDuty?:
+    | ((input: { teamId: string; eventId: string }) => Promise<number>)
+    | undefined;
+  requestDutySwap?:
+    | ((input: { teamId: string; eventId: string }) => Promise<unknown>)
+    | undefined;
+  acceptDutySwap?:
+    | ((input: { teamId: string; requestId: string }) => Promise<unknown>)
     | undefined;
 }) {
   const queryClient = useQueryClient();
@@ -261,6 +285,78 @@ export function TeamGameDayScreen({
       await queryClient.invalidateQueries({
         queryKey: ["game-fill-in", teamId, gameDay.data?.eventId],
       });
+    },
+  });
+  const dutySwaps = useQuery({
+    queryKey: ["game-duty-swaps", teamId, gameDay.data?.eventId],
+    queryFn: () => {
+      if (
+        teamId === null ||
+        gameDay.data?.eventId === undefined ||
+        loadDutySwaps === undefined
+      ) {
+        throw new Error(gameDayMessages.readFailed);
+      }
+      return loadDutySwaps(teamId, gameDay.data.eventId);
+    },
+    enabled:
+      online === true &&
+      refreshLanded &&
+      teamId !== null &&
+      gameDay.data?.eventId !== undefined &&
+      loadDutySwaps !== undefined,
+    retry: false,
+  });
+  const acknowledgeDutyMutation = useMutation({
+    mutationFn: () => {
+      const eventId = gameDay.data?.eventId;
+      if (
+        teamId === null ||
+        eventId === undefined ||
+        acknowledgeDuty === undefined
+      ) {
+        throw new Error(gameDayMessages.readFailed);
+      }
+      return acknowledgeDuty({ teamId, eventId });
+    },
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({
+        queryKey: ["game-day", teamId],
+      });
+    },
+  });
+  const requestDutySwapMutation = useMutation({
+    mutationFn: () => {
+      const eventId = gameDay.data?.eventId;
+      if (
+        teamId === null ||
+        eventId === undefined ||
+        requestDutySwap === undefined
+      ) {
+        throw new Error(gameDayMessages.readFailed);
+      }
+      return requestDutySwap({ teamId, eventId });
+    },
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({
+        queryKey: ["game-duty-swaps", teamId, gameDay.data?.eventId],
+      });
+    },
+  });
+  const acceptDutySwapMutation = useMutation({
+    mutationFn: (requestId: string) => {
+      if (teamId === null || acceptDutySwap === undefined) {
+        throw new Error(gameDayMessages.readFailed);
+      }
+      return acceptDutySwap({ teamId, requestId });
+    },
+    onSuccess: async () => {
+      await Promise.all([
+        queryClient.invalidateQueries({
+          queryKey: ["game-duty-swaps", teamId, gameDay.data?.eventId],
+        }),
+        queryClient.invalidateQueries({ queryKey: ["game-day", teamId] }),
+      ]);
     },
   });
 
@@ -403,6 +499,101 @@ export function TeamGameDayScreen({
         <Text style={styles.body}>RSVP {projection.ownRsvp}</Text>
       ) : null}
       <Text style={styles.body}>Duty {projection.ownDutyLabel ?? "None"}</Text>
+      {acknowledgeDuty === undefined &&
+      requestDutySwap === undefined &&
+      loadDutySwaps === undefined ? null : (
+        <View style={styles.dutyCard}>
+          <Text style={styles.body}>Your game duty</Text>
+          {projection.ownDutyStatus === "ASSIGNED" ? (
+            <>
+              {acknowledgeDuty === undefined ? null : (
+                <Pressable
+                  accessibilityRole="button"
+                  accessibilityLabel="Acknowledge my duty"
+                  accessibilityState={{
+                    disabled: acknowledgeDutyMutation.isPending,
+                    busy: acknowledgeDutyMutation.isPending,
+                  }}
+                  disabled={acknowledgeDutyMutation.isPending}
+                  onPress={() => acknowledgeDutyMutation.mutate()}
+                  style={styles.rsvpButton}
+                >
+                  <Text style={styles.body}>Acknowledge duty</Text>
+                </Pressable>
+              )}
+              {requestDutySwap === undefined ? null : (
+                <Pressable
+                  accessibilityRole="button"
+                  accessibilityLabel="Request an open duty swap"
+                  accessibilityState={{
+                    disabled: requestDutySwapMutation.isPending,
+                    busy: requestDutySwapMutation.isPending,
+                  }}
+                  disabled={requestDutySwapMutation.isPending}
+                  onPress={() => requestDutySwapMutation.mutate()}
+                  style={styles.rsvpButton}
+                >
+                  <Text style={styles.body}>Request a swap</Text>
+                </Pressable>
+              )}
+            </>
+          ) : (
+            <Text style={styles.body}>No duty assigned to you</Text>
+          )}
+          {acknowledgeDutyMutation.isSuccess ? (
+            <Text style={styles.body}>Duty acknowledged.</Text>
+          ) : null}
+          {requestDutySwapMutation.isSuccess ? (
+            <Text style={styles.body}>Open swap request sent.</Text>
+          ) : null}
+          {acknowledgeDutyMutation.isError ||
+          requestDutySwapMutation.isError ? (
+            <Text style={styles.body} accessibilityRole="alert">
+              Duty change could not be saved. Refresh and try again.
+            </Text>
+          ) : null}
+          {loadDutySwaps === undefined ? null : dutySwaps.isPending ? (
+            <Text style={styles.body} accessibilityRole="progressbar">
+              Checking open swaps
+            </Text>
+          ) : dutySwaps.isError ? (
+            <Text style={styles.body} accessibilityRole="alert">
+              Open swaps could not be loaded. Refresh and try again.
+            </Text>
+          ) : dutySwaps.data?.length === 0 ? (
+            <Text style={styles.body}>No open swaps</Text>
+          ) : (
+            dutySwaps.data?.map((swap) => (
+              <View key={swap.id} style={styles.rsvpCard}>
+                <Text style={styles.body}>{swap.label}</Text>
+                {acceptDutySwap === undefined ? null : (
+                  <Pressable
+                    accessibilityRole="button"
+                    accessibilityLabel={`Accept swap for ${swap.label}`}
+                    accessibilityState={{
+                      disabled: acceptDutySwapMutation.isPending,
+                      busy: acceptDutySwapMutation.isPending,
+                    }}
+                    disabled={acceptDutySwapMutation.isPending}
+                    onPress={() => acceptDutySwapMutation.mutate(swap.id)}
+                    style={styles.rsvpButton}
+                  >
+                    <Text style={styles.body}>Accept swap</Text>
+                  </Pressable>
+                )}
+              </View>
+            ))
+          )}
+          {acceptDutySwapMutation.isSuccess ? (
+            <Text style={styles.body}>Swap accepted.</Text>
+          ) : null}
+          {acceptDutySwapMutation.isError ? (
+            <Text style={styles.body} accessibilityRole="alert">
+              Swap is no longer available. Refresh and try again.
+            </Text>
+          ) : null}
+        </View>
+      )}
       <Text style={styles.body}>
         Fill-in {projection.fillInLabel ?? "None"}
       </Text>

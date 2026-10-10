@@ -1,6 +1,7 @@
 import { ApplicationError } from "@stable/contracts";
 import type { CurrentClubContext } from "@stable/contracts";
 import type { GameDayProjection } from "@stable/game-day";
+import type { DutySwapRecord } from "@stable/game-day";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import {
   fireEvent,
@@ -164,6 +165,52 @@ describe("team game day screen", () => {
     expect(
       await screen.findByText("Response saved. Team staff will confirm."),
     ).toBeTruthy();
+  });
+
+  it("acknowledges an assigned duty and accepts an eligible open swap", async () => {
+    const acknowledged: Array<{ teamId: string; eventId: string }> = [];
+    const requested: Array<{ teamId: string; eventId: string }> = [];
+    const accepted: Array<{ teamId: string; requestId: string }> = [];
+    const swap = {
+      id: "77777777-7777-4777-8777-777777777777",
+      label: "Scorebook",
+      requesterUserId: "29292929-2929-4929-8929-292929292929",
+      targetUserId: null,
+    };
+    await renderScreen({
+      loadContext: () => Promise.resolve(context),
+      loadGameDay: () => Promise.resolve(projection),
+      loadDutySwaps: () => Promise.resolve([swap]),
+      acknowledgeDuty: (input) => {
+        acknowledged.push(input);
+        return Promise.resolve(1);
+      },
+      requestDutySwap: (input) => {
+        requested.push(input);
+        return Promise.resolve({ requestId: swap.id });
+      },
+      acceptDutySwap: (input) => {
+        accepted.push(input);
+        return Promise.resolve({ requestId: input.requestId });
+      },
+    });
+
+    fireEvent.press(
+      await screen.findByRole("button", { name: "Acknowledge my duty" }),
+    );
+    fireEvent.press(
+      await screen.findByRole("button", { name: "Request an open duty swap" }),
+    );
+    fireEvent.press(
+      await screen.findByRole("button", { name: "Accept swap for Scorebook" }),
+    );
+
+    await waitFor(() => {
+      expect(acknowledged).toEqual([{ teamId, eventId: projection.eventId }]);
+      expect(requested).toEqual([{ teamId, eventId: projection.eventId }]);
+      expect(accepted).toEqual([{ teamId, requestId: swap.id }]);
+    });
+    expect(screen.queryByText(swap.requesterUserId)).toBeNull();
   });
 
   it("shows fallbacks for omitted game labels and a guardian-safe count summary", async () => {
@@ -824,6 +871,10 @@ function screenTree({
   saveRsvp,
   loadFillInOptions,
   respondFillIn,
+  loadDutySwaps,
+  acknowledgeDuty,
+  requestDutySwap,
+  acceptDutySwap,
 }: ScreenInput) {
   const queryClient =
     client ??
@@ -843,6 +894,10 @@ function screenTree({
         {...(saveRsvp === undefined ? {} : { saveRsvp })}
         {...(loadFillInOptions === undefined ? {} : { loadFillInOptions })}
         {...(respondFillIn === undefined ? {} : { respondFillIn })}
+        {...(loadDutySwaps === undefined ? {} : { loadDutySwaps })}
+        {...(acknowledgeDuty === undefined ? {} : { acknowledgeDuty })}
+        {...(requestDutySwap === undefined ? {} : { requestDutySwap })}
+        {...(acceptDutySwap === undefined ? {} : { acceptDutySwap })}
         {...(store === undefined ? {} : { snapshotStore: store })}
         {...(localUserId === undefined ? {} : { localUserId })}
         {...(online === undefined ? {} : { online })}
@@ -879,4 +934,20 @@ type ScreenInput = {
     requestId: string;
     playerId: string;
   }) => Promise<void>;
+  loadDutySwaps?: (
+    teamId: string,
+    eventId: string,
+  ) => Promise<readonly DutySwapRecord[]>;
+  acknowledgeDuty?: (input: {
+    teamId: string;
+    eventId: string;
+  }) => Promise<number>;
+  requestDutySwap?: (input: {
+    teamId: string;
+    eventId: string;
+  }) => Promise<unknown>;
+  acceptDutySwap?: (input: {
+    teamId: string;
+    requestId: string;
+  }) => Promise<unknown>;
 };
