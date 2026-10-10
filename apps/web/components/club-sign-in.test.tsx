@@ -1,4 +1,4 @@
-import { ApplicationError, AUTH_ERROR_MESSAGES } from "@stable/contracts";
+import { AUTH_ERROR_MESSAGES } from "@stable/contracts";
 import type { AuthSessionSnapshot } from "@stable/contracts";
 import { themeFor } from "@stable/design-tokens";
 import {
@@ -36,7 +36,7 @@ describe("club sign-in", () => {
       screen.getByRole("heading", { name: "Know what's next. Show up ready." }),
     ).toBeTruthy();
     expect(
-      screen.getByRole("button", { name: "Continue with mobile" }),
+      screen.getByRole("button", { name: "Continue with email" }),
     ).toBeTruthy();
     expect(
       screen.queryByRole("button", { name: "Continue with Google" }),
@@ -126,122 +126,14 @@ describe("club sign-in", () => {
     ).toBeGreaterThanOrEqual(4.5);
   });
 
-  it("requests a formatted mobile number and verifies the code", async () => {
-    const calls: string[] = [];
+  it("signs in with email and password without exposing provider errors", async () => {
+    const credentials: string[] = [];
     render(
       <ClubSignIn
         session={unauthenticated}
         actions={idleActions({
-          async requestPhone(phone) {
-            calls.push(phone);
-          },
-          async verifyPhone(phone, token) {
-            calls.push(`${phone}:${token}`);
-          },
-        })}
-      />,
-    );
-
-    fireEvent.click(
-      screen.getByRole("button", { name: "Continue with mobile" }),
-    );
-    const mobileInput = screen.getByLabelText("Mobile number");
-    expect(document.activeElement).toBe(mobileInput);
-    fireEvent.change(screen.getByLabelText("Mobile number"), {
-      target: { value: "0412345678" },
-    });
-    expect(
-      (screen.getByLabelText("Mobile number") as HTMLInputElement).value,
-    ).toBe("0412 345 678");
-    fireEvent.click(screen.getByRole("button", { name: "Continue" }));
-    const codeInput = await screen.findByLabelText("6-digit code");
-    expect(document.activeElement).toBe(codeInput);
-    fireEvent.change(codeInput, {
-      target: { value: "12 34 56" },
-    });
-    fireEvent.click(screen.getByRole("button", { name: "Continue" }));
-
-    await waitFor(() => {
-      expect(calls).toEqual(["0412 345 678", "0412 345 678:123456"]);
-    });
-  });
-
-  it("shows the application sentence for an invalid mobile", async () => {
-    render(
-      <ClubSignIn
-        session={unauthenticated}
-        actions={idleActions({
-          async requestPhone() {
-            throw new ApplicationError(
-              "VALIDATION_FAILED",
-              "Enter an Australian mobile number.",
-            );
-          },
-        })}
-      />,
-    );
-
-    fireEvent.click(
-      screen.getByRole("button", { name: "Continue with mobile" }),
-    );
-    fireEvent.change(screen.getByLabelText("Mobile number"), {
-      target: { value: "123" },
-    });
-    fireEvent.click(screen.getByRole("button", { name: "Continue" }));
-
-    expect(
-      await screen.findByText("Enter an Australian mobile number."),
-    ).toBeTruthy();
-  });
-
-  it("accepts an email and verifies the code", async () => {
-    const calls: string[] = [];
-    render(
-      <ClubSignIn
-        session={unauthenticated}
-        resendCooldownSeconds={0}
-        actions={idleActions({
-          async requestEmail(email) {
-            calls.push(email);
-          },
-          async verifyEmail(email, token) {
-            calls.push(`${email}:${token}`);
-          },
-        })}
-      />,
-    );
-
-    fireEvent.click(
-      screen.getByRole("button", { name: "Continue with email" }),
-    );
-    fireEvent.change(screen.getByLabelText("Email address"), {
-      target: { value: "  adult@example.com" },
-    });
-    fireEvent.click(screen.getByRole("button", { name: "Send code" }));
-    fireEvent.change(await screen.findByLabelText("6-digit code"), {
-      target: { value: "123456" },
-    });
-    fireEvent.click(screen.getByRole("button", { name: "Continue" }));
-    await waitFor(() => {
-      expect(calls).toEqual(["adult@example.com", "adult@example.com:123456"]);
-    });
-    fireEvent.click(screen.getByRole("button", { name: "Resend code" }));
-
-    await waitFor(() => {
-      expect(calls).toEqual([
-        "adult@example.com",
-        "adult@example.com:123456",
-        "adult@example.com",
-      ]);
-    });
-  });
-
-  it("shows a catalog sentence instead of provider text", async () => {
-    render(
-      <ClubSignIn
-        session={unauthenticated}
-        actions={idleActions({
-          async verifyEmail() {
+          async signInPassword(email, password) {
+            credentials.push(email, password);
             throw new Error("GoTrue otp 654321 adult@example.com");
           },
         })}
@@ -252,15 +144,15 @@ describe("club sign-in", () => {
       screen.getByRole("button", { name: "Continue with email" }),
     );
     fireEvent.change(screen.getByLabelText("Email address"), {
-      target: { value: "adult@example.com" },
+      target: { value: " adult@example.com " },
     });
-    fireEvent.click(screen.getByRole("button", { name: "Send code" }));
-    fireEvent.change(await screen.findByLabelText("6-digit code"), {
-      target: { value: "000000" },
+    fireEvent.change(screen.getByLabelText("Password"), {
+      target: { value: "secret-test-password" },
     });
-    fireEvent.click(screen.getByRole("button", { name: "Continue" }));
+    fireEvent.click(screen.getByRole("button", { name: "Sign in" }));
 
     const alert = await screen.findByRole("alert");
+    expect(credentials).toEqual(["adult@example.com", "secret-test-password"]);
     expect(alert.textContent).toBe(AUTH_ERROR_MESSAGES.INTERNAL);
     expect(alert.textContent?.includes("654321")).toBe(false);
     expect(alert.textContent?.includes("adult@example.com")).toBe(false);
@@ -294,7 +186,7 @@ describe("club sign-in", () => {
       screen.getByText(AUTH_ERROR_MESSAGES.UPSTREAM_UNAVAILABLE),
     ).toBeTruthy();
     expect(
-      screen.queryByRole("button", { name: "Continue with mobile" }),
+      screen.queryByRole("button", { name: "Continue with email" }),
     ).toBeNull();
   });
 
@@ -342,6 +234,7 @@ describe("club sign-in", () => {
       screen.getByRole("button", { name: "Continue with email" }),
     );
     expect(screen.getByLabelText("Email address")).toBeTruthy();
+    expect(screen.getByLabelText("Password")).toBeTruthy();
     fireEvent.click(screen.getByRole("button", { name: "Back" }));
     expect(
       screen.getByRole("button", { name: "Continue with email" }),
@@ -367,57 +260,6 @@ describe("club sign-in", () => {
       />,
     );
     expect(container.firstChild).toBeNull();
-  });
-
-  it("resends a phone code after cooldown and lets the adult change the number", async () => {
-    const requests: string[] = [];
-    render(
-      <ClubSignIn
-        session={unauthenticated}
-        resendCooldownSeconds={1}
-        actions={idleActions({
-          async requestPhone(phone) {
-            requests.push(phone);
-          },
-        })}
-      />,
-    );
-    fireEvent.click(
-      screen.getByRole("button", { name: "Continue with mobile" }),
-    );
-    fireEvent.change(screen.getByLabelText("Mobile number"), {
-      target: { value: "0412345678" },
-    });
-    fireEvent.click(screen.getByRole("button", { name: "Continue" }));
-    expect(await screen.findByLabelText("6-digit code")).toBeTruthy();
-    expect(requests).toEqual(["0412 345 678"]);
-
-    const cooldownButton = screen.getByRole("button", {
-      name: "Resend code in 1s",
-    });
-    expect((cooldownButton as HTMLButtonElement).disabled).toBe(true);
-    expect(
-      await screen.findByRole(
-        "button",
-        { name: "Resend code" },
-        { timeout: 2500 },
-      ),
-    ).toBeTruthy();
-    fireEvent.click(screen.getByRole("button", { name: "Resend code" }));
-    await waitFor(() =>
-      expect(requests).toEqual(["0412 345 678", "0412 345 678"]),
-    );
-    fireEvent.click(
-      screen.getByRole("button", { name: "Change mobile number" }),
-    );
-    expect(screen.getByLabelText("Mobile number")).toHaveProperty(
-      "value",
-      "0412 345 678",
-    );
-    fireEvent.click(screen.getByRole("button", { name: "Back" }));
-    expect(
-      screen.getByRole("button", { name: "Continue with mobile" }),
-    ).toBeTruthy();
   });
 
   it("shows the admin surface only for an authenticated snapshot", () => {
@@ -503,16 +345,7 @@ function idleActions(
   overrides: Partial<ClubSignInActions> = {},
 ): ClubSignInActions {
   return {
-    async requestPhone() {
-      return undefined;
-    },
-    async verifyPhone() {
-      return undefined;
-    },
-    async requestEmail() {
-      return undefined;
-    },
-    async verifyEmail() {
+    async signInPassword() {
       return undefined;
     },
     async retry() {

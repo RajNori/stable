@@ -38,8 +38,6 @@ export default async function HomePage({ searchParams }: HomePageProps) {
       return (
         <ClubSignInLive
           session={decision.snapshot}
-          appEnv={boot.appEnv}
-          webOrigin={boot.webOrigin ?? "http://127.0.0.1:3000"}
           supabaseUrl={boot.supabaseUrl}
           publishableKey={boot.supabasePublishableKey}
           notice={callbackNotice(params)}
