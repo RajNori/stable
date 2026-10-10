@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import {
   assertStagingSeedTarget,
+  classifySeedRow,
   STAGING_PROJECT_REF,
   STAGING_SUPABASE_URL,
 } from "./seed-guard.ts";
@@ -72,5 +73,28 @@ describe("staging seed target guard", () => {
     ],
   ] as const)("rejects %s", (_description, target) => {
     expect(() => assertStagingSeedTarget(target)).toThrow();
+  });
+});
+
+describe("staging seed rerun row classification", () => {
+  const expected = { id: "synthetic-id", value: 12 };
+
+  it("marks absent rows for initial creation", () => {
+    expect(classifySeedRow([], expected, ["id", "value"])).toBe("missing");
+  });
+
+  it("skips rows already matching the synthetic baseline", () => {
+    expect(classifySeedRow([expected], expected, ["id", "value"])).toBe(
+      "matching",
+    );
+  });
+
+  it("fails closed for a conflicting row or duplicate rows", () => {
+    expect(() =>
+      classifySeedRow([{ ...expected, value: 99 }], expected, ["id", "value"]),
+    ).toThrow(/refusing to overwrite/i);
+    expect(() =>
+      classifySeedRow([expected, expected], expected, ["id", "value"]),
+    ).toThrow(/refusing to overwrite/i);
   });
 });

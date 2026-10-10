@@ -5,7 +5,7 @@
  *
  * Required: APP_ENV=staging TARGET_PROJECT_REF=<approved ref>
  *           SUPABASE_URL=<approved URL>
- * Run:      pnpm exec tsx scripts/staging/seed-pilot.ts --confirm-staging
+ * Run:      node --experimental-strip-types scripts/staging/seed-pilot.ts --confirm-staging
  */
 import { execFileSync } from "node:child_process";
 import { randomBytes } from "node:crypto";
@@ -13,6 +13,7 @@ import { readFileSync } from "node:fs";
 
 import {
   assertStagingSeedTarget,
+  classifySeedRow,
   STAGING_PROJECT_REF,
   STAGING_SUPABASE_URL,
 } from "./seed-guard.ts";
@@ -379,6 +380,25 @@ async function upsert(
     rows,
     "resolution=ignore-duplicates,return=minimal",
   );
+}
+
+async function seedRowMatches(
+  serviceKey: string,
+  table: string,
+  filters: Readonly<Record<string, string>>,
+  expected: Json,
+  fields: readonly string[],
+): Promise<boolean> {
+  const query = new URLSearchParams({ select: fields.join(","), ...filters });
+  const rows = await request(
+    serviceKey,
+    `/rest/v1/${table}?${query.toString()}`,
+    "GET",
+  );
+  if (!Array.isArray(rows) || rows.some((row) => !isRecord(row))) {
+    throw new Error(`Unable to verify synthetic staging row in ${table}.`);
+  }
+  return classifySeedRow(rows as Json[], expected, fields) === "matching";
 }
 
 async function seed(): Promise<void> {
@@ -1137,80 +1157,288 @@ async function seed(): Promise<void> {
     if (rpcOwnedTables.has(table)) continue;
     await upsert(serviceKey, table, conflict, data);
   }
-  await rpc(publicKey, coachSession, "save_manual_game_result", {
-    p_event_id: EVENT.completed,
-    p_team_score: 42,
-    p_opponent_score: 36,
-  });
-  await rpc(publicKey, coachSession, "save_game_player_stat", {
-    p_event_id: EVENT.completed,
-    p_player_id: PLAYER_IDS[0],
-    p_points: 12,
-    p_rebounds: 5,
-    p_assists: 3,
-    p_steals: 2,
-    p_fouls: 1,
-    p_approximate_minutes: 28,
-  });
-  await rpc(publicKey, coachSession, "save_game_player_stat", {
-    p_event_id: EVENT.completed,
-    p_player_id: PLAYER_IDS[1],
-    p_points: 8,
-    p_rebounds: 7,
-    p_assists: 2,
-    p_steals: 1,
-    p_fouls: 2,
-    p_approximate_minutes: 26,
-  });
-  const reviewId = await rpc(publicKey, coachSession, "save_post_game_review", {
-    p_event_id: EVENT.completed,
-    p_what_worked:
-      "Synthetic example: shared the ball and communicated on defence.",
-    p_needs_improvement:
-      "Synthetic example: box out consistently after a shot.",
-    p_focus_codes: ["REBOUNDING"],
-    p_complete: true,
-  });
-  if (typeof reviewId !== "string") {
-    throw new Error("Staging review operation did not return a review id.");
+  const gameResultExpected = {
+    team_score: 42,
+    opponent_score: 36,
+    result_status: "FINAL",
+    source: "MANUAL",
+  };
+  if (
+    !(await seedRowMatches(
+      serviceKey,
+      "games",
+      { event_id: `eq.${EVENT.completed}` },
+      gameResultExpected,
+      ["team_score", "opponent_score", "result_status", "source"],
+    ))
+  ) {
+    const games = await request(
+      serviceKey,
+      `/rest/v1/games?select=team_score,opponent_score,result_status,source&event_id=eq.${EVENT.completed}`,
+      "GET",
+    );
+    const current = Array.isArray(games) ? games[0] : undefined;
+    if (
+      !isRecord(current) ||
+      current.source !== "MANUAL" ||
+      current.team_score !== null ||
+      current.opponent_score !== null ||
+      current.result_status !== null
+    ) {
+      throw new Error(
+        "Existing synthetic game result conflicts with the seed baseline; refusing to overwrite it.",
+      );
+    }
+    await rpc(publicKey, coachSession, "save_manual_game_result", {
+      p_event_id: EVENT.completed,
+      p_team_score: 42,
+      p_opponent_score: 36,
+    });
   }
-  await rpc(publicKey, coachSession, "save_player_game_recognition", {
-    p_event_id: EVENT.completed,
-    p_player_id: PLAYER_IDS[0],
-    p_category: "HUSTLE",
-    p_note: "Synthetic recognition example.",
-  });
-  await rpc(publicKey, coachSession, "save_private_player_game_note", {
-    p_event_id: EVENT.completed,
-    p_player_id: PLAYER_IDS[0],
-    p_note:
-      "Synthetic STAFF_PRIVATE example; contains no real child information.",
-  });
-  await rpc(publicKey, coachSession, "save_practice_plan", {
-    p_team_id: PRIMARY_TEAM,
-    p_plan_id: PLAN,
-    p_training_event_id: EVENT.training,
-    p_title: "Synthetic ball movement practice",
-    p_notes: "Pilot example; synthetic content only.",
-    p_blocks: [
+
+  const statRows = [
+    {
+      playerId: PLAYER_IDS[0],
+      points: 12,
+      rebounds: 5,
+      assists: 3,
+      steals: 2,
+      fouls: 1,
+      approximate_minutes: 28,
+    },
+    {
+      playerId: PLAYER_IDS[1],
+      points: 8,
+      rebounds: 7,
+      assists: 2,
+      steals: 1,
+      fouls: 2,
+      approximate_minutes: 26,
+    },
+  ] as const;
+  for (const stat of statRows) {
+    const expected = {
+      points: stat.points,
+      rebounds: stat.rebounds,
+      assists: stat.assists,
+      steals: stat.steals,
+      fouls: stat.fouls,
+      approximate_minutes: stat.approximate_minutes,
+    };
+    if (
+      !(await seedRowMatches(
+        serviceKey,
+        "game_player_stats",
+        {
+          game_event_id: `eq.${EVENT.completed}`,
+          player_id: `eq.${stat.playerId}`,
+        },
+        expected,
+        [
+          "points",
+          "rebounds",
+          "assists",
+          "steals",
+          "fouls",
+          "approximate_minutes",
+        ],
+      ))
+    ) {
+      await rpc(publicKey, coachSession, "save_game_player_stat", {
+        p_event_id: EVENT.completed,
+        p_player_id: stat.playerId,
+        p_points: stat.points,
+        p_rebounds: stat.rebounds,
+        p_assists: stat.assists,
+        p_steals: stat.steals,
+        p_fouls: stat.fouls,
+        p_approximate_minutes: stat.approximate_minutes,
+      });
+    }
+  }
+
+  const reviewExpected = {
+    what_worked:
+      "Synthetic example: shared the ball and communicated on defence.",
+    needs_improvement: "Synthetic example: box out consistently after a shot.",
+  };
+  const reviewRows = await request(
+    serviceKey,
+    `/rest/v1/post_game_reviews?select=id,what_worked,needs_improvement,completed_at&game_event_id=eq.${EVENT.completed}`,
+    "GET",
+  );
+  if (!Array.isArray(reviewRows) || reviewRows.some((row) => !isRecord(row))) {
+    throw new Error("Unable to verify the synthetic post-game review.");
+  }
+  const reviewMatches =
+    classifySeedRow(reviewRows as Json[], reviewExpected, [
+      "what_worked",
+      "needs_improvement",
+    ]) === "matching";
+  let reviewId: string;
+  if (reviewMatches) {
+    const existingReview = reviewRows[0];
+    if (
+      !isRecord(existingReview) ||
+      typeof existingReview.id !== "string" ||
+      typeof existingReview.completed_at !== "string"
+    ) {
+      throw new Error("The synthetic post-game review is not complete.");
+    }
+    reviewId = existingReview.id;
+    const focusMatches = await seedRowMatches(
+      serviceKey,
+      "post_game_review_focus",
+      { review_id: `eq.${reviewId}` },
+      { focus_code: "REBOUNDING" },
+      ["focus_code"],
+    );
+    if (!focusMatches) {
+      throw new Error(
+        "The existing synthetic post-game review focus conflicts with the seed baseline.",
+      );
+    }
+  } else {
+    const reviewIdResult = await rpc(
+      publicKey,
+      coachSession,
+      "save_post_game_review",
       {
-        block_id: null,
-        order: 1,
+        p_event_id: EVENT.completed,
+        p_what_worked: reviewExpected.what_worked,
+        p_needs_improvement: reviewExpected.needs_improvement,
+        p_focus_codes: ["REBOUNDING"],
+        p_complete: true,
+      },
+    );
+    if (typeof reviewIdResult !== "string") {
+      throw new Error("Staging review operation did not return a review id.");
+    }
+    reviewId = reviewIdResult;
+  }
+
+  const recognitionExpected = { note: "Synthetic recognition example." };
+  if (
+    !(await seedRowMatches(
+      serviceKey,
+      "player_game_recognitions",
+      {
+        game_event_id: `eq.${EVENT.completed}`,
+        player_id: `eq.${PLAYER_IDS[0]}`,
+        category: "eq.HUSTLE",
+      },
+      recognitionExpected,
+      ["note"],
+    ))
+  ) {
+    await rpc(publicKey, coachSession, "save_player_game_recognition", {
+      p_event_id: EVENT.completed,
+      p_player_id: PLAYER_IDS[0],
+      p_category: "HUSTLE",
+      p_note: recognitionExpected.note,
+    });
+  }
+
+  const privateNoteExpected = {
+    note: "Synthetic STAFF_PRIVATE example; contains no real child information.",
+    visibility: "STAFF_PRIVATE",
+  };
+  if (
+    !(await seedRowMatches(
+      serviceKey,
+      "private_player_game_notes",
+      {
+        game_event_id: `eq.${EVENT.completed}`,
+        player_id: `eq.${PLAYER_IDS[0]}`,
+      },
+      privateNoteExpected,
+      ["note", "visibility"],
+    ))
+  ) {
+    await rpc(publicKey, coachSession, "save_private_player_game_note", {
+      p_event_id: EVENT.completed,
+      p_player_id: PLAYER_IDS[0],
+      p_note: privateNoteExpected.note,
+    });
+  }
+
+  const practicePlanExpected = {
+    id: PLAN,
+    title: "Synthetic ball movement practice",
+    notes: "Pilot example; synthetic content only.",
+    training_event_id: EVENT.training,
+    is_template: false,
+  };
+  const practicePlanMatches = await seedRowMatches(
+    serviceKey,
+    "practice_plans",
+    { id: `eq.${PLAN}` },
+    practicePlanExpected,
+    ["id", "title", "notes", "training_event_id", "is_template"],
+  );
+  if (practicePlanMatches) {
+    const blockMatches = await seedRowMatches(
+      serviceKey,
+      "practice_blocks",
+      { practice_plan_id: `eq.${PLAN}` },
+      {
+        sort_order: 1,
         drill_id: null,
         title: "Three-player passing weave",
         duration_minutes: 12,
         instructions:
           "Synthetic drill: move, call, and pass to the next station.",
       },
-    ],
-    p_focus: [
+      ["sort_order", "drill_id", "title", "duration_minutes", "instructions"],
+    );
+    const practiceFocusMatches = await seedRowMatches(
+      serviceKey,
+      "practice_plan_focus",
       {
+        practice_plan_id: `eq.${PLAN}`,
+        source_review_id: `eq.${reviewId}`,
+        focus_code: "eq.REBOUNDING",
+      },
+      {
+        practice_plan_id: PLAN,
         source_review_id: reviewId,
         source_event_id: EVENT.completed,
-        code: "REBOUNDING",
+        focus_code: "REBOUNDING",
       },
-    ],
-  });
+      ["practice_plan_id", "source_review_id", "source_event_id", "focus_code"],
+    );
+    if (!blockMatches || !practiceFocusMatches) {
+      throw new Error(
+        "Existing synthetic practice plan details conflict with the seed baseline.",
+      );
+    }
+  } else {
+    await rpc(publicKey, coachSession, "save_practice_plan", {
+      p_team_id: PRIMARY_TEAM,
+      p_plan_id: PLAN,
+      p_training_event_id: EVENT.training,
+      p_title: practicePlanExpected.title,
+      p_notes: practicePlanExpected.notes,
+      p_blocks: [
+        {
+          block_id: null,
+          order: 1,
+          drill_id: null,
+          title: "Three-player passing weave",
+          duration_minutes: 12,
+          instructions:
+            "Synthetic drill: move, call, and pass to the next station.",
+        },
+      ],
+      p_focus: [
+        {
+          source_review_id: reviewId,
+          source_event_id: EVENT.completed,
+          code: "REBOUNDING",
+        },
+      ],
+    });
+  }
 
   if (process.argv.slice(2).includes("--verify-access")) {
     const roleChecks = [

@@ -1,6 +1,26 @@
 export const STAGING_PROJECT_REF = "rporaeagbsfmgbmhyett";
 export const STAGING_SUPABASE_URL = `https://${STAGING_PROJECT_REF}.supabase.co`;
 
+export type SeedRow = Readonly<Record<string, unknown>>;
+
+/** Skip matching rows; never let a seed rerun overwrite an operator edit. */
+export function classifySeedRow(
+  existing: readonly SeedRow[],
+  expected: SeedRow,
+  fields: readonly string[],
+): "missing" | "matching" {
+  if (existing.length === 0) return "missing";
+  if (
+    existing.length !== 1 ||
+    fields.some((field) => existing[0]?.[field] !== expected[field])
+  ) {
+    throw new Error(
+      "An existing staging synthetic row conflicts with the seed baseline; refusing to overwrite it.",
+    );
+  }
+  return "matching";
+}
+
 export type StagingSeedTarget = Readonly<{
   appEnv: string | undefined;
   projectRef: string | undefined;
