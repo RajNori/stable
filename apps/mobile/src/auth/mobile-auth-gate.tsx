@@ -28,7 +28,6 @@ type GateActions = {
   requestPhone: (phone: string) => Promise<void>;
   verifyPhone: (phone: string, token: string) => Promise<AuthSessionSnapshot>;
   requestEmail: (email: string) => Promise<void>;
-  verifyEmail: (email: string, token: string) => Promise<AuthSessionSnapshot>;
   completeCallback: (callbackUrl: string) => Promise<AuthSessionSnapshot>;
 };
 
@@ -211,14 +210,6 @@ export function MobileAuthGate({
             );
           },
           requestEmail: actions.requestEmail,
-          verifyEmail: async (email, token) => {
-            setCallbackPending(false);
-            const transition = beginSessionTransition();
-            await updateSession(
-              await actions.verifyEmail(email, token),
-              transition,
-            );
-          },
           retry: async () => {
             setCallbackPending(false);
             const transition = beginSessionTransition();

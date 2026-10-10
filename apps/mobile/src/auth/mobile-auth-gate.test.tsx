@@ -451,7 +451,7 @@ describe("mobile auth gate", () => {
     announce.mockRestore();
   });
 
-  it("clears stale callback pending state when email OTP completes first", async () => {
+  it("clears stale callback pending state when phone OTP completes first", async () => {
     let receive: ((url: string) => void) | undefined;
     let callbackStarted: (() => void) | undefined;
     let resolveCallback: ((snapshot: AuthSessionSnapshot) => void) | undefined;
@@ -467,7 +467,7 @@ describe("mobile auth gate", () => {
             callbackStarted?.();
             return callback;
           },
-          async verifyEmail() {
+          async verifyPhone() {
             return secondAuthenticated;
           },
         })}
@@ -495,12 +495,9 @@ describe("mobile auth gate", () => {
     receive?.("stable://auth/callback?code=pending");
     await callbackHasStarted;
 
-    await userEvent.press(screen.getByLabelText("Continue with email"));
-    fireEvent.changeText(
-      screen.getByLabelText("Email address"),
-      "adult@example.com",
-    );
-    await userEvent.press(screen.getByLabelText("Send code"));
+    await userEvent.press(screen.getByLabelText("Continue with mobile"));
+    fireEvent.changeText(screen.getByLabelText("Mobile number"), "0412345678");
+    await userEvent.press(screen.getByLabelText("Continue"));
     fireEvent.changeText(
       await screen.findByLabelText("6-digit code"),
       "123456",
@@ -722,9 +719,6 @@ function idleActions(overrides: Record<string, unknown> = {}) {
     },
     async requestEmail() {
       return undefined;
-    },
-    async verifyEmail(): Promise<AuthSessionSnapshot> {
-      return authenticated;
     },
     async completeCallback(): Promise<AuthSessionSnapshot> {
       return authenticated;

@@ -3,7 +3,6 @@ import {
   createSupabaseOtpAuthClient,
   requestEmailSignIn,
   requestPhoneOtp,
-  verifyEmailOtp,
   verifyPhoneOtp,
   type OtpAuthClient,
 } from "@stable/auth";
@@ -62,9 +61,6 @@ export function createMobileAuthActions(client: OtpAuthClient, appEnv: AppEnv) {
         redirectTo: MOBILE_CALLBACK,
         appEnv,
       }).then(() => undefined);
-    },
-    verifyEmail(email: string, token: string): Promise<AuthSessionSnapshot> {
-      return verifyEmailOtp(client, { email, token });
     },
     async completeCallback(callbackUrl: string): Promise<AuthSessionSnapshot> {
       const completed = await completeEmailCallback(client, {
