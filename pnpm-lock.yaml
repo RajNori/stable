@@ -250,6 +250,9 @@ importers:
       '@stable/design-tokens':
         specifier: workspace:*
         version: link:../../packages/design-tokens
+      '@stable/fill-ins':
+        specifier: workspace:*
+        version: link:../../packages/features/fill-ins
       '@stable/game-day':
         specifier: workspace:*
         version: link:../../packages/features/game-day

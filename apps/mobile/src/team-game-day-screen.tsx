@@ -8,6 +8,7 @@ import React, { useEffect, useRef } from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
 
 import type { MobileRsvpChoice } from "./load-mobile-rsvp";
+import type { MobileFillInProjection } from "./load-mobile-fill-in";
 
 import {
   gameDaySnapshotFromProjection,
@@ -67,6 +68,13 @@ const styles = StyleSheet.create({
     backgroundColor: theme.color.brand.accent,
     borderColor: theme.color.brand.accent,
   },
+  fillInCard: {
+    gap: theme.space[2],
+    padding: theme.space[3],
+    borderWidth: 1,
+    borderColor: theme.color.border.default,
+    borderRadius: theme.radius.md,
+  },
 });
 
 function message(error: unknown): string {
@@ -85,6 +93,8 @@ export function TeamGameDayScreen({
   now = Date.now(),
   loadRsvpChoices,
   saveRsvp,
+  loadFillInOptions,
+  respondFillIn,
 }: {
   loadContext: () => Promise<CurrentClubContext>;
   loadGameDay: (teamId: string) => Promise<GameDayProjection | null>;
@@ -104,6 +114,16 @@ export function TeamGameDayScreen({
         eventId: string;
         playerId: string;
         status: "ATTENDING" | "UNAVAILABLE" | "UNSURE";
+      }) => Promise<void>)
+    | undefined;
+  loadFillInOptions?:
+    | ((teamId: string, eventId: string) => Promise<MobileFillInProjection>)
+    | undefined;
+  respondFillIn?:
+    | ((input: {
+        teamId: string;
+        requestId: string;
+        playerId: string;
       }) => Promise<void>)
     | undefined;
 }) {
@@ -207,6 +227,39 @@ export function TeamGameDayScreen({
     onSuccess: async (_result, input) => {
       await queryClient.invalidateQueries({
         queryKey: ["managed-attendance", input.teamId, input.eventId],
+      });
+    },
+  });
+  const fillInOptions = useQuery({
+    queryKey: ["game-fill-in", teamId, gameDay.data?.eventId],
+    queryFn: () => {
+      if (
+        teamId === null ||
+        gameDay.data?.eventId === undefined ||
+        loadFillInOptions === undefined
+      ) {
+        throw new Error(gameDayMessages.readFailed);
+      }
+      return loadFillInOptions(teamId, gameDay.data.eventId);
+    },
+    enabled:
+      online === true &&
+      refreshLanded &&
+      teamId !== null &&
+      gameDay.data?.eventId !== undefined &&
+      loadFillInOptions !== undefined,
+    retry: false,
+  });
+  const fillInMutation = useMutation({
+    mutationFn: (input: { requestId: string; playerId: string }) => {
+      if (teamId === null || respondFillIn === undefined) {
+        throw new Error(gameDayMessages.readFailed);
+      }
+      return respondFillIn({ ...input, teamId });
+    },
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({
+        queryKey: ["game-fill-in", teamId, gameDay.data?.eventId],
       });
     },
   });
@@ -353,6 +406,68 @@ export function TeamGameDayScreen({
       <Text style={styles.body}>
         Fill-in {projection.fillInLabel ?? "None"}
       </Text>
+      {loadFillInOptions === undefined ? null : (
+        <View style={styles.fillInCard}>
+          <Text style={styles.body}>Fill-in request</Text>
+          {fillInOptions.isPending ? (
+            <Text style={styles.body} accessibilityRole="progressbar">
+              Checking for open requests
+            </Text>
+          ) : null}
+          {fillInOptions.isError ? (
+            <Text style={styles.body} accessibilityRole="alert">
+              Fill-in options could not be loaded. Refresh and try again.
+            </Text>
+          ) : null}
+          {fillInOptions.data?.request === null ? (
+            <Text style={styles.body}>No open request</Text>
+          ) : null}
+          {fillInOptions.data?.request !== null &&
+          fillInOptions.data?.request !== undefined ? (
+            <>
+              <Text style={styles.body}>
+                A player is needed for this game. Choose a managed player to
+                respond; team staff will confirm.
+              </Text>
+              {fillInOptions.data.players.map((player) => (
+                <Pressable
+                  key={player.playerId}
+                  accessibilityRole="button"
+                  accessibilityLabel={`Respond for ${player.displayName}`}
+                  accessibilityState={{
+                    disabled: fillInMutation.isPending,
+                    busy: fillInMutation.isPending,
+                  }}
+                  disabled={fillInMutation.isPending}
+                  onPress={() => {
+                    const request = fillInOptions.data?.request;
+                    if (request === null || request === undefined) return;
+                    fillInMutation.mutate({
+                      requestId: request.id,
+                      playerId: player.playerId,
+                    });
+                  }}
+                  style={styles.rsvpButton}
+                >
+                  <Text style={styles.body}>
+                    Respond for {player.displayName}
+                  </Text>
+                </Pressable>
+              ))}
+            </>
+          ) : null}
+          {fillInMutation.isSuccess ? (
+            <Text style={styles.body}>
+              Response saved. Team staff will confirm.
+            </Text>
+          ) : null}
+          {fillInMutation.isError ? (
+            <Text style={styles.body} accessibilityRole="alert">
+              Response could not be saved. Refresh and try again.
+            </Text>
+          ) : null}
+        </View>
+      )}
       {rsvpChoices.isPending && loadRsvpChoices !== undefined ? (
         <Text style={styles.body} accessibilityRole="progressbar">
           Loading your RSVP options

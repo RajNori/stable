@@ -24,6 +24,7 @@ import {
 } from "./offline-context";
 import { TeamGameDayScreen } from "./team-game-day-screen";
 import type { MobileRsvpChoice } from "./load-mobile-rsvp";
+import type { MobileFillInProjection } from "./load-mobile-fill-in";
 
 const teamId = "99999999-9999-4999-8999-999999999999";
 
@@ -122,6 +123,47 @@ describe("team game day screen", () => {
         },
       ]),
     );
+  });
+
+  it("lets a Guardian respond to an open fill-in request for a managed player", async () => {
+    const response: Array<{
+      teamId: string;
+      requestId: string;
+      playerId: string;
+    }> = [];
+    const player = {
+      playerId: "88888888-8888-4888-8888-888888888888",
+      displayName: "Jamie S.",
+    };
+    const options: MobileFillInProjection = {
+      request: { id: "77777777-7777-4777-8777-777777777777", status: "OPEN" },
+      players: [player],
+    };
+    await renderScreen({
+      loadContext: () => Promise.resolve(context),
+      loadGameDay: () => Promise.resolve(projection),
+      loadFillInOptions: () => Promise.resolve(options),
+      respondFillIn: (input) => {
+        response.push(input);
+        return Promise.resolve();
+      },
+    });
+
+    fireEvent.press(
+      await screen.findByRole("button", { name: "Respond for Jamie S." }),
+    );
+    await waitFor(() =>
+      expect(response).toEqual([
+        {
+          teamId,
+          requestId: options.request?.id,
+          playerId: player.playerId,
+        },
+      ]),
+    );
+    expect(
+      await screen.findByText("Response saved. Team staff will confirm."),
+    ).toBeTruthy();
   });
 
   it("shows fallbacks for omitted game labels and a guardian-safe count summary", async () => {
@@ -780,6 +822,8 @@ function screenTree({
   loadGameDay,
   loadRsvpChoices,
   saveRsvp,
+  loadFillInOptions,
+  respondFillIn,
 }: ScreenInput) {
   const queryClient =
     client ??
@@ -797,6 +841,8 @@ function screenTree({
         }
         {...(loadRsvpChoices === undefined ? {} : { loadRsvpChoices })}
         {...(saveRsvp === undefined ? {} : { saveRsvp })}
+        {...(loadFillInOptions === undefined ? {} : { loadFillInOptions })}
+        {...(respondFillIn === undefined ? {} : { respondFillIn })}
         {...(store === undefined ? {} : { snapshotStore: store })}
         {...(localUserId === undefined ? {} : { localUserId })}
         {...(online === undefined ? {} : { online })}
@@ -823,5 +869,14 @@ type ScreenInput = {
     eventId: string;
     playerId: string;
     status: "ATTENDING" | "UNAVAILABLE" | "UNSURE";
+  }) => Promise<void>;
+  loadFillInOptions?: (
+    teamId: string,
+    eventId: string,
+  ) => Promise<MobileFillInProjection>;
+  respondFillIn?: (input: {
+    teamId: string;
+    requestId: string;
+    playerId: string;
   }) => Promise<void>;
 };

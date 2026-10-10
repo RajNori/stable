@@ -22,6 +22,10 @@ import {
   markMobileAnnouncementRead,
 } from "../src/load-mobile-announcements";
 import { loadMobileGameDay } from "../src/load-mobile-game-day";
+import {
+  loadMobileFillIn,
+  respondMobileFillIn,
+} from "../src/load-mobile-fill-in";
 import { loadMobileRsvpChoices, saveMobileRsvp } from "../src/load-mobile-rsvp";
 import {
   registerMobileDevice,
@@ -102,6 +106,8 @@ export default function CurrentClubContextRoute() {
                   loadGameDay={loadMobileGameDay}
                   loadRsvpChoices={loadMobileRsvpChoices}
                   saveRsvp={saveMobileRsvp}
+                  loadFillInOptions={loadMobileFillIn}
+                  respondFillIn={respondMobileFillIn}
                   snapshotStore={snapshotStore}
                   localUserId={userId}
                   online={online}
