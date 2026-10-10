@@ -11,6 +11,9 @@ const PROFILE_APP_ENV = {
 
 type EasProfileName = keyof typeof PROFILE_APP_ENV;
 
+const APPROVED_STAGING_SUPABASE_URL =
+  "https://rporaeagbsfmgbmhyett.supabase.co";
+
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
@@ -77,6 +80,12 @@ function assertProfile(
   const url = env[ENV.expoSupabaseUrl];
   if (url !== undefined && url.trim().length > 0) {
     assertSupabaseUrl(url.trim(), expected, "mobile");
+  }
+  if (name === "preview" && url?.trim() !== APPROVED_STAGING_SUPABASE_URL) {
+    throw new ApplicationError(
+      "VALIDATION_FAILED",
+      `EAS preview must set ${ENV.expoSupabaseUrl} to the approved Stable staging project.`,
+    );
   }
 }
 

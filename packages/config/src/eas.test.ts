@@ -41,7 +41,7 @@ function easConfig(profiles: {
       preview: profiles.preview ?? {
         env: {
           [ENV.expoAppEnv]: "staging",
-          [ENV.expoSupabaseUrl]: "https://staging.invalid",
+          [ENV.expoSupabaseUrl]: "https://rporaeagbsfmgbmhyett.supabase.co",
         },
       },
       production: profiles.production ?? {
@@ -80,7 +80,13 @@ describe("eas.json", () => {
     }
 
     expect(config).not.toHaveProperty("submit");
-    expect(JSON.stringify(config)).not.toContain("supabase.co");
+    expect(JSON.stringify(config)).toContain(
+      "https://rporaeagbsfmgbmhyett.supabase.co",
+    );
+    expect(
+      JSON.stringify(config).split("https://rporaeagbsfmgbmhyett.supabase.co")
+        .length - 1,
+    ).toBe(3);
     expect(JSON.stringify(config)).not.toMatch(
       /192\.168\.|10\.0\.2\.2|172\.16\./,
     );
@@ -92,7 +98,9 @@ describe("eas.json", () => {
     expect(development[ENV.expoAppEnv]).toBe("local");
     expect(development[ENV.expoSupabaseUrl]).toBeUndefined();
     expect(preview[ENV.expoAppEnv]).toBe("staging");
-    expect(preview[ENV.expoSupabaseUrl]).toBeUndefined();
+    expect(preview[ENV.expoSupabaseUrl]).toBe(
+      "https://rporaeagbsfmgbmhyett.supabase.co",
+    );
     expect(production[ENV.expoAppEnv]).toBe("production");
     expect(production).not.toHaveProperty("submit");
 
@@ -150,15 +158,14 @@ describe("eas.json", () => {
   });
 
   it("requires preview to be staging and not a laptop, loopback, or LAN url", () => {
-    expect(() =>
-      assertEasConfig(
-        easConfig({
-          preview: {
-            env: { [ENV.expoAppEnv]: "staging" },
-          },
-        }),
-      ),
-    ).not.toThrow();
+    expectEasFailure(
+      easConfig({
+        preview: {
+          env: { [ENV.expoAppEnv]: "staging" },
+        },
+      }),
+      /approved Stable staging project/i,
+    );
 
     expect(() =>
       assertEasConfig(
@@ -171,7 +178,7 @@ describe("eas.json", () => {
           },
         }),
       ),
-    ).not.toThrow();
+    ).toThrow(/approved Stable staging project/i);
 
     for (const url of [
       "http://127.0.0.1:54321",
@@ -275,17 +282,16 @@ describe("eas.json", () => {
       }),
       /string/i,
     );
-    expect(() =>
-      assertEasConfig(
-        easConfig({
-          preview: {
-            env: {
-              [ENV.expoAppEnv]: "staging",
-              [ENV.expoSupabaseUrl]: "   ",
-            },
+    expectEasFailure(
+      easConfig({
+        preview: {
+          env: {
+            [ENV.expoAppEnv]: "staging",
+            [ENV.expoSupabaseUrl]: "   ",
           },
-        }),
-      ),
-    ).not.toThrow();
+        },
+      }),
+      /approved Stable staging project/i,
+    );
   });
 });
