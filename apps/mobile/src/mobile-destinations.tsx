@@ -10,7 +10,7 @@ const DESTINATIONS = [
   "Profile",
 ] as const;
 
-type Destination = (typeof DESTINATIONS)[number];
+export type MobileDestination = (typeof DESTINATIONS)[number];
 
 const theme = themeFor("mustangs");
 
@@ -49,12 +49,14 @@ export function MobileDestinations({
   team,
   updates,
 }: {
-  home: React.ReactNode;
+  home:
+    | React.ReactNode
+    | ((navigate: (destination: MobileDestination) => void) => React.ReactNode);
   schedule: React.ReactNode;
   team: React.ReactNode;
   updates?: React.ReactNode;
 }) {
-  const [selected, setSelected] = useState<Destination>("Home");
+  const [selected, setSelected] = useState<MobileDestination>("Home");
 
   return (
     <View style={styles.screen}>
@@ -74,7 +76,11 @@ export function MobileDestinations({
           </Pressable>
         ))}
       </View>
-      {selected === "Home" ? home : null}
+      {selected === "Home"
+        ? typeof home === "function"
+          ? home(setSelected)
+          : home
+        : null}
       {selected === "Schedule" ? schedule : null}
       {selected === "Team" ? team : null}
       {selected === "Updates"

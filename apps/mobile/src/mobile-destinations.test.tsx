@@ -36,4 +36,18 @@ describe("mobile destinations", () => {
     await user.press(screen.getByRole("tab", { name: "Profile" }));
     expect(screen.getByText("Profile is not available yet.")).toBeTruthy();
   });
+
+  it("lets the Home projection open Schedule", async () => {
+    await render(
+      <MobileDestinations
+        home={(navigate) => (
+          <Text onPress={() => navigate("Schedule")}>Next game</Text>
+        )}
+        schedule={<Text>Schedule destination</Text>}
+        team={<Text>Team destination</Text>}
+      />,
+    );
+    await userEvent.press(screen.getByText("Next game"));
+    expect(screen.getByText("Schedule destination")).toBeTruthy();
+  });
 });

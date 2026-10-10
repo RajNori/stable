@@ -14,8 +14,8 @@ import {
   signOutLiveMobileAuthSession,
 } from "../src/auth-session";
 import { loadMobileBootEnv } from "../src/boot-env";
-import { CurrentClubContextScreen } from "../src/current-club-context-screen";
 import { loadMobileCurrentClubContext } from "../src/load-mobile-current-club-context";
+import { GuardianHomeScreen } from "../src/guardian-home-screen";
 import {
   acknowledgeMobileAnnouncement,
   loadMobileAnnouncements,
@@ -104,7 +104,14 @@ export default function CurrentClubContextRoute() {
         clearPrivateCache={clearPrivateCache}
         authenticated={(userId) => (
           <MobileDestinations
-            home={<CurrentClubContextScreen loadContext={loadContext} />}
+            home={(navigate) => (
+              <GuardianHomeScreen
+                loadContext={loadContext}
+                loadSchedule={loadMobileTeamSchedule}
+                loadGameDay={loadMobileGameDay}
+                onOpenSchedule={() => navigate("Schedule")}
+              />
+            )}
             schedule={
               <>
                 <TeamGameDayScreen
