@@ -102,9 +102,12 @@ before this approval.
    and Vercel Preview's `NEXT_PUBLIC_SUPABASE_URL`. Confirm the public key is a
    publishable/anon key, the app mode is `staging`, and there are no loopback or
    production values. Do not copy secret keys into the app environment.
-3. In **Authentication → URL Configuration**, verify staging Site URL and
-   redirect allowlist contain the approved web callback and `stable://auth/callback`
-   as applicable, with no production-only or wildcard redirect. Inspect enabled
+3. Read the web deployment's exact `NEXT_PUBLIC_SITE_URL` value from the
+   approved Vercel Preview environment. It must be the intended canonical
+   staging HTTPS origin. In **Authentication → URL Configuration**, verify the
+   staging Site URL matches that origin and the redirect allowlist contains its
+   exact `/auth/callback` URL plus `stable://auth/callback` where mobile email
+   links are enabled, with no production-only, loopback, or wildcard redirect. Inspect enabled
    sign-in providers, email OTP/template/expiry/rate settings, phone/SMS
    configuration, SMTP sender, and test-user policy. Record pass/fail and
    non-secret values only.

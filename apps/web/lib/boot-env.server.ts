@@ -11,6 +11,7 @@ type EnvSource = Readonly<Record<string, string | undefined>>;
 export function loadWebBootEnv(env: EnvSource = process.env): ClientEnvConfig {
   return readWebBootEnv({
     [ENV.nextAppEnv]: env[ENV.nextAppEnv],
+    [ENV.nextSiteUrl]: env[ENV.nextSiteUrl],
     [ENV.nextSupabaseUrl]: env[ENV.nextSupabaseUrl],
     [ENV.nextSupabasePublishableKey]: env[ENV.nextSupabasePublishableKey],
     NEXT_PUBLIC_SENTRY_DSN: env.NEXT_PUBLIC_SENTRY_DSN,

@@ -3,17 +3,21 @@ import { AUTH_ERROR_MESSAGES, type AppEnv } from "@stable/contracts";
 
 import { safeAuthMessage } from "./safe-auth-message";
 
-const LOCAL_CALLBACK = "http://127.0.0.1:3000/auth/callback";
+const LOCAL_WEB_ORIGIN = "http://127.0.0.1:3000";
 
 export type CallbackResolution =
   | { readonly status: "redirect"; readonly to: string }
   | { readonly status: "error"; readonly message: string };
 
-export function callbackUrlFromCode(code: string | null): string {
+export function callbackUrlFromCode(
+  code: string | null,
+  webOrigin = LOCAL_WEB_ORIGIN,
+): string {
+  const callback = `${webOrigin}/auth/callback`;
   if (code === null || code.length === 0) {
-    return LOCAL_CALLBACK;
+    return callback;
   }
-  return `${LOCAL_CALLBACK}?code=${encodeURIComponent(code)}`;
+  return `${callback}?code=${encodeURIComponent(code)}`;
 }
 
 export function rejectProviderCallback(
@@ -30,7 +34,12 @@ export function rejectProviderCallback(
 
 export async function resolveAuthCallback(
   client: OtpAuthClient,
-  input: { callbackUrl: string; appEnv: AppEnv; returnTo?: string },
+  input: {
+    callbackUrl: string;
+    appEnv: AppEnv;
+    webOrigin?: string;
+    returnTo?: string;
+  },
 ): Promise<CallbackResolution> {
   try {
     const completed = await completeEmailCallback(client, input);

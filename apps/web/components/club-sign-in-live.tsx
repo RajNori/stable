@@ -15,8 +15,6 @@ import { createSupabaseBrowserClient } from "../lib/supabase/browser";
 import { createWebOtpClient } from "../lib/web-otp-client";
 import { ClubSignIn } from "./club-sign-in";
 
-const WEB_CALLBACK = "http://127.0.0.1:3000/auth/callback";
-
 function browserOtpClient(
   supabaseUrl: string,
   publishableKey: string,
@@ -29,6 +27,7 @@ function browserOtpClient(
 type ClubSignInLiveProps = {
   readonly session: AuthSessionSnapshot;
   readonly appEnv: AppEnv;
+  readonly webOrigin: string;
   readonly supabaseUrl: string;
   readonly publishableKey: string;
   readonly notice: string | null;
@@ -37,6 +36,7 @@ type ClubSignInLiveProps = {
 export function ClubSignInLive({
   session,
   appEnv,
+  webOrigin,
   supabaseUrl,
   publishableKey,
   notice,
@@ -61,8 +61,9 @@ export function ClubSignInLive({
           browserOtpClient(supabaseUrl, publishableKey),
           {
             email,
-            redirectTo: WEB_CALLBACK,
+            redirectTo: `${webOrigin}/auth/callback`,
             appEnv,
+            webOrigin,
           },
         ).then(() => undefined);
       },
@@ -77,7 +78,7 @@ export function ClubSignInLive({
         router.refresh();
       },
     }),
-    [appEnv, publishableKey, router, supabaseUrl],
+    [appEnv, publishableKey, router, supabaseUrl, webOrigin],
   );
 
   return <ClubSignIn session={session} actions={actions} notice={notice} />;

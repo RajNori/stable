@@ -11,6 +11,7 @@ export type ClientEnvConfig = {
   appEnv: AppEnv;
   supabaseUrl: string;
   supabasePublishableKey: string;
+  webOrigin?: string;
   sentryDsn?: string;
   posthogKey?: string;
   posthogHost?: string;
@@ -37,6 +38,7 @@ const requiredValue = z.string().min(1);
 
 export const webClientEnvSchema = z.strictObject({
   [ENV.nextAppEnv]: appEnvSchema,
+  [ENV.nextSiteUrl]: requiredValue.optional(),
   [ENV.nextSupabaseUrl]: requiredValue,
   [ENV.nextSupabasePublishableKey]: requiredValue,
   [WEB_PUBLIC_OBSERVABILITY.sentryDsn]: requiredValue.optional(),
@@ -131,6 +133,7 @@ function clientConfig(
 
 const webKeys = [
   ENV.nextAppEnv,
+  ENV.nextSiteUrl,
   ENV.nextSupabaseUrl,
   ENV.nextSupabasePublishableKey,
   WEB_PUBLIC_OBSERVABILITY.sentryDsn,
@@ -155,17 +158,87 @@ export function parseWebClientEnv(env: EnvRecord): ClientEnvConfig {
     throw invalidClientEnv(parsed.error);
   }
 
-  return clientConfig(
-    parsed.data[ENV.nextAppEnv],
-    parsed.data[ENV.nextSupabaseUrl],
-    parsed.data[ENV.nextSupabasePublishableKey],
-    {
-      sentryDsn: parsed.data[WEB_PUBLIC_OBSERVABILITY.sentryDsn],
-      posthogKey: parsed.data[WEB_PUBLIC_OBSERVABILITY.posthogKey],
-      posthogHost: parsed.data[WEB_PUBLIC_OBSERVABILITY.posthogHost],
-    },
-    "web",
-  );
+  const appEnv = parsed.data[ENV.nextAppEnv];
+  const webOrigin = parseWebOrigin(parsed.data[ENV.nextSiteUrl], appEnv);
+  return {
+    ...clientConfig(
+      appEnv,
+      parsed.data[ENV.nextSupabaseUrl],
+      parsed.data[ENV.nextSupabasePublishableKey],
+      {
+        sentryDsn: parsed.data[WEB_PUBLIC_OBSERVABILITY.sentryDsn],
+        posthogKey: parsed.data[WEB_PUBLIC_OBSERVABILITY.posthogKey],
+        posthogHost: parsed.data[WEB_PUBLIC_OBSERVABILITY.posthogHost],
+      },
+      "web",
+    ),
+    webOrigin,
+  };
+}
+
+const LOCAL_WEB_ORIGIN = "http://127.0.0.1:3000";
+
+function parseWebOrigin(value: string | undefined, appEnv: AppEnv): string {
+  const origin = value ?? (appEnv === "local" ? LOCAL_WEB_ORIGIN : undefined);
+  if (origin === undefined) {
+    throw new ApplicationError(
+      "VALIDATION_FAILED",
+      `${ENV.nextSiteUrl} is required outside local mode.`,
+    );
+  }
+
+  let parsed: URL;
+  try {
+    parsed = new URL(origin);
+  } catch {
+    throw new ApplicationError(
+      "VALIDATION_FAILED",
+      `${ENV.nextSiteUrl} must be an exact URL origin.`,
+    );
+  }
+
+  if (
+    parsed.origin !== origin ||
+    parsed.pathname !== "/" ||
+    parsed.search !== "" ||
+    parsed.hash !== "" ||
+    parsed.username !== "" ||
+    parsed.password !== ""
+  ) {
+    throw new ApplicationError(
+      "VALIDATION_FAILED",
+      `${ENV.nextSiteUrl} must be an exact URL origin without a path.`,
+    );
+  }
+
+  if (appEnv === "local") {
+    if (origin !== LOCAL_WEB_ORIGIN) {
+      throw new ApplicationError(
+        "VALIDATION_FAILED",
+        `${ENV.nextSiteUrl} must use the configured local origin in local mode.`,
+      );
+    }
+    return origin;
+  }
+
+  const host = parsed.hostname.toLowerCase();
+  const isIpAddress =
+    host.includes(":") || /^(?:\d{1,3}\.){3}\d{1,3}$/u.test(host);
+  if (
+    parsed.protocol !== "https:" ||
+    parsed.port !== "" ||
+    host === "localhost" ||
+    host.endsWith(".localhost") ||
+    host.endsWith(".supabase.co") ||
+    isIpAddress
+  ) {
+    throw new ApplicationError(
+      "VALIDATION_FAILED",
+      `${ENV.nextSiteUrl} must be a hosted HTTPS application origin.`,
+    );
+  }
+
+  return origin;
 }
 
 function assertPublishableIsNotSecret(publishableKey: string): void {

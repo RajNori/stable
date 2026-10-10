@@ -71,6 +71,11 @@ data.
   variables. Keep service-role keys server-only. Verify preview redirects,
   Auth callbacks, storage policies, and project identity before inviting pilot
   users.
+- Set `NEXT_PUBLIC_SITE_URL` to the exact canonical HTTPS staging web origin
+  used for the deployment. In the positively identified staging Supabase
+  project, configure Site URL and an exact `${NEXT_PUBLIC_SITE_URL}/auth/callback`
+  redirect entry plus `stable://auth/callback` where mobile email links are
+  enabled. Do not add wildcard, loopback, or production callback entries.
 - Configure a dedicated Sentry project/environment for staging. The app must
   send only normalized exception data; do not enable request-body capture,
   user identity, breadcrumbs containing navigation/form data, or replay. Verify

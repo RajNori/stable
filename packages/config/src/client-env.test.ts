@@ -15,6 +15,10 @@ const publishableKey = "sb_publishable_test";
 function webEnv(url: string, appEnv = "local"): Record<string, string> {
   return {
     [ENV.nextAppEnv]: appEnv,
+    [ENV.nextSiteUrl]:
+      appEnv === "local"
+        ? "http://127.0.0.1:3000"
+        : `https://${appEnv}.stable.example`,
     [ENV.nextSupabaseUrl]: url,
     [ENV.nextSupabasePublishableKey]: publishableKey,
   };
@@ -68,6 +72,7 @@ describe("web client environment", () => {
 
     expect(parsed).toEqual({
       appEnv: "local",
+      webOrigin: "http://127.0.0.1:3000",
       supabaseUrl: url,
       supabasePublishableKey: publishableKey,
     });
@@ -169,6 +174,39 @@ describe("web client environment", () => {
         }),
       /NEXT_PUBLIC_APP_ENV/,
     );
+  });
+
+  it("requires a canonical hosted HTTPS origin outside local mode", () => {
+    const staging = webEnv("https://staging-project.supabase.co", "staging");
+    delete staging[ENV.nextSiteUrl];
+    expectValidationFailure(
+      () => parseWebClientEnv(staging),
+      /NEXT_PUBLIC_SITE_URL/,
+    );
+
+    for (const origin of [
+      "http://staging.stable.example",
+      "https://localhost",
+      "https://staging.stable.example/path",
+      "https://staging.stable.example?next=/",
+      "https://staging-project.supabase.co",
+      "https://192.168.1.20",
+    ]) {
+      expectValidationFailure(
+        () =>
+          parseWebClientEnv({
+            ...webEnv("https://staging-project.supabase.co", "staging"),
+            [ENV.nextSiteUrl]: origin,
+          }),
+        /NEXT_PUBLIC_SITE_URL/,
+      );
+    }
+
+    expect(
+      parseWebClientEnv(
+        webEnv("https://staging-project.supabase.co", "staging"),
+      ).webOrigin,
+    ).toBe("https://staging.stable.example");
   });
 
   it("rejects a secret key and does not echo the secret", () => {
@@ -372,6 +410,7 @@ describe("boot environment", () => {
 
     expect(parsed).toEqual({
       appEnv: "local",
+      webOrigin: "http://127.0.0.1:3000",
       supabaseUrl: "http://127.0.0.1:54321",
       supabasePublishableKey: publishableKey,
     });
