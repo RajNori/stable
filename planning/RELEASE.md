@@ -2,6 +2,13 @@
 
 ## Pilot release
 
+M5B distinguishes local implementation, hosted verification and actual pilot
+device/provider verification. P0 stories with missing required hosted evidence
+are Pilot NO-GO. Mobile P0 stories requiring physical-device behavior must reach
+PILOT_VERIFIED on a physical iPhone; simulator evidence is supplementary.
+Android is P1 unless the pilot cohort explicitly includes it. Do not treat
+green local CI as hosted or device evidence.
+
 ### Product
 - guardian invitation/auth works;
 - multiple Mustangs teams supported;
@@ -41,6 +48,10 @@
 - push credentials verified;
 - TestFlight build verified;
 - Android internal build verified.
+- staging-only seed guard and safe rerun verified;
+- role-based hosted journeys, revocation and context switching verified;
+- push recipient/token/receipt privacy verified;
+- physical iPhone VoiceOver, Dynamic Type, focus and critical Guardian paths recorded.
 
 ### Human approval
 Required before:
@@ -59,3 +70,6 @@ Every release candidate produces:
 - known issues;
 - security review;
 - build identifiers.
+- M5B traceability matrix with exact candidate SHA and evidence level per source story;
+- hosted migration/seed state, staging-vs-production identity, rollback/recovery owner and disable paths;
+- previous known-good client build, pilot owner and pilot communication path.

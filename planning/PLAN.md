@@ -245,6 +245,30 @@ Coach can move from game observations to a useful next training plan entirely in
 ### Pilot release gates
 See `RELEASE.md`.
 
+## Milestone 5B — Cloud Pilot Journey Completion
+
+M5B completes role journeys over the existing Vertical Slice/Supabase/RLS
+architecture; it does not authorize an architecture rewrite. PR #3 remains the
+frozen M5 baseline. M5B work starts from audited M5 SHA
+`5b8a7462a4b1d299421d6ed2c21e2a72ec714454`, with the docs-only role-pack commit
+as the first M5B commit.
+
+Required work:
+- reconcile and implement the approved split web/mobile authentication and invitation identity policy;
+- verify a designated hosted staging project without mutating it until staging/production separation is proven;
+- add a guarded, idempotent, synthetic staging pilot seed;
+- provide server-side role-home projections for Club Admin, Manager, Coach and Guardian;
+- complete Guardian mobile context switching, RSVP, duty, swap, fill-in, training, profile and offline-safe journeys;
+- complete Club Admin season/competition/venue/team lifecycle UI without hard deletion;
+- implement real push token lifecycle and trusted delivery/receipt handling;
+- wire Sentry only after exact staging destination authorization; record hosted/device/operations evidence separately from local evidence.
+
+Android remains P1 unless explicitly included in the first pilot cohort. PlayHQ
+live sync is external/P1; retain manual fixtures as the supported workaround
+when provider access is unavailable. Critical P0 hosted journeys and the
+physical iPhone Guardian journey are mandatory for Pilot GO. See
+`M5B_TRACEABILITY_MATRIX.md` for the live story ledger and evidence state.
+
 ---
 
 ## Wave 2

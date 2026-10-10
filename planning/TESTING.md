@@ -115,6 +115,27 @@ Team A user mutates/reads Team B identifier -> denied.
 Offline:
 load Game Day online -> lose network -> reopen cached Game Day -> stale timestamp visible.
 
+## M5B requirements and hosted evidence
+
+`planning/M5B_TRACEABILITY_MATRIX.md` is the authoritative live ledger. Every
+source role story must have exactly one row. A story is not complete until its
+journey, UI, application operation, domain rule, capability, RLS/DB invariant,
+automated acceptance and required hosted/device/provider evidence are linked.
+Local evidence must not be labeled hosted or pilot evidence.
+
+Hosted staging checks are separate from local CI and use only the verified
+staging project with synthetic identities/data. Acceptance includes a
+multi-role adult, a multi-child Guardian, membership/relationship revocation
+with the session still active, and account-switch cache cleanup. Role homes
+must prove wrong-team/wrong-club denial. The physical iPhone Guardian journey
+and native accessibility path are mandatory for Pilot GO; Android device
+acceptance is P1 unless Android enters the first cohort.
+
+Timezone acceptance uses `Australia/Melbourne` for fixture, arrival, training,
+notification and offline timestamps, including a DST boundary. Persist
+absolute instants with the needed timezone semantics; assert user-visible
+local labels rather than raw UTC strings.
+
 ## CI
 PR:
 - format;

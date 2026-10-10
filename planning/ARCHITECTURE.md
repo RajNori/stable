@@ -92,6 +92,26 @@ Sentry
 PostHog
 ```
 
+## M5B acceptance topology
+
+Hosted staging is the human product-acceptance environment. Local Supabase
+remains the deterministic environment for migrations, pgTAP, destructive tests,
+concurrency tests, CI and disposable E2E. Local Next.js, Vercel Preview, iOS
+development client, Android emulator and EAS Preview must point to one
+positively identified staging Supabase project for hosted journeys.
+
+Do not mutate a hosted project until its non-secret project reference is
+positively identified and proven different from production. Staging scripts
+must have app-environment checks, an explicit staging-reference allowlist,
+production denylist and human confirmation flag. Service-role credentials stay
+server-side.
+
+Role homes are bounded server/domain projections, not collections of
+independent client queries. Trusted push delivery re-evaluates recipient
+eligibility and preferences at send time and uses the existing notification
+domain contracts. A provider/Edge Function must not create a parallel
+notification architecture.
+
 ---
 
 ## 4. Read vs command boundary

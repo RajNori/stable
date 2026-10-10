@@ -37,3 +37,13 @@ path becomes available only after an authoritative refresh succeeds.
 ## Security
 Clear user-specific cache on logout/account switch.
 Separate snapshots by authenticated user and team.
+
+## M5B multi-context rule
+
+Changing the active Guardian child/team cancels or invalidates old scoped
+queries and cannot reuse another child's offline locator/snapshot. A Guardian
+Home may deliberately aggregate only currently authorized managed contexts;
+Schedule, Game Day, RSVP, duties, announcements and offline snapshots must use
+the selected context. Connectivity alone never restores write capability;
+authoritative refresh must succeed first. User-visible times use the club's
+`Australia/Melbourne` timezone semantics, including DST; do not render raw UTC.

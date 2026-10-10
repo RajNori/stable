@@ -33,6 +33,14 @@ A user may have multiple devices.
 Deactivate provider-invalid tokens.
 Logout from one device should not unregister other devices.
 
+M5B mobile UX owns permission request, Expo token acquisition, registration,
+refresh/re-registration, authenticated endpoint association and safe logout or
+account-switch cleanup. A user must never type a push token. A trusted server
+dispatcher rechecks current recipient eligibility and preferences before send,
+records provider outcomes/receipts, deactivates invalid endpoints and suppresses
+duplicate delivery. Push remains best-effort and cannot roll back the source
+operation.
+
 ## Content privacy
 Push previews should not include private player notes or sensitive absence reasons.
 
@@ -49,3 +57,4 @@ MVP may implement simple category preferences; emergency/urgent operational rule
 - invalid token;
 - multiple devices;
 - revoked team membership before send.
+- permission granted/denied, token replacement, foreground/background/terminated receipt, authorized deep-link navigation, deleted target, logout/account switch and duplicate user-visible delivery on supported devices.

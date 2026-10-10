@@ -1,5 +1,10 @@
 # Milestone 5 — Pilot Operations Runbook
 
+> M5B execution addendum: The procedures below describe M5 local/human-gate
+> evidence. M5B hosted/device evidence is recorded separately in
+> `planning/M5B_TRACEABILITY_MATRIX.md` and must name the exact run/date/SHA.
+> Do not reinterpret old M5 local evidence as hosted staging acceptance.
+
 This runbook is for a controlled pilot. Store credentials only in the approved
 secret manager or provider environment; never in git, tickets, terminal logs,
 or this document. Use synthetic data for rehearsal. Production release remains
