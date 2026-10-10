@@ -166,6 +166,69 @@ describe("club structure panel", () => {
     expect(teamData.get("name")).toBe("U16 Girls");
   });
 
+  it("updates names and lifecycle state without exposing deletion controls", () => {
+    const updateSeasonAction = vi.fn();
+    const updateCompetitionAction = vi.fn();
+    const updateTeamAction = vi.fn();
+    const updateVenueAction = vi.fn();
+    render(
+      <ClubStructurePanel
+        clubId={clubId}
+        snapshot={{
+          ...snapshot,
+          competitions: [
+            {
+              id: "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb",
+              clubId,
+              seasonId: snapshot.seasons[0]?.id ?? "",
+              name: "Metro League",
+              active: true,
+            },
+          ],
+          venues: [
+            {
+              id: "cccccccc-cccc-4ccc-8ccc-cccccccccccc",
+              clubId,
+              name: "North Court",
+              active: true,
+            },
+          ],
+        }}
+        action={vi.fn()}
+        updateSeasonAction={updateSeasonAction}
+        updateCompetitionAction={updateCompetitionAction}
+        updateTeamAction={updateTeamAction}
+        updateVenueAction={updateVenueAction}
+      />,
+    );
+
+    const updates = [
+      {
+        label: "season name",
+        button: "Save season",
+        action: updateSeasonAction,
+      },
+      {
+        label: "competition name",
+        button: "Save competition",
+        action: updateCompetitionAction,
+      },
+      { label: "team name", button: "Save team", action: updateTeamAction },
+      { label: "venue name", button: "Save venue", action: updateVenueAction },
+    ];
+    for (const update of updates) {
+      fireEvent.change(screen.getByLabelText(update.label), {
+        target: { value: `Updated ${update.label}` },
+      });
+      submit(screen.getByRole("button", { name: update.button }));
+      const data = update.action.mock.calls[0]?.[0] as FormData;
+      expect(data.get("recordId")).toBeTruthy();
+      expect(data.get("name")).toBe(`Updated ${update.label}`);
+      expect(data.get("active")).toBe("true");
+    }
+    expect(screen.queryByRole("button", { name: /delete/i })).toBeNull();
+  });
+
   it("shows a safe error and hides the form when the club is unavailable", () => {
     render(
       <ClubStructurePanel

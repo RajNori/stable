@@ -11,6 +11,13 @@ type ClubStructurePanelProps = {
   createTeamAction?: ((formData: FormData) => void | Promise<void>) | undefined;
   createVenueAction?:
     ((formData: FormData) => void | Promise<void>) | undefined;
+  updateSeasonAction?:
+    ((formData: FormData) => void | Promise<void>) | undefined;
+  updateCompetitionAction?:
+    ((formData: FormData) => void | Promise<void>) | undefined;
+  updateTeamAction?: ((formData: FormData) => void | Promise<void>) | undefined;
+  updateVenueAction?:
+    ((formData: FormData) => void | Promise<void>) | undefined;
   error?: string | undefined;
 };
 
@@ -21,6 +28,10 @@ export function ClubStructurePanel({
   createCompetitionAction,
   createTeamAction,
   createVenueAction,
+  updateSeasonAction,
+  updateCompetitionAction,
+  updateTeamAction,
+  updateVenueAction,
   error,
 }: ClubStructurePanelProps) {
   const theme = themeFor("mustangs");
@@ -73,6 +84,15 @@ export function ClubStructurePanel({
           items={snapshot.seasons.map((season) => ({
             id: season.id,
             name: season.active ? season.name : `${season.name} (inactive)`,
+            edit:
+              updateSeasonAction === undefined
+                ? undefined
+                : {
+                    action: updateSeasonAction,
+                    name: season.name,
+                    active: season.active,
+                    label: "season",
+                  },
           }))}
         />
         <NameList
@@ -82,6 +102,15 @@ export function ClubStructurePanel({
             name: competition.active
               ? competition.name
               : `${competition.name} (inactive)`,
+            edit:
+              updateCompetitionAction === undefined
+                ? undefined
+                : {
+                    action: updateCompetitionAction,
+                    name: competition.name,
+                    active: competition.active,
+                    label: "competition",
+                  },
           }))}
         />
         <NameList
@@ -89,6 +118,15 @@ export function ClubStructurePanel({
           items={snapshot.teams.map((team) => ({
             id: team.id,
             name: team.active ? team.name : `${team.name} (inactive)`,
+            edit:
+              updateTeamAction === undefined
+                ? undefined
+                : {
+                    action: updateTeamAction,
+                    name: team.name,
+                    active: team.active,
+                    label: "team",
+                  },
             href: `/teams/${team.id}/staff`,
             links: [
               { href: `/teams/${team.id}/roster`, label: "Roster" },
@@ -107,6 +145,15 @@ export function ClubStructurePanel({
           items={snapshot.venues.map((venue) => ({
             id: venue.id,
             name: venue.active ? venue.name : `${venue.name} (inactive)`,
+            edit:
+              updateVenueAction === undefined
+                ? undefined
+                : {
+                    action: updateVenueAction,
+                    name: venue.name,
+                    active: venue.active,
+                    label: "venue",
+                  },
           }))}
         />
       </div>
@@ -307,6 +354,14 @@ function NameList({
     name: string;
     href?: string;
     links?: readonly { href: string; label: string }[];
+    edit?:
+      | {
+          action: (formData: FormData) => void | Promise<void>;
+          name: string;
+          active: boolean;
+          label: string;
+        }
+      | undefined;
   }[];
 }) {
   const theme = themeFor("mustangs");
@@ -340,6 +395,45 @@ function NameList({
                 {link.label}
               </a>
             ))}
+            {item.edit === undefined ? null : (
+              <form
+                action={item.edit.action}
+                style={{
+                  display: "grid",
+                  gap: theme.space[3],
+                  maxWidth: "32rem",
+                  marginTop: theme.space[3],
+                }}
+              >
+                <input type="hidden" name="recordId" value={item.id} />
+                <label htmlFor={`structure-name-${item.id}`}>
+                  {item.edit.label} name
+                  <input
+                    id={`structure-name-${item.id}`}
+                    name="name"
+                    required
+                    maxLength={120}
+                    defaultValue={item.edit.name}
+                    style={inputStyle(theme)}
+                  />
+                </label>
+                <label htmlFor={`structure-active-${item.id}`}>
+                  Status
+                  <select
+                    id={`structure-active-${item.id}`}
+                    name="active"
+                    defaultValue={String(item.edit.active)}
+                    style={inputStyle(theme)}
+                  >
+                    <option value="true">Active</option>
+                    <option value="false">Inactive</option>
+                  </select>
+                </label>
+                <button type="submit" style={buttonStyle(theme)}>
+                  Save {item.edit.label}
+                </button>
+              </form>
+            )}
           </li>
         ))}
       </ul>

@@ -13,6 +13,10 @@ import {
   createSeasonAndTeamAction,
   createTeamAction,
   createVenueAction,
+  updateCompetitionAction,
+  updateSeasonAction,
+  updateTeamAction,
+  updateVenueAction,
 } from "./actions";
 import { ClubAdminShell } from "../../components/club-admin-shell";
 import { ClubStructurePanel } from "../../components/club-structure-panel";
@@ -65,6 +69,10 @@ export default async function ClubStructurePage({
           createCompetitionAction={createCompetitionAction}
           createTeamAction={createTeamAction}
           createVenueAction={createVenueAction}
+          updateSeasonAction={updateSeasonAction}
+          updateCompetitionAction={updateCompetitionAction}
+          updateTeamAction={updateTeamAction}
+          updateVenueAction={updateVenueAction}
           error={error}
         />
       </ClubAdminShell>
@@ -83,6 +91,10 @@ export default async function ClubStructurePage({
           createCompetitionAction={createCompetitionAction}
           createTeamAction={createTeamAction}
           createVenueAction={createVenueAction}
+          updateSeasonAction={updateSeasonAction}
+          updateCompetitionAction={updateCompetitionAction}
+          updateTeamAction={updateTeamAction}
+          updateVenueAction={updateVenueAction}
           error={message}
         />
       </ClubAdminShell>
