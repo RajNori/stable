@@ -6,6 +6,11 @@ type ClubStructurePanelProps = {
   clubId: string | null;
   snapshot: ClubStructureSnapshot;
   action: (formData: FormData) => void | Promise<void>;
+  createCompetitionAction?:
+    ((formData: FormData) => void | Promise<void>) | undefined;
+  createTeamAction?: ((formData: FormData) => void | Promise<void>) | undefined;
+  createVenueAction?:
+    ((formData: FormData) => void | Promise<void>) | undefined;
   error?: string | undefined;
 };
 
@@ -13,9 +18,13 @@ export function ClubStructurePanel({
   clubId,
   snapshot,
   action,
+  createCompetitionAction,
+  createTeamAction,
+  createVenueAction,
   error,
 }: ClubStructurePanelProps) {
   const theme = themeFor("mustangs");
+  const activeSeasons = snapshot.seasons.filter((season) => season.active);
   const cardStyle: CSSProperties = {
     background: theme.color.background.surface,
     color: theme.color.text.primary,
@@ -63,14 +72,23 @@ export function ClubStructurePanel({
           title="Seasons"
           items={snapshot.seasons.map((season) => ({
             id: season.id,
-            name: season.name,
+            name: season.active ? season.name : `${season.name} (inactive)`,
+          }))}
+        />
+        <NameList
+          title="Competitions"
+          items={snapshot.competitions.map((competition) => ({
+            id: competition.id,
+            name: competition.active
+              ? competition.name
+              : `${competition.name} (inactive)`,
           }))}
         />
         <NameList
           title="Teams"
           items={snapshot.teams.map((team) => ({
             id: team.id,
-            name: team.name,
+            name: team.active ? team.name : `${team.name} (inactive)`,
             href: `/teams/${team.id}/staff`,
             links: [
               { href: `/teams/${team.id}/roster`, label: "Roster" },
@@ -84,17 +102,24 @@ export function ClubStructurePanel({
             ],
           }))}
         />
+        <NameList
+          title="Venues"
+          items={snapshot.venues.map((venue) => ({
+            id: venue.id,
+            name: venue.active ? venue.name : `${venue.name} (inactive)`,
+          }))}
+        />
       </div>
       {clubId === null ? null : (
-        <form action={action} style={{ marginTop: theme.space[6] }}>
-          <input type="hidden" name="clubId" value={clubId} />
-          <div
-            style={{
-              display: "grid",
-              gap: theme.space[4],
-              maxWidth: "28rem",
-            }}
-          >
+        <div
+          style={{
+            display: "grid",
+            gap: theme.space[6],
+            marginTop: theme.space[6],
+          }}
+        >
+          <form action={action} style={formStyle(theme)}>
+            <input type="hidden" name="clubId" value={clubId} />
             <label htmlFor="season-name">
               Season name
               <input
@@ -106,7 +131,7 @@ export function ClubStructurePanel({
               />
             </label>
             <label htmlFor="team-name">
-              Team name
+              First team name
               <input
                 id="team-name"
                 name="teamName"
@@ -115,24 +140,161 @@ export function ClubStructurePanel({
                 style={inputStyle(theme)}
               />
             </label>
-            <button
-              type="submit"
-              style={{
-                minHeight: 44,
-                padding: `0 ${theme.space[4]}px`,
-                background: theme.color.brand.primary,
-                color: theme.color.text.inverse,
-                border: `1px solid ${theme.color.brand.primary}`,
-                borderRadius: theme.radius.sm,
-              }}
-            >
+            <button type="submit" style={buttonStyle(theme)}>
               Create season and team
             </button>
-          </div>
-        </form>
+          </form>
+          {createCompetitionAction === undefined ? null : (
+            <form action={createCompetitionAction} style={formStyle(theme)}>
+              <input type="hidden" name="clubId" value={clubId} />
+              <label htmlFor="competition-season">
+                Season for competition
+                <select
+                  id="competition-season"
+                  name="seasonId"
+                  required
+                  style={inputStyle(theme)}
+                >
+                  {activeSeasons.map((season) => (
+                    <option key={season.id} value={season.id}>
+                      {season.name}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <label htmlFor="competition-name">
+                Competition name
+                <input
+                  id="competition-name"
+                  name="name"
+                  required
+                  maxLength={120}
+                  style={inputStyle(theme)}
+                />
+              </label>
+              <button
+                type="submit"
+                disabled={activeSeasons.length === 0}
+                style={buttonStyle(theme)}
+              >
+                Create competition
+              </button>
+            </form>
+          )}
+          {createVenueAction === undefined ? null : (
+            <form action={createVenueAction} style={formStyle(theme)}>
+              <input type="hidden" name="clubId" value={clubId} />
+              <label htmlFor="venue-name">
+                Venue name
+                <input
+                  id="venue-name"
+                  name="name"
+                  required
+                  maxLength={120}
+                  style={inputStyle(theme)}
+                />
+              </label>
+              <button type="submit" style={buttonStyle(theme)}>
+                Create venue
+              </button>
+            </form>
+          )}
+          {createTeamAction === undefined ? null : (
+            <form action={createTeamAction} style={formStyle(theme)}>
+              <input type="hidden" name="clubId" value={clubId} />
+              <label htmlFor="team-season">
+                Team season
+                <select
+                  id="team-season"
+                  name="seasonId"
+                  required
+                  style={inputStyle(theme)}
+                >
+                  {activeSeasons.map((season) => (
+                    <option key={season.id} value={season.id}>
+                      {season.name}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <label htmlFor="team-competition">
+                Competition (optional)
+                <select
+                  id="team-competition"
+                  name="competitionId"
+                  defaultValue=""
+                  style={inputStyle(theme)}
+                >
+                  <option value="">No competition</option>
+                  {snapshot.competitions
+                    .filter((item) => item.active)
+                    .map((competition) => (
+                      <option key={competition.id} value={competition.id}>
+                        {competition.name}
+                      </option>
+                    ))}
+                </select>
+              </label>
+              <label htmlFor="team-venue">
+                Home venue (optional)
+                <select
+                  id="team-venue"
+                  name="venueId"
+                  defaultValue=""
+                  style={inputStyle(theme)}
+                >
+                  <option value="">No venue</option>
+                  {snapshot.venues
+                    .filter((venue) => venue.active)
+                    .map((venue) => (
+                      <option key={venue.id} value={venue.id}>
+                        {venue.name}
+                      </option>
+                    ))}
+                </select>
+              </label>
+              <label htmlFor="new-team-name">
+                Team name
+                <input
+                  id="new-team-name"
+                  name="name"
+                  required
+                  maxLength={120}
+                  style={inputStyle(theme)}
+                />
+              </label>
+              <button
+                type="submit"
+                disabled={activeSeasons.length === 0}
+                style={buttonStyle(theme)}
+              >
+                Create team
+              </button>
+            </form>
+          )}
+        </div>
       )}
     </section>
   );
+}
+
+function formStyle(theme: ReturnType<typeof themeFor>): CSSProperties {
+  return {
+    display: "grid",
+    gap: theme.space[4],
+    maxWidth: "32rem",
+  };
+}
+
+function buttonStyle(theme: ReturnType<typeof themeFor>): CSSProperties {
+  return {
+    minHeight: 44,
+    padding: `0 ${theme.space[4]}px`,
+    background: theme.color.brand.primary,
+    color: theme.color.text.inverse,
+    border: `1px solid ${theme.color.brand.primary}`,
+    borderRadius: theme.radius.sm,
+  };
 }
 
 function NameList({

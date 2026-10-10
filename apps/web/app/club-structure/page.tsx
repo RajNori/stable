@@ -8,7 +8,12 @@ import {
   createSupabaseClubStructureGateway,
 } from "@stable/club-structure";
 
-import { createSeasonAndTeamAction } from "./actions";
+import {
+  createCompetitionAction,
+  createSeasonAndTeamAction,
+  createTeamAction,
+  createVenueAction,
+} from "./actions";
 import { ClubAdminShell } from "../../components/club-admin-shell";
 import { ClubStructurePanel } from "../../components/club-structure-panel";
 import { loadLiveClubContext } from "../../lib/load-live-club-context";
@@ -57,6 +62,9 @@ export default async function ClubStructurePage({
           clubId={context.club.id}
           snapshot={snapshot}
           action={createSeasonAndTeamAction}
+          createCompetitionAction={createCompetitionAction}
+          createTeamAction={createTeamAction}
+          createVenueAction={createVenueAction}
           error={error}
         />
       </ClubAdminShell>
@@ -72,6 +80,9 @@ export default async function ClubStructurePage({
           clubId={null}
           snapshot={EMPTY_SNAPSHOT}
           action={createSeasonAndTeamAction}
+          createCompetitionAction={createCompetitionAction}
+          createTeamAction={createTeamAction}
+          createVenueAction={createVenueAction}
           error={message}
         />
       </ClubAdminShell>
