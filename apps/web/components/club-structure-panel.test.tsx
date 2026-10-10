@@ -220,11 +220,22 @@ describe("club structure panel", () => {
       fireEvent.change(screen.getByLabelText(update.label), {
         target: { value: `Updated ${update.label}` },
       });
-      submit(screen.getByRole("button", { name: update.button }));
+      const button = screen.getByRole("button", { name: update.button });
+      if (update.label === "season name") {
+        const form = button.closest("form");
+        const status = form?.querySelector('select[name="active"]');
+        if (!(status instanceof HTMLSelectElement)) {
+          throw new Error("Expected an active status control for the season.");
+        }
+        fireEvent.change(status, { target: { value: "false" } });
+      }
+      submit(button);
       const data = update.action.mock.calls[0]?.[0] as FormData;
       expect(data.get("recordId")).toBeTruthy();
       expect(data.get("name")).toBe(`Updated ${update.label}`);
-      expect(data.get("active")).toBe("true");
+      expect(data.get("active")).toBe(
+        update.label === "season name" ? "false" : "true",
+      );
     }
     expect(screen.queryByRole("button", { name: /delete/i })).toBeNull();
   });
