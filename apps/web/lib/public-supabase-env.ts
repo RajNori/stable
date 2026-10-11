@@ -16,10 +16,11 @@ export function readPublicSupabaseConfig(
   env?: PublicEnv,
 ): PublicSupabaseConfig {
   const source: PublicEnv = env ?? {
-    [ENV.nextAppEnv]: process.env[ENV.nextAppEnv],
-    [ENV.nextSupabaseUrl]: process.env[ENV.nextSupabaseUrl],
+    [ENV.nextAppEnv]: process.env.NEXT_PUBLIC_APP_ENV,
+    [ENV.nextSiteUrl]: process.env.NEXT_PUBLIC_SITE_URL,
+    [ENV.nextSupabaseUrl]: process.env.NEXT_PUBLIC_SUPABASE_URL,
     [ENV.nextSupabasePublishableKey]:
-      process.env[ENV.nextSupabasePublishableKey],
+      process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY,
     NEXT_PUBLIC_SENTRY_DSN: process.env.NEXT_PUBLIC_SENTRY_DSN,
     NEXT_PUBLIC_POSTHOG_KEY: process.env.NEXT_PUBLIC_POSTHOG_KEY,
     NEXT_PUBLIC_POSTHOG_HOST: process.env.NEXT_PUBLIC_POSTHOG_HOST,
