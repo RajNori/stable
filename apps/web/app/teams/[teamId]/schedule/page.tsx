@@ -13,7 +13,7 @@ import { SchedulePanel } from "../../../../components/schedule-panel";
 import { fixtureAccessFrom } from "../../../../lib/fixture-access";
 import { loadLiveClubContext } from "../../../../lib/load-live-club-context";
 import { principalFromSupabase } from "../../../../lib/principal";
-import { createRuntimeClubContextReader } from "../../../../lib/runtime-club-context-reader";
+import { createClubContextReader } from "../../../../lib/reader";
 import { createSupabaseServerClient } from "../../../../lib/supabase/server";
 
 export const dynamic = "force-dynamic";
@@ -31,7 +31,7 @@ export default async function TeamSchedulePage({ params }: SchedulePageProps) {
 
   const supabase = await createSupabaseServerClient();
   const principal = await principalFromSupabase(supabase);
-  const reader = await createRuntimeClubContextReader(supabase);
+  const reader = await createClubContextReader(supabase);
   const context = await getCurrentClubContext({ principal, reader });
   const club = context.club;
   if (club === null || principal === null) {

@@ -17,7 +17,7 @@ import { redirect } from "next/navigation";
 
 import { fixtureAccessFrom } from "../../../../lib/fixture-access";
 import { principalFromSupabase } from "../../../../lib/principal";
-import { createRuntimeClubContextReader } from "../../../../lib/runtime-club-context-reader";
+import { createClubContextReader } from "../../../../lib/reader";
 import { createSupabaseServerClient } from "../../../../lib/supabase/server";
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -226,7 +226,7 @@ async function loadFixtureContext(
   }
 
   try {
-    const reader = await createRuntimeClubContextReader(supabase);
+    const reader = await createClubContextReader(supabase);
     const facts = await reader.read(principal.userId);
     const gateway = createSupabaseFixtureGateway(supabase);
     const team = await gateway.readVisibleTeam(teamId);
@@ -297,7 +297,7 @@ export async function fixturePageCapabilities(
   if (principal === null) {
     return { official: false, overlay: false };
   }
-  const reader = await createRuntimeClubContextReader(supabase);
+  const reader = await createClubContextReader(supabase);
   const facts = await reader.read(principal.userId);
   const access = fixtureAccessFrom(principal, facts, teamActive);
   const resource = { clubId, teamId, teamActive };

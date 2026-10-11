@@ -33,7 +33,7 @@ import { PostGameReviewPanel } from "../../../../../components/post-game-review-
 import { fixtureAccessFrom } from "../../../../../lib/fixture-access";
 import { loadLiveClubContext } from "../../../../../lib/load-live-club-context";
 import { principalFromSupabase } from "../../../../../lib/principal";
-import { createRuntimeClubContextReader } from "../../../../../lib/runtime-club-context-reader";
+import { createClubContextReader } from "../../../../../lib/reader";
 import { createSupabaseServerClient } from "../../../../../lib/supabase/server";
 import {
   acceptDutySwapAction,
@@ -115,7 +115,7 @@ export default async function GameDayPage({
 
   const supabase = await createSupabaseServerClient();
   const principal = await principalFromSupabase(supabase);
-  const reader = await createRuntimeClubContextReader(supabase);
+  const reader = await createClubContextReader(supabase);
   const context = await getCurrentClubContext({ principal, reader });
   const club = context.club;
   if (club === null || principal === null) {

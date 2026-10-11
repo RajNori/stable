@@ -20,7 +20,7 @@ import type { PracticePlanDraft } from "@stable/practice-planner";
 
 import { fixtureAccessFrom } from "../../../../lib/fixture-access";
 import { principalFromSupabase } from "../../../../lib/principal";
-import { createRuntimeClubContextReader } from "../../../../lib/runtime-club-context-reader";
+import { createClubContextReader } from "../../../../lib/reader";
 import { createSupabaseServerClient } from "../../../../lib/supabase/server";
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -63,7 +63,7 @@ function practicePlannerFailure(caught: unknown): string {
 async function loadAccess(clubId: string, teamId: string) {
   const supabase = await createSupabaseServerClient();
   const principal = await principalFromSupabase(supabase);
-  const reader = await createRuntimeClubContextReader(supabase);
+  const reader = await createClubContextReader(supabase);
   const facts = principal === null ? null : await reader.read(principal.userId);
   const team = facts?.teams.find((item) => item.id === teamId);
   if (

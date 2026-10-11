@@ -43,7 +43,7 @@ import { redirect } from "next/navigation";
 
 import { fixtureAccessFrom } from "../../../../../lib/fixture-access";
 import { principalFromSupabase } from "../../../../../lib/principal";
-import { createRuntimeClubContextReader } from "../../../../../lib/runtime-club-context-reader";
+import { createClubContextReader } from "../../../../../lib/reader";
 import { createSupabaseServerClient } from "../../../../../lib/supabase/server";
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -113,7 +113,7 @@ export async function recordAttendanceAction(
 
   const supabase = await createSupabaseServerClient();
   const principal = await principalFromSupabase(supabase);
-  const reader = await createRuntimeClubContextReader(supabase);
+  const reader = await createClubContextReader(supabase);
   const facts = principal === null ? null : await reader.read(principal.userId);
   if (principal === null || facts === null) {
     redirect(
@@ -266,7 +266,7 @@ async function reviewAccess(formData: FormData) {
     );
   const supabase = await createSupabaseServerClient();
   const principal = await principalFromSupabase(supabase);
-  const reader = await createRuntimeClubContextReader(supabase);
+  const reader = await createClubContextReader(supabase);
   const facts = principal === null ? null : await reader.read(principal.userId);
   if (principal === null || facts === null)
     redirect(withError(destination(teamId, eventId), "UNAUTHENTICATED"));
@@ -453,7 +453,7 @@ async function gameStatsContext(formData: FormData) {
   }
   const supabase = await createSupabaseServerClient();
   const principal = await principalFromSupabase(supabase);
-  const reader = await createRuntimeClubContextReader(supabase);
+  const reader = await createClubContextReader(supabase);
   const facts = principal === null ? null : await reader.read(principal.userId);
   if (principal === null || facts === null) {
     redirect(
@@ -514,7 +514,7 @@ async function dutyAccess(formData: FormData) {
   }
   const supabase = await createSupabaseServerClient();
   const principal = await principalFromSupabase(supabase);
-  const reader = await createRuntimeClubContextReader(supabase);
+  const reader = await createClubContextReader(supabase);
   const facts = principal === null ? null : await reader.read(principal.userId);
   if (principal === null || facts === null) {
     redirect(

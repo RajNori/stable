@@ -1,6 +1,7 @@
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { ENV } from "@stable/contracts";
+import type { SupabaseClient } from "@supabase/supabase-js";
 import { cleanup, render, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it } from "vitest";
 
@@ -11,7 +12,7 @@ import {
 } from "../lib/fixtures";
 import { loadClubContext } from "../lib/load-club-context";
 import { readPublicSupabaseConfig } from "../lib/public-supabase-env";
-import { createRuntimeClubContextReader } from "../lib/runtime-club-context-reader";
+import { createClubContextReader } from "../lib/reader";
 
 afterEach(() => {
   cleanup();
@@ -189,7 +190,7 @@ describe("public supabase configuration", () => {
 
 describe("supabase reader boundary", () => {
   it("uses the exported club context reader", async () => {
-    const reader = await createRuntimeClubContextReader({});
+    const reader = await createClubContextReader({} as SupabaseClient);
     expect(typeof reader.read).toBe("function");
   });
 });
