@@ -83,8 +83,21 @@ select no_plan();
 
 create temp table issued_announcement (announcement_id uuid);
 create temp table issued_request (recipient_user_id uuid, request_id uuid);
+create temp table dispatch_claim (
+  request_id uuid,
+  claim_id uuid,
+  endpoint_id uuid,
+  push_token text
+);
+create temp table dispatch_announcement (announcement_id uuid);
+create temp table invalid_dispatch_endpoint (endpoint_id uuid);
+create temp table dispatch_test_endpoints (endpoint_id uuid);
 grant all on table issued_announcement to authenticated;
 grant all on table issued_request to authenticated;
+grant all on table dispatch_claim to service_role;
+grant all on table dispatch_announcement to authenticated, service_role;
+grant all on table invalid_dispatch_endpoint to service_role;
+grant all on table dispatch_test_endpoints to authenticated, service_role;
 
 do $$ begin perform pg_temp.assume_user('8f8f8f8f-8f8f-48f8-88f8-8f8f8f8f8f01'); end $$;
 set local role authenticated;
@@ -343,6 +356,280 @@ select throws_ok(
   '42501',
   'permission denied for function apply_notification_provider_result',
   'authenticated callers cannot apply provider results'
+);
+
+reset role;
+update public.team_memberships
+set active = true
+where user_id = '8f8f8f8f-8f8f-48f8-88f8-8f8f8f8f8f01';
+
+do $$ begin perform pg_temp.assume_user('8f8f8f8f-8f8f-48f8-88f8-8f8f8f8f8f01'); end $$;
+set local role authenticated;
+
+insert into dispatch_test_endpoints (endpoint_id)
+values
+  (public.register_device_endpoint('ExponentPushToken[dispatch-one]', 'IOS')),
+  (public.register_device_endpoint('ExponentPushToken[dispatch-two]', 'IOS'));
+select is(
+  (select count(*)::integer from dispatch_test_endpoints),
+  2,
+  'manager registers two dispatcher test endpoints'
+);
+
+insert into dispatch_announcement (announcement_id)
+values (
+  public.publish_announcement(
+    '8a8a8a8a-8a8a-48a8-88a8-8a8a8a8a8a8a',
+    '8d8d8d8d-8d8d-48d8-88d8-8d8d8d8d8d8d',
+    'GENERAL',
+    'NORMAL',
+    'Dispatch test',
+    'Synthetic dispatcher test.',
+    false
+  )
+);
+select public.enqueue_announcement_published(
+  (select announcement_id from dispatch_announcement)
+);
+
+reset role;
+
+set local role service_role;
+insert into dispatch_claim (request_id, claim_id)
+select request_id, claim_id
+from public.claim_notification_dispatches(25)
+where request_id = (
+  select request.id
+  from public.notification_requests as request
+  join dispatch_announcement as announcement
+    on announcement.announcement_id = request.source_id
+  where request.recipient_user_id = '8f8f8f8f-8f8f-48f8-88f8-8f8f8f8f8f01'
+  order by request.created_at desc
+  limit 1
+);
+
+select is(
+  (select count(*)::integer from dispatch_claim),
+  1,
+  'the trusted worker atomically claims the pending manager notice'
+);
+select is(
+  (
+    select count(*)::integer
+    from public.claim_notification_dispatches(25) as second_claim
+    where second_claim.request_id = (select request_id from dispatch_claim)
+  ),
+  0,
+  'a second claim cannot claim the same in-flight notice'
+);
+
+update dispatch_claim as claim
+set endpoint_id = started.endpoint_id,
+    push_token = started.expo_push_token
+from public.begin_notification_dispatch(
+  (select request_id from dispatch_claim),
+  (select claim_id from dispatch_claim)
+) as started;
+
+select ok(
+  (select endpoint_id is not null and push_token is not null from dispatch_claim),
+  'the send phase rechecks eligibility before returning an endpoint token'
+);
+insert into invalid_dispatch_endpoint (endpoint_id)
+select endpoint_id from dispatch_claim;
+
+select is(
+  public.apply_expo_notification_result(
+    (select request_id from dispatch_claim),
+    (select claim_id from dispatch_claim),
+    (select endpoint_id from dispatch_claim),
+    'INVALID',
+    null,
+    'DeviceNotRegistered'
+  ),
+  'PENDING',
+  'an invalid endpoint is disabled and work remains pending for another device'
+);
+
+select is(
+  (
+    select count(*)::integer
+    from public.device_endpoints as endpoint
+    where endpoint.user_id = '8f8f8f8f-8f8f-48f8-88f8-8f8f8f8f8f01'
+      and endpoint.id in (select endpoint_id from dispatch_test_endpoints)
+      and endpoint.active
+  ),
+  1,
+  'invalid endpoint feedback disables only that device'
+);
+
+delete from dispatch_claim;
+insert into dispatch_claim (request_id, claim_id)
+select request_id, claim_id
+from public.claim_notification_dispatches(25)
+where request_id = (
+  select request.id
+  from public.notification_requests as request
+  join dispatch_announcement as announcement
+    on announcement.announcement_id = request.source_id
+  where request.recipient_user_id = '8f8f8f8f-8f8f-48f8-88f8-8f8f8f8f8f01'
+    and request.notification_type = 'ANNOUNCEMENT_PUBLISHED'
+  limit 1
+);
+
+update dispatch_claim as claim
+set endpoint_id = started.endpoint_id,
+    push_token = started.expo_push_token
+from public.begin_notification_dispatch(
+  (select request_id from dispatch_claim),
+  (select claim_id from dispatch_claim)
+) as started;
+
+select isnt(
+  (select endpoint_id from dispatch_claim),
+  (select endpoint_id from invalid_dispatch_endpoint),
+  'retry selects the remaining active device, not the invalid endpoint'
+);
+
+select is(
+  public.apply_expo_notification_result(
+    (select request_id from dispatch_claim),
+    (select claim_id from dispatch_claim),
+    (select endpoint_id from dispatch_claim),
+    'OK',
+    'expo-receipt-dispatch-test',
+    null
+  ),
+  'SENT',
+  'successful Expo acceptance is recorded once'
+);
+select is(
+  (
+    select provider_message_id
+    from public.notification_deliveries
+    where request_id = (select request_id from dispatch_claim)
+  ),
+  'expo-receipt-dispatch-test',
+  'the provider receipt id is retained without message content'
+);
+select is(
+  public.apply_expo_notification_result(
+    (select request_id from dispatch_claim),
+    (select claim_id from dispatch_claim),
+    (select endpoint_id from dispatch_claim),
+    'OK',
+    'duplicate-receipt',
+    null
+  ),
+  'SENT',
+  'a repeated worker completion cannot create another delivery'
+);
+
+select is(
+  (
+    select count(*)::integer
+    from public.claim_notification_provider_receipts(100) as receipt
+    where receipt.provider_receipt_id = 'expo-receipt-dispatch-test'
+  ),
+  1,
+  'a successful ticket is queued for provider receipt polling'
+);
+select is(
+  public.apply_notification_provider_receipt(
+    'expo-receipt-dispatch-test',
+    'ERROR',
+    'DeviceNotRegistered'
+  ),
+  'ERROR',
+  'receipt errors are recorded with a sanitized provider code'
+);
+select is(
+  (
+    select active
+    from public.device_endpoints
+    where id = (select endpoint_id from dispatch_claim)
+  ),
+  false,
+  'an invalid-device receipt deactivates only its endpoint'
+);
+
+delete from dispatch_announcement;
+reset role;
+do $$ begin perform pg_temp.assume_user('8f8f8f8f-8f8f-48f8-88f8-8f8f8f8f8f01'); end $$;
+set local role authenticated;
+select lives_ok(
+  $sql$select public.register_device_endpoint('ExponentPushToken[dispatch-three]', 'IOS')$sql$,
+  'manager registers a fresh endpoint for revocation acceptance'
+);
+
+delete from dispatch_announcement;
+insert into dispatch_announcement (announcement_id)
+values (
+  public.publish_announcement(
+    '8a8a8a8a-8a8a-48a8-88a8-8a8a8a8a8a8a',
+    '8d8d8d8d-8d8d-48d8-88d8-8d8d8d8d8d8d',
+    'GENERAL',
+    'NORMAL',
+    'Revocation test',
+    'Synthetic revocation test.',
+    false
+  )
+);
+select public.enqueue_announcement_published(
+  (select announcement_id from dispatch_announcement)
+);
+reset role;
+
+set local role service_role;
+delete from dispatch_claim;
+insert into dispatch_claim (request_id, claim_id)
+select request_id, claim_id
+from public.claim_notification_dispatches(25)
+where request_id = (
+  select request.id
+  from public.notification_requests as request
+  join dispatch_announcement as announcement
+    on announcement.announcement_id = request.source_id
+  where request.recipient_user_id = '8f8f8f8f-8f8f-48f8-88f8-8f8f8f8f8f01'
+  order by request.created_at desc
+  limit 1
+);
+reset role;
+
+update public.team_memberships
+set active = false
+where user_id = '8f8f8f8f-8f8f-48f8-88f8-8f8f8f8f8f01';
+
+set local role service_role;
+select is(
+  (
+    select count(*)::integer
+    from public.begin_notification_dispatch(
+      (select request_id from dispatch_claim),
+      (select claim_id from dispatch_claim)
+    )
+  ),
+  0,
+  'send-time authorization prevents delivery after membership revocation'
+);
+select is(
+  (
+    select status
+    from public.notification_requests
+    where id = (select request_id from dispatch_claim)
+  ),
+  'SKIPPED',
+  'revoked work is explicitly marked skipped'
+);
+
+reset role;
+do $$ begin perform pg_temp.assume_user('8f8f8f8f-8f8f-48f8-88f8-8f8f8f8f8f03'); end $$;
+set local role authenticated;
+select throws_ok(
+  $sql$select * from public.claim_notification_dispatches(1)$sql$,
+  '42501',
+  'permission denied for function claim_notification_dispatches',
+  'authenticated callers cannot claim trusted delivery work'
 );
 
 select * from finish();
