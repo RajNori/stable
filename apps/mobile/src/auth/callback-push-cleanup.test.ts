@@ -1,4 +1,7 @@
-import { cleanupPushAfterSuccessfulCallback } from "./callback-push-cleanup";
+import {
+  clearSessionAfterPushCleanupFailure,
+  cleanupPushAfterSuccessfulCallback,
+} from "./callback-push-cleanup";
 
 const previous = {
   userId: "19191919-1919-4919-8919-191919191919",
@@ -18,6 +21,47 @@ const otherUser = {
 };
 
 describe("callback push cleanup", () => {
+  it("clears persisted auth when local sign-out resolves with an error", async () => {
+    let clearCalls = 0;
+
+    await clearSessionAfterPushCleanupFailure(
+      async () => ({ error: new Error("sign-out failed") }),
+      async () => {
+        clearCalls += 1;
+      },
+    );
+
+    expect(clearCalls).toBe(1);
+  });
+
+  it("does not clear persisted auth when local sign-out succeeds", async () => {
+    let clearCalls = 0;
+
+    await clearSessionAfterPushCleanupFailure(
+      async () => ({ error: null }),
+      async () => {
+        clearCalls += 1;
+      },
+    );
+
+    expect(clearCalls).toBe(0);
+  });
+
+  it("clears persisted auth when local sign-out throws", async () => {
+    let clearCalls = 0;
+
+    await clearSessionAfterPushCleanupFailure(
+      async () => {
+        throw new Error("sign-out threw");
+      },
+      async () => {
+        clearCalls += 1;
+      },
+    );
+
+    expect(clearCalls).toBe(1);
+  });
+
   it("does not remove registration when callback returns to the same account", async () => {
     const calls: unknown[][] = [];
     const removeRegistration = async (...args: string[]) => {

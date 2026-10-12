@@ -1,4 +1,5 @@
 import {
+  clearLiveMobileAuthSessionStorage,
   createLiveMobileAuthSessionGateway,
   mobileAuthSessionGatewayFromSupabase,
   mobileAuthStorageKey,
@@ -473,6 +474,32 @@ describe("mobile auth session", () => {
         state: "authenticated",
         principal: { userId },
       });
+    } finally {
+      if (previous === undefined) {
+        delete process.env.EXPO_PUBLIC_SUPABASE_URL;
+      } else {
+        process.env.EXPO_PUBLIC_SUPABASE_URL = previous;
+      }
+    }
+  });
+
+  it("clears the persisted live session without relying on provider sign-out", async () => {
+    const previous = process.env.EXPO_PUBLIC_SUPABASE_URL;
+    process.env.EXPO_PUBLIC_SUPABASE_URL = "http://127.0.0.1:54321";
+    const store = memoryStore({
+      [storageKey]: "session",
+      [`${storageKey}-code-verifier`]: "verifier",
+      [`${storageKey}-user`]: "user",
+    });
+    mockLiveMocks().storage = store.storage;
+
+    try {
+      await clearLiveMobileAuthSessionStorage();
+      expect(store.removed).toEqual([
+        storageKey,
+        `${storageKey}-code-verifier`,
+        `${storageKey}-user`,
+      ]);
     } finally {
       if (previous === undefined) {
         delete process.env.EXPO_PUBLIC_SUPABASE_URL;

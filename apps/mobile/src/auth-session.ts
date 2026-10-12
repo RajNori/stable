@@ -206,6 +206,10 @@ export function createLiveMobileAuthSessionGateway(): AuthSessionGateway {
   );
 }
 
+export async function clearLiveMobileAuthSessionStorage(): Promise<void> {
+  await createLiveMobileAuthSessionGateway().clearLocal();
+}
+
 async function settle(
   gateway: AuthSessionGateway,
   now: number | undefined,

@@ -131,13 +131,22 @@ export function MobileAuthGate({
       const transition = beginSessionTransition();
       setCallbackPending(true);
       void (async () => {
+        let callbackExchangeSucceeded = false;
         try {
           actions.validateCallback(url);
           const completeTransition = await beforeCompleteCallback?.();
           const next = await actions.completeCallback(url);
+          callbackExchangeSucceeded = true;
           await completeTransition?.(next);
           await updateSession(next, transition);
         } catch (error: unknown) {
+          if (callbackExchangeSucceeded) {
+            // The provider accepted the callback, but account-transition
+            // cleanup failed. Do not restore and accidentally accept the new
+            // account while the previous account's push registration remains.
+            await updateSession(recoverySnapshot(error), transition);
+            return;
+          }
           let restored: AuthSessionSnapshot;
           try {
             restored = await restore();

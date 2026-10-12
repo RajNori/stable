@@ -213,7 +213,10 @@ describe("mobile auth gate", () => {
     );
 
     expect(await screen.findByText(`Signed in as ${userId}`)).toBeTruthy();
-    receive?.("stable://auth/callback?code=account-switch");
+    await act(async () => {
+      receive?.("stable://auth/callback?code=account-switch");
+      await new Promise<void>((resolve) => setTimeout(resolve, 0));
+    });
     expect(
       await screen.findByText(`Signed in as ${secondUserId}`),
     ).toBeTruthy();
@@ -276,6 +279,47 @@ describe("mobile auth gate", () => {
     receive?.("stable://auth/callback?code=account-switch");
     expect(await screen.findByText(AUTH_ERROR_MESSAGES.INTERNAL)).toBeTruthy();
     expect(screen.queryByText(`Signed in as ${secondUserId}`)).toBeNull();
+  });
+
+  it("does not restore an exchanged account when callback transition cleanup fails", async () => {
+    let receive: ((url: string) => void) | undefined;
+    let restoreCalls = 0;
+    await render(
+      <MobileAuthGate
+        restore={async () => {
+          restoreCalls += 1;
+          return authenticated;
+        }}
+        signOut={async () => ({ state: "unauthenticated" })}
+        actions={idleActions({
+          async completeCallback() {
+            return secondAuthenticated;
+          },
+        })}
+        beforeCompleteCallback={async () => async () => {
+          throw new Error("push cleanup failed");
+        }}
+        linking={{
+          async getInitialUrl() {
+            return null;
+          },
+          subscribe(listener) {
+            receive = listener;
+            return () => {
+              receive = undefined;
+            };
+          },
+        }}
+        authenticated={(id) => <Text>Signed in as {id}</Text>}
+      />,
+    );
+
+    expect(await screen.findByText(`Signed in as ${userId}`)).toBeTruthy();
+    receive?.("stable://auth/callback?code=account-switch");
+
+    expect(await screen.findByText(AUTH_ERROR_MESSAGES.INTERNAL)).toBeTruthy();
+    expect(screen.queryByText(`Signed in as ${secondUserId}`)).toBeNull();
+    expect(restoreCalls).toBe(1);
   });
 
   it("shows expired and recovery without pretending the adult signed out", async () => {

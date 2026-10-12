@@ -9,8 +9,12 @@ import {
   createMobileOtpClient,
 } from "../src/auth/mobile-auth-actions";
 import { MobileAuthGate } from "../src/auth/mobile-auth-gate";
-import { cleanupPushAfterSuccessfulCallback } from "../src/auth/callback-push-cleanup";
 import {
+  clearSessionAfterPushCleanupFailure,
+  cleanupPushAfterSuccessfulCallback,
+} from "../src/auth/callback-push-cleanup";
+import {
+  clearLiveMobileAuthSessionStorage,
   restoreLiveMobileAuthSession,
   signOutLiveMobileAuthSession,
 } from "../src/auth-session";
@@ -128,7 +132,10 @@ export default function CurrentClubContextRoute() {
             refreshToken,
           );
         } catch {
-          await getMobileSupabaseClient().auth.signOut({ scope: "local" });
+          await clearSessionAfterPushCleanupFailure(
+            () => getMobileSupabaseClient().auth.signOut({ scope: "local" }),
+            clearLiveMobileAuthSessionStorage,
+          );
           throw new Error("The account switch could not be completed safely.");
         }
       },
