@@ -117,8 +117,9 @@ export function ClubAdminShell({
               gap: theme.space[3],
             }}
           >
-            <li>Overview</li>
-            <li>Needs attention</li>
+            <li>
+              <a href="/">Overview</a>
+            </li>
             {canManageClub ? (
               <li>
                 <a href="/club-structure">Club structure</a>

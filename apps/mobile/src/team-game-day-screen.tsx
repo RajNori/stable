@@ -670,9 +670,15 @@ export function TeamGameDayScreen({
               Checking open swaps
             </Text>
           ) : dutySwaps.isError ? (
-            <Text style={styles.body} accessibilityRole="alert">
-              Open swaps could not be loaded. Refresh and try again.
-            </Text>
+            <View>
+              <Text style={styles.body} accessibilityRole="alert">
+                Open swaps could not be loaded. Refresh and try again.
+              </Text>
+              <ReadRetryControl
+                disabled={online !== true || dutySwaps.isFetching}
+                onPress={() => void dutySwaps.refetch()}
+              />
+            </View>
           ) : dutySwaps.data?.length === 0 ? (
             <Text style={styles.body}>No open swaps</Text>
           ) : (
@@ -719,9 +725,15 @@ export function TeamGameDayScreen({
             </Text>
           ) : null}
           {fillInOptions.isError ? (
-            <Text style={styles.body} accessibilityRole="alert">
-              Fill-in options could not be loaded. Refresh and try again.
-            </Text>
+            <View>
+              <Text style={styles.body} accessibilityRole="alert">
+                Fill-in options could not be loaded. Refresh and try again.
+              </Text>
+              <ReadRetryControl
+                disabled={online !== true || fillInOptions.isFetching}
+                onPress={() => void fillInOptions.refetch()}
+              />
+            </View>
           ) : null}
           {fillInOptions.data?.request === null ? (
             <Text style={styles.body}>No open request</Text>
@@ -778,9 +790,15 @@ export function TeamGameDayScreen({
         </Text>
       ) : null}
       {rsvpChoices.isError ? (
-        <Text style={styles.body} accessibilityRole="alert">
-          Your RSVP options could not be loaded. Reconnect and try again.
-        </Text>
+        <View>
+          <Text style={styles.body} accessibilityRole="alert">
+            Your RSVP options could not be loaded. Reconnect and try again.
+          </Text>
+          <ReadRetryControl
+            disabled={online !== true || rsvpChoices.isFetching}
+            onPress={() => void rsvpChoices.refetch()}
+          />
+        </View>
       ) : null}
       {rsvpChoices.data?.map((choice) => (
         <View key={choice.playerId} style={styles.rsvpCard}>

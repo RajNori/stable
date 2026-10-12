@@ -16,6 +16,7 @@ import {
   View,
 } from "react-native";
 import type { PushRegistrationResult } from "./push-registration";
+import { ReadRetryControl } from "./read-retry-control";
 
 const theme = themeFor("mustangs");
 const labels: Record<(typeof NOTIFICATION_TYPES)[number], string> = {
@@ -129,6 +130,10 @@ export function ProfileScreen({
         <Text accessibilityRole="header" style={styles.title}>
           Your profile could not be loaded.
         </Text>
+        <ReadRetryControl
+          disabled={context.isFetching}
+          onPress={() => void context.refetch()}
+        />
       </View>
     );
   }
@@ -208,9 +213,15 @@ export function ProfileScreen({
           Loading notification preferences
         </Text>
       ) : preferences.isError ? (
-        <Text accessibilityRole="alert" style={styles.body}>
-          {safeError(preferences.error)}
-        </Text>
+        <View>
+          <Text accessibilityRole="alert" style={styles.body}>
+            {safeError(preferences.error)}
+          </Text>
+          <ReadRetryControl
+            disabled={preferences.isFetching}
+            onPress={() => void preferences.refetch()}
+          />
+        </View>
       ) : (
         <View style={styles.card}>
           <Text style={styles.body}>

@@ -49,6 +49,7 @@ function queryClient(): QueryClient {
 
 function renderProfile(
   input: {
+    loadContext?: () => Promise<CurrentClubContext>;
     loadPreferences?: () => Promise<NotificationPreference[]>;
     savePreference?: (value: NotificationPreference) => Promise<void>;
     requestPush?: () => Promise<PushRegistrationResult>;
@@ -57,7 +58,7 @@ function renderProfile(
   return render(
     <QueryClientProvider client={queryClient()}>
       <ProfileScreen
-        loadContext={() => Promise.resolve(context)}
+        loadContext={input.loadContext ?? (() => Promise.resolve(context))}
         loadPreferences={
           input.loadPreferences ??
           (() =>
@@ -115,15 +116,49 @@ describe("ProfileScreen", () => {
   });
 
   it("fails closed if preferences cannot be read", async () => {
+    let attempts = 0;
     await renderProfile({
-      loadPreferences: () =>
-        Promise.reject(new Error("private provider detail")),
+      loadPreferences: () => {
+        attempts += 1;
+        return attempts === 1
+          ? Promise.reject(new Error("private provider detail"))
+          : Promise.resolve([{ category: "GAME_REMINDER", pushEnabled: true }]);
+      },
     });
 
     expect(
       await screen.findByText("Notifications could not be read."),
     ).toBeTruthy();
     expect(screen.queryByText("private provider detail")).toBeNull();
+    await userEvent
+      .setup()
+      .press(screen.getByRole("button", { name: "Try again" }));
+    expect(
+      await screen.findByRole("switch", { name: "Game reminders" }),
+    ).toBeTruthy();
+    expect(attempts).toBe(2);
+  });
+
+  it("retries a transient profile context read failure", async () => {
+    let attempts = 0;
+    await renderProfile({
+      loadContext: () => {
+        attempts += 1;
+        return attempts === 1
+          ? Promise.reject(new Error("private context detail"))
+          : Promise.resolve(context);
+      },
+    });
+
+    expect(
+      await screen.findByText("Your profile could not be loaded."),
+    ).toBeTruthy();
+    expect(screen.queryByText("private context detail")).toBeNull();
+    await userEvent
+      .setup()
+      .press(screen.getByRole("button", { name: "Try again" }));
+    expect(await screen.findByText("Casey Sample")).toBeTruthy();
+    expect(attempts).toBe(2);
   });
 
   it("explains when the app build has no Expo project configuration", async () => {

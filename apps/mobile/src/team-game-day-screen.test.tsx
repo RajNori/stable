@@ -184,6 +184,85 @@ describe("team game day screen", () => {
     );
   });
 
+  it("retries a failed RSVP-choice read without refreshing unrelated data", async () => {
+    let attempts = 0;
+    await renderScreen({
+      loadContext: () => Promise.resolve(context),
+      loadGameDay: () => Promise.resolve(projection),
+      loadRsvpChoices: () => {
+        attempts += 1;
+        return attempts === 1
+          ? Promise.reject(new Error("private attendance detail"))
+          : Promise.resolve([]);
+      },
+    });
+
+    expect(
+      await screen.findByText(
+        "Your RSVP options could not be loaded. Reconnect and try again.",
+      ),
+    ).toBeTruthy();
+    await userEvent
+      .setup()
+      .press(screen.getByRole("button", { name: "Try again" }));
+    await waitFor(() => expect(attempts).toBe(2));
+    expect(
+      screen.queryByText(
+        "Your RSVP options could not be loaded. Reconnect and try again.",
+      ),
+    ).toBeNull();
+  });
+
+  it("retries a failed fill-in read", async () => {
+    let attempts = 0;
+    await renderScreen({
+      loadContext: () => Promise.resolve(context),
+      loadGameDay: () => Promise.resolve(projection),
+      loadFillInOptions: () => {
+        attempts += 1;
+        return attempts === 1
+          ? Promise.reject(new Error("private fill-in detail"))
+          : Promise.resolve({ request: null, players: [] });
+      },
+    });
+
+    expect(
+      await screen.findByText(
+        "Fill-in options could not be loaded. Refresh and try again.",
+      ),
+    ).toBeTruthy();
+    await userEvent
+      .setup()
+      .press(screen.getByRole("button", { name: "Try again" }));
+    expect(await screen.findByText("No open request")).toBeTruthy();
+    expect(attempts).toBe(2);
+  });
+
+  it("retries a failed duty-swap read", async () => {
+    let attempts = 0;
+    await renderScreen({
+      loadContext: () => Promise.resolve(context),
+      loadGameDay: () => Promise.resolve(projection),
+      loadDutySwaps: () => {
+        attempts += 1;
+        return attempts === 1
+          ? Promise.reject(new Error("private swap detail"))
+          : Promise.resolve([]);
+      },
+    });
+
+    expect(
+      await screen.findByText(
+        "Open swaps could not be loaded. Refresh and try again.",
+      ),
+    ).toBeTruthy();
+    await userEvent
+      .setup()
+      .press(screen.getByRole("button", { name: "Try again" }));
+    expect(await screen.findByText("No open swaps")).toBeTruthy();
+    expect(attempts).toBe(2);
+  });
+
   it("lets a Guardian respond to an open fill-in request for a managed player", async () => {
     const response: Array<{
       teamId: string;
