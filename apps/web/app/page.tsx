@@ -18,6 +18,7 @@ import {
   type ClubStructureGateway,
 } from "@stable/club-structure";
 import { createSupabaseMembershipGateway } from "@stable/membership";
+import { createSupabaseInvitationGateway } from "@stable/invitations";
 import type { ScheduleEntry } from "@stable/schedule";
 import {
   createSupabaseScheduleGateway,
@@ -47,6 +48,7 @@ import { fixtureAccessFrom } from "../lib/fixture-access";
 import { principalFromSupabase } from "../lib/principal";
 import { createClubContextReader } from "../lib/reader";
 import { webAuthSessionGatewayFromSupabase } from "../lib/auth-session";
+import { summarizeClubInvitations } from "../lib/club-admin-invitation-summary";
 import { createSupabaseServerClient } from "../lib/supabase/server";
 
 export const dynamic = "force-dynamic";
@@ -325,11 +327,21 @@ async function readClubAdminHome(
       ? []
       : [{ id: team.id, name: team.name, missingRoles }];
   });
+  let invitations: ClubAdminHomeSummary["invitations"] = null;
+  try {
+    const invitationRecords =
+      await createSupabaseInvitationGateway(client).listInvitations(clubId);
+    invitations = summarizeClubInvitations(invitationRecords, new Date());
+  } catch {
+    // Keep invitation contacts and operational errors out of the Home payload.
+    // The panel reports that this count is unavailable rather than implying zero.
+  }
   return {
     activeTeamCount: activeTeams.length,
     activeSeasonCount: snapshot.seasons.filter((season) => season.active)
       .length,
     teamsNeedingLeadership,
+    invitations,
   };
 }
 

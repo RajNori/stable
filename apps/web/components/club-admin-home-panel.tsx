@@ -1,4 +1,5 @@
 import { themeFor } from "@stable/design-tokens";
+import type { ClubAdminInvitationSummary } from "../lib/club-admin-invitation-summary";
 
 export type ClubAdminHomeSummary = {
   activeTeamCount: number;
@@ -8,6 +9,7 @@ export type ClubAdminHomeSummary = {
     name: string;
     missingRoles: readonly ("Head Coach" | "Team Manager")[];
   }[];
+  invitations: ClubAdminInvitationSummary | null;
 };
 
 type ClubAdminHomePanelProps = {
@@ -57,15 +59,20 @@ export function ClubAdminHomePanel({
         <h2>Needs attention</h2>
         {summary === null ? (
           <p>Club setup status could not be loaded.</p>
-        ) : summary.activeTeamCount === 0 ? (
-          <p>No active teams yet. Start in club structure.</p>
-        ) : summary.activeSeasonCount === 0 ? (
-          <p>
-            No active season.{" "}
-            <a href="/club-structure">Set up an active season</a>.
-          </p>
-        ) : summary.teamsNeedingLeadership.length > 0 ? (
+        ) : (
           <ul>
+            {summary.activeTeamCount === 0 ? (
+              <li>
+                No active teams yet.{" "}
+                <a href="/club-structure">Start in club structure</a>.
+              </li>
+            ) : null}
+            {summary.activeSeasonCount === 0 ? (
+              <li>
+                No active season.{" "}
+                <a href="/club-structure">Set up an active season</a>.
+              </li>
+            ) : null}
             {summary.teamsNeedingLeadership.map((team) => (
               <li key={team.id}>
                 <strong>{team.name}</strong> needs{" "}
@@ -73,9 +80,30 @@ export function ClubAdminHomePanel({
                 <a href={`/teams/${team.id}/staff`}>Review team staff</a>
               </li>
             ))}
+            {summary.invitations === null ? (
+              <li role="status">Invitation status could not be loaded.</li>
+            ) : summary.invitations.pendingCount > 0 ? (
+              <li>
+                {summary.invitations.pendingCount} pending staff or guardian{" "}
+                invitation{summary.invitations.pendingCount === 1 ? "" : "s"}.{" "}
+                {summary.invitations.expiringWithinSevenDaysCount > 0 ? (
+                  <>
+                    {summary.invitations.expiringWithinSevenDaysCount} expire
+                    within seven days.{" "}
+                  </>
+                ) : null}
+                <a href="/players">Review invitations</a>
+              </li>
+            ) : null}
+            {summary.activeTeamCount > 0 &&
+            summary.activeSeasonCount > 0 &&
+            summary.teamsNeedingLeadership.length === 0 &&
+            summary.invitations?.pendingCount === 0 ? (
+              <li>
+                No outstanding setup, leadership, or invitation issues found.
+              </li>
+            ) : null}
           </ul>
-        ) : (
-          <p>Every active team has a Head Coach and Team Manager.</p>
         )}
       </article>
     </section>
