@@ -87,6 +87,28 @@ describe("current club context shell", () => {
     expect(screen.queryByRole("link", { name: "Club structure" })).toBeNull();
     expect(screen.queryByRole("link", { name: "Players" })).toBeNull();
     expect(screen.queryByRole("link", { name: "Notifications" })).toBeNull();
+    expect(
+      screen.queryByRole("link", { name: "Operational audit" }),
+    ).toBeNull();
+  });
+
+  it("shows the audit route only when audit.read is present", () => {
+    render(
+      <ClubAdminShell
+        presentation={{
+          status: "member",
+          clubName: "Mentone Mustangs",
+          displayName: "Club Admin",
+          capabilities: ["club.read", "audit.read"],
+        }}
+      />,
+    );
+
+    expect(
+      screen
+        .getByRole("link", { name: "Operational audit" })
+        .getAttribute("href"),
+    ).toBe("/audit");
   });
 
   it("shows a sign-in next step when the principal is missing", async () => {

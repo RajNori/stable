@@ -48,6 +48,9 @@ export function ClubAdminShell({
   const canManagePeople =
     presentation.status === "member" &&
     presentation.capabilities.includes("people.manage");
+  const canReadAudit =
+    presentation.status === "member" &&
+    presentation.capabilities.includes("audit.read");
   const workspaceName = canManageClub
     ? "Club administration"
     : "Team workspace";
@@ -129,6 +132,11 @@ export function ClubAdminShell({
             {canManagePeople ? (
               <li>
                 <a href="/notifications">Notifications</a>
+              </li>
+            ) : null}
+            {canReadAudit ? (
+              <li>
+                <a href="/audit">Operational audit</a>
               </li>
             ) : null}
             <li>
