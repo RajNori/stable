@@ -187,6 +187,70 @@ describe("pending push cleanup fence", () => {
     ]);
   });
 
+  it("fences a new revocation before it starts and queues admission behind it", async () => {
+    const values = new Map<string, string>();
+    const store: PendingPushCleanupStore = {
+      getItem: async (key) => values.get(key) ?? null,
+      setItem: async (key, value) => void values.set(key, value),
+      removeItem: async (key) => void values.delete(key),
+    };
+    await markPendingPushCleanup(store, "first-user");
+
+    let releaseFirstRemoval: (() => void) | undefined;
+    let firstRemovalStarted: (() => void) | undefined;
+    const removalStarted = new Promise<void>((resolve) => {
+      firstRemovalStarted = resolve;
+    });
+    const firstAdmission = enforcePendingPushCleanup({
+      store,
+      nextUserId: "first-user",
+      removeRegistration: async () => {
+        firstRemovalStarted?.();
+        await new Promise<void>((resolve) => {
+          releaseFirstRemoval = resolve;
+        });
+        return false;
+      },
+      rejectOtherAccount: async () => undefined,
+    });
+    await removalStarted;
+
+    let secondRevocationSawFence = false;
+    const secondRevocation = tryRemovePushRegistrationOrRetainFence({
+      store,
+      userId: "second-user",
+      removeRegistration: async () => {
+        secondRevocationSawFence =
+          values
+            .get("stable-pending-push-cleanup-v1")
+            ?.includes("second-user") ?? false;
+        return false;
+      },
+    });
+    let secondAdmissionRejected = false;
+    const secondAdmission = enforcePendingPushCleanup({
+      store,
+      nextUserId: "second-user",
+      removeRegistration: async () => false,
+      rejectOtherAccount: async () => {
+        secondAdmissionRejected = true;
+      },
+    });
+
+    releaseFirstRemoval?.();
+    await firstAdmission;
+    expect(await secondRevocation).toBe(false);
+    await expect(secondAdmission).rejects.toThrow(
+      "A previous account push cleanup is still required.",
+    );
+    expect(secondRevocationSawFence).toBe(true);
+    expect(secondAdmissionRejected).toBe(true);
+    expect(await readPendingPushCleanupUsers(store)).toEqual([
+      "first-user",
+      "second-user",
+    ]);
+  });
+
   it("lets any pending account clean its own endpoint but denies entry until all are clear", async () => {
     const values = new Map<string, string>();
     const store: PendingPushCleanupStore = {

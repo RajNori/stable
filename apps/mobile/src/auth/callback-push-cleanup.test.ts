@@ -85,10 +85,16 @@ describe("callback push cleanup", () => {
 
   it("removes the prior endpoint only after a successful account switch", async () => {
     const calls: unknown[][] = [];
+    const store: PendingPushCleanupStore = {
+      getItem: async () => null,
+      setItem: async () => undefined,
+      removeItem: async () => undefined,
+    };
     const removeRegistration = async (...args: string[]) => {
       calls.push(args);
     };
     await removePreviousPushAfterSuccessfulAccountSwitch(
+      store,
       previous,
       "29292929-2929-4929-8929-292929292929",
       removeRegistration,
@@ -100,7 +106,13 @@ describe("callback push cleanup", () => {
 
   it("does not repeat a revocation confirmed during callback preflight", async () => {
     let calls = 0;
+    const store: PendingPushCleanupStore = {
+      getItem: async () => null,
+      setItem: async () => undefined,
+      removeItem: async () => undefined,
+    };
     const removed = await removePreviousPushAfterSuccessfulAccountSwitch(
+      store,
       previous,
       "29292929-2929-4929-8929-292929292929",
       async () => {
@@ -120,10 +132,16 @@ describe("callback push cleanup", () => {
     };
     let finishSuccessfulAccountSwitch:
       ((nextUserId: string) => Promise<boolean>) | undefined;
+    const store: PendingPushCleanupStore = {
+      getItem: async () => null,
+      setItem: async () => undefined,
+      removeItem: async () => undefined,
+    };
     let failure: unknown;
     try {
       finishSuccessfulAccountSwitch = async (nextUserId) =>
         removePreviousPushAfterSuccessfulAccountSwitch(
+          store,
           previous,
           nextUserId,
           removeRegistration,
@@ -139,7 +157,13 @@ describe("callback push cleanup", () => {
 
   it("keeps the endpoint for a successful callback to the same account", async () => {
     let calls = 0;
+    const store: PendingPushCleanupStore = {
+      getItem: async () => null,
+      setItem: async () => undefined,
+      removeItem: async () => undefined,
+    };
     await removePreviousPushAfterSuccessfulAccountSwitch(
+      store,
       previous,
       previous.userId,
       async () => {
@@ -151,7 +175,13 @@ describe("callback push cleanup", () => {
 
   it("does nothing when there is no previous account session", async () => {
     let calls = 0;
+    const store: PendingPushCleanupStore = {
+      getItem: async () => null,
+      setItem: async () => undefined,
+      removeItem: async () => undefined,
+    };
     await removePreviousPushAfterSuccessfulAccountSwitch(
+      store,
       null,
       "next-user",
       async () => {
@@ -162,7 +192,13 @@ describe("callback push cleanup", () => {
   });
 
   it("propagates unresolved token state instead of claiming cleanup succeeded", async () => {
+    const store: PendingPushCleanupStore = {
+      getItem: async () => null,
+      setItem: async () => undefined,
+      removeItem: async () => undefined,
+    };
     const removed = await removePreviousPushAfterSuccessfulAccountSwitch(
+      store,
       previous,
       "29292929-2929-4929-8929-292929292929",
       async () => false,

@@ -1,6 +1,5 @@
 import {
-  clearPendingPushCleanup,
-  readPendingPushCleanupUsers,
+  withPendingPushCleanupTransaction,
   type PendingPushCleanupStore,
 } from "./pending-push-cleanup";
 
@@ -21,22 +20,25 @@ export async function cleanPendingCallbackPushRegistration(input: {
     refreshToken: string,
   ) => Promise<void | boolean>;
 }): Promise<boolean> {
-  const pendingUsers = await readPendingPushCleanupUsers(input.store);
-  if (!pendingUsers.includes(input.userId)) return false;
+  return withPendingPushCleanupTransaction(input.store, async (transaction) => {
+    const pendingUsers = await transaction.readUsers();
+    if (!pendingUsers.includes(input.userId)) return false;
 
-  const removed = await input.removeRegistration(
-    input.userId,
-    input.accessToken,
-    input.refreshToken,
-  );
-  if (removed === false) {
-    throw new Error("The previous account push endpoint is unresolved.");
-  }
-  await clearPendingPushCleanup(input.store, input.userId);
-  return true;
+    const removed = await input.removeRegistration(
+      input.userId,
+      input.accessToken,
+      input.refreshToken,
+    );
+    if (removed === false) {
+      throw new Error("The previous account push endpoint is unresolved.");
+    }
+    await transaction.clear(input.userId);
+    return true;
+  });
 }
 
 export async function removePreviousPushAfterSuccessfulAccountSwitch(
+  store: PendingPushCleanupStore,
   previous: PreviousPushSession | null,
   nextUserId: string,
   removeRegistration: (
@@ -46,19 +48,27 @@ export async function removePreviousPushAfterSuccessfulAccountSwitch(
   ) => Promise<void | boolean>,
   registrationAlreadyCleaned = false,
 ): Promise<boolean> {
-  if (
-    previous === null ||
-    previous.userId === nextUserId ||
-    registrationAlreadyCleaned
-  ) {
-    return true;
-  }
-  const removed = await removeRegistration(
-    previous.userId,
-    previous.accessToken,
-    previous.refreshToken,
-  );
-  return removed !== false;
+  return withPendingPushCleanupTransaction(store, async (transaction) => {
+    if (
+      previous === null ||
+      previous.userId === nextUserId ||
+      registrationAlreadyCleaned
+    ) {
+      return true;
+    }
+    await transaction.mark(previous.userId);
+    try {
+      const removed = await removeRegistration(
+        previous.userId,
+        previous.accessToken,
+        previous.refreshToken,
+      );
+      if (removed !== false) await transaction.clear(previous.userId);
+      return removed !== false;
+    } catch {
+      return false;
+    }
+  });
 }
 
 /**

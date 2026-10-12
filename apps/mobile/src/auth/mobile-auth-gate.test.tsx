@@ -286,7 +286,7 @@ describe("mobile auth gate", () => {
   it("fails closed when post-exchange prior-account push cleanup fails", async () => {
     let receive: ((url: string) => void) | undefined;
     let restoreCalls = 0;
-    const completeCallback = jest.fn(async () => secondAuthenticated);
+    let completeCallbackCalls = 0;
     const clearFailedCallbackSession = jest.fn(async () => undefined);
     await render(
       <MobileAuthGate
@@ -295,7 +295,12 @@ describe("mobile auth gate", () => {
           return authenticated;
         }}
         signOut={async () => ({ state: "unauthenticated" })}
-        actions={idleActions({ completeCallback })}
+        actions={idleActions({
+          async completeCallback() {
+            completeCallbackCalls += 1;
+            return secondAuthenticated;
+          },
+        })}
         beforeCompleteCallback={async () => async () => {
           throw new Error("push cleanup failed");
         }}
@@ -320,7 +325,7 @@ describe("mobile auth gate", () => {
 
     expect(await screen.findByText(AUTH_ERROR_MESSAGES.INTERNAL)).toBeTruthy();
     expect(screen.queryByText(`Signed in as ${secondUserId}`)).toBeNull();
-    expect(completeCallback.mock.calls.length).toBe(1);
+    expect(completeCallbackCalls).toBe(1);
     expect(restoreCalls).toBe(1);
     expect(clearFailedCallbackSession.mock.calls.length).toBe(1);
   });
@@ -553,17 +558,19 @@ describe("mobile auth gate", () => {
     ]);
   });
 
-  it("keeps a callback session when an older restore resolves afterward", async () => {
+  it("serializes callback acceptance after pending startup restoration", async () => {
     let resolveRestore: ((snapshot: AuthSessionSnapshot) => void) | undefined;
     const restore = new Promise<AuthSessionSnapshot>((resolve) => {
       resolveRestore = resolve;
     });
+    let completeCallbackCalls = 0;
     await render(
       <MobileAuthGate
         restore={() => restore}
         signOut={async () => ({ state: "unauthenticated" })}
         actions={idleActions({
           async completeCallback() {
+            completeCallbackCalls += 1;
             return secondAuthenticated;
           },
         })}
@@ -579,16 +586,18 @@ describe("mobile auth gate", () => {
       />,
     );
 
-    expect(
-      await screen.findByText(`Signed in as ${secondUserId}`),
-    ).toBeTruthy();
+    expect(await screen.findByText("Completing sign-in…")).toBeTruthy();
+    expect(completeCallbackCalls).toBe(0);
     await act(async () => {
       resolveRestore?.(authenticated);
       await restore;
       await Promise.resolve();
     });
 
-    expect(screen.getByText(`Signed in as ${secondUserId}`)).toBeTruthy();
+    expect(
+      await screen.findByText(`Signed in as ${secondUserId}`),
+    ).toBeTruthy();
+    expect(completeCallbackCalls).toBe(1);
     expect(screen.queryByText(`Signed in as ${userId}`)).toBeNull();
   });
 

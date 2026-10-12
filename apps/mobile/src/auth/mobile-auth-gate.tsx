@@ -120,21 +120,26 @@ export function MobileAuthGate({
   useEffect(() => {
     let active = true;
     const transition = beginSessionTransition();
-    restore()
-      .then((next) => {
+    // Startup restoration can enforce the pending push-cleanup fence and
+    // sign out a conflicting identity. Keep it on the same operation queue as
+    // OTP, callback, retry and sign-out transitions so marker admission cannot
+    // race a callback cleanup.
+    void enqueueSessionOperation(async () => {
+      try {
+        const next = await restore();
         if (active) {
-          void updateSession(next, transition);
+          await updateSession(next, transition);
         }
-      })
-      .catch((error: unknown) => {
+      } catch (error: unknown) {
         if (active) {
-          void updateSession(recoverySnapshot(error), transition);
+          await updateSession(recoverySnapshot(error), transition);
         }
-      });
+      }
+    });
     return () => {
       active = false;
     };
-  }, [beginSessionTransition, restore, updateSession]);
+  }, [beginSessionTransition, enqueueSessionOperation, restore, updateSession]);
 
   useEffect(() => {
     if (linking === undefined) {

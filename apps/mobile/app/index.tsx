@@ -12,11 +12,7 @@ import {
 } from "../src/auth/mobile-auth-actions";
 import { MobileAuthGate } from "../src/auth/mobile-auth-gate";
 import {
-  clearPendingPushCleanup,
   enforcePendingPushCleanup,
-  markPendingPushCleanup,
-  readPendingPushCleanup,
-  readPendingPushCleanupUsers,
   tryRemovePushRegistrationOrRetainFence,
 } from "../src/auth/pending-push-cleanup";
 import type { PendingPushCleanupStore } from "../src/auth/pending-push-cleanup";
@@ -119,10 +115,7 @@ export default function CurrentClubContextRoute() {
   const online = useMobileOnline(monitor);
   const restoreWithPushCleanupFence = useCallback(async () => {
     const restored = await restoreLiveMobileAuthSession();
-    const pendingUserIds = await readPendingPushCleanupUsers(
-      pendingPushCleanupStore,
-    );
-    if (pendingUserIds.length === 0 || restored.state !== "authenticated") {
+    if (restored.state !== "authenticated") {
       return restored;
     }
     const restoredUserId = restored.principal.userId;
@@ -140,19 +133,6 @@ export default function CurrentClubContextRoute() {
         }
       }
     };
-
-    if (!pendingUserIds.includes(restoredUserId)) {
-      // A restored identity that conflicts with the persisted account-switch
-      // fence must not leave this device's endpoint active. Missing token
-      // state or server failure adds that identity to the unresolved set.
-      await tryRemovePushRegistrationOrRetainFence({
-        store: pendingPushCleanupStore,
-        userId: restoredUserId,
-        removeRegistration: removeLivePushRegistration,
-      });
-      await rejectRestoredSession();
-      return { state: "unauthenticated" } as const;
-    }
 
     try {
       await enforcePendingPushCleanup({
@@ -185,20 +165,13 @@ export default function CurrentClubContextRoute() {
     [],
   );
   const clearPushRegistration = useCallback(async (userId: string) => {
-    const removed = await removeLivePushRegistration(userId);
-    const pendingUserId = await readPendingPushCleanup(pendingPushCleanupStore);
-    if (removed && pendingUserId !== null) {
-      const pendingUsers = await readPendingPushCleanupUsers(
-        pendingPushCleanupStore,
-      );
-      if (pendingUsers.includes(userId)) {
-        await clearPendingPushCleanup(pendingPushCleanupStore, userId);
-      }
-    } else if (!removed) {
-      // Sign-out can proceed, but fence a later account switch until this
-      // account's endpoint has been positively revoked.
-      await markPendingPushCleanup(pendingPushCleanupStore, userId);
-    }
+    // Mark before remote revocation so another session admission cannot race
+    // an unresolved sign-out cleanup.
+    await tryRemovePushRegistrationOrRetainFence({
+      store: pendingPushCleanupStore,
+      userId,
+      removeRegistration: removeLivePushRegistration,
+    });
   }, []);
   const clearFailedCallbackSession = useCallback(
     async () =>
@@ -232,17 +205,14 @@ export default function CurrentClubContextRoute() {
     return async (next: AuthSessionSnapshot) => {
       if (next.state !== "authenticated") return;
       const removed = await removePreviousPushAfterSuccessfulAccountSwitch(
+        pendingPushCleanupStore,
         previous,
         next.principal.userId,
         removeLivePushRegistrationForSession,
         cleanedPendingRegistration,
       );
       if (!removed) {
-        await markPendingPushCleanup(pendingPushCleanupStore, previous.userId);
         throw new Error("The previous account push endpoint is unresolved.");
-      }
-      if (previous !== null) {
-        await clearPendingPushCleanup(pendingPushCleanupStore, previous.userId);
       }
     };
   }, []);
