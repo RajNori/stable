@@ -30,8 +30,10 @@ test("guardian accepts a player invitation and records a Game Day RSVP", async (
   await player.getByLabel("Invitation email").fill(GUARDIAN_EMAIL);
   await player.getByRole("button", { name: "Create invitation" }).click();
   const invitationLinkField = player.getByLabel("Invitation link");
-  await expect(invitationLinkField).toHaveValue(/\S+/);
-  const invitationLink = await invitationLinkField.inputValue();
+  const invitationLink = await invitationLinkField.evaluate((field) =>
+    field instanceof HTMLInputElement ? field.value : "",
+  );
+  expect(invitationLink).toMatch(/\/invitations\/accept#\S+$/u);
 
   await admin.goto(`/teams/${TEAM_ID}/fixtures`);
   const fixtureForm = admin.locator("form").filter({

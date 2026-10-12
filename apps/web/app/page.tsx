@@ -70,6 +70,7 @@ export default async function HomePage({ searchParams }: HomePageProps) {
           session={decision.snapshot}
           supabaseUrl={boot.supabaseUrl}
           publishableKey={boot.supabasePublishableKey}
+          webOrigin={boot.webOrigin ?? "http://127.0.0.1:3000"}
           notice={callbackNotice(params)}
         />
       );

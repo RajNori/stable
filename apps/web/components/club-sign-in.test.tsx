@@ -158,6 +158,36 @@ describe("club sign-in", () => {
     expect(alert.textContent?.includes("adult@example.com")).toBe(false);
   });
 
+  it("shows a neutral password recovery confirmation", async () => {
+    const recoveryRequests: string[] = [];
+    render(
+      <ClubSignIn
+        session={unauthenticated}
+        actions={idleActions({
+          async requestPasswordRecovery(email) {
+            recoveryRequests.push(email);
+          },
+        })}
+      />,
+    );
+
+    fireEvent.click(
+      screen.getByRole("button", { name: "Continue with email" }),
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Forgot password?" }));
+    fireEvent.change(screen.getByLabelText("Email address"), {
+      target: { value: " adult@example.com " },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Send recovery link" }));
+
+    const status = await screen.findByRole("status");
+    expect(status.textContent).toContain(
+      "If an account can sign in with that address",
+    );
+    expect(recoveryRequests).toEqual(["adult@example.com"]);
+    expect(screen.queryByText("adult@example.com")).toBeNull();
+  });
+
   it("keeps admin content hidden while the session is unresolved", () => {
     const { rerender } = render(
       <ClubSignIn session={{ state: "loading" }} actions={idleActions()} />,
@@ -349,6 +379,9 @@ function idleActions(
       return undefined;
     },
     async retry() {
+      return undefined;
+    },
+    async requestPasswordRecovery() {
       return undefined;
     },
     ...overrides,

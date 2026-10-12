@@ -19,10 +19,15 @@ import { safeAuthMessage } from "../lib/safe-auth-message";
 
 const theme = themeFor("mustangs");
 
-type Step = { kind: "welcome" } | { kind: "password" };
+type Step =
+  | { kind: "welcome" }
+  | { kind: "password" }
+  | { kind: "recovery" }
+  | { kind: "recovery-sent" };
 
 export type ClubSignInActions = {
   signInPassword: (email: string, password: string) => Promise<void>;
+  requestPasswordRecovery: (email: string) => Promise<void>;
   retry: () => Promise<void>;
 };
 
@@ -54,7 +59,7 @@ export function ClubSignIn({
   }, [notice]);
 
   useEffect(() => {
-    if (step.kind === "welcome") {
+    if (step.kind === "welcome" || step.kind === "recovery-sent") {
       welcomeHeadingRef.current?.focus();
     } else {
       inputRef.current?.focus();
@@ -319,12 +324,85 @@ export function ClubSignIn({
                 <button
                   className="club-sign-in-text"
                   type="button"
+                  disabled={busy}
+                  onClick={() => {
+                    setError(null);
+                    setStep({ kind: "recovery" });
+                  }}
+                >
+                  Forgot password?
+                </button>
+                <button
+                  className="club-sign-in-text"
+                  type="button"
                   onClick={() => {
                     setError(null);
                     setStep({ kind: "welcome" });
                   }}
                 >
                   Back
+                </button>
+              </>
+            ) : null}
+            {step.kind === "recovery" ? (
+              <>
+                <h2 ref={welcomeHeadingRef} tabIndex={-1}>
+                  Reset your password
+                </h2>
+                <p>
+                  Enter your email address. If an account can sign in with that
+                  address, we&apos;ll send a recovery link.
+                </p>
+                <label>
+                  Email address
+                  <input
+                    ref={inputRef}
+                    type="email"
+                    value={email}
+                    inputMode="email"
+                    autoComplete="email"
+                    required
+                    onChange={(event) => setEmail(event.target.value)}
+                  />
+                </label>
+                <button
+                  className="club-sign-in-primary"
+                  type="submit"
+                  disabled={busy}
+                >
+                  Send recovery link
+                </button>
+                <button
+                  className="club-sign-in-text"
+                  type="button"
+                  disabled={busy}
+                  onClick={() => {
+                    setError(null);
+                    setStep({ kind: "password" });
+                  }}
+                >
+                  Back to sign in
+                </button>
+              </>
+            ) : null}
+            {step.kind === "recovery-sent" ? (
+              <>
+                <h2 ref={welcomeHeadingRef} tabIndex={-1}>
+                  Check your inbox
+                </h2>
+                <p role="status">
+                  If an account can sign in with that address, we&apos;ll send a
+                  recovery link. Follow it to choose a new password.
+                </p>
+                <button
+                  className="club-sign-in-secondary"
+                  type="button"
+                  onClick={() => {
+                    setError(null);
+                    setStep({ kind: "password" });
+                  }}
+                >
+                  Back to sign in
                 </button>
               </>
             ) : null}
@@ -342,8 +420,16 @@ export function ClubSignIn({
   function submitStep(event: FormEvent<HTMLFormElement>): void {
     event.preventDefault();
     void run(async () => {
-      await actions.signInPassword(email.trim(), password);
-      setPassword("");
+      if (step.kind === "recovery") {
+        await actions.requestPasswordRecovery(email.trim());
+        setPassword("");
+        setStep({ kind: "recovery-sent" });
+        return;
+      }
+      if (step.kind === "password") {
+        await actions.signInPassword(email.trim(), password);
+        setPassword("");
+      }
     });
   }
 }
