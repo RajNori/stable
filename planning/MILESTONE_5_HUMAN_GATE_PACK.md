@@ -81,11 +81,14 @@ before this approval.
 
 - `supabase/config.toml` has `project_id = "stable"`, which is only the local
   CLI project name. It does not identify a hosted project.
-- This checkout contains no approved staging or production project reference
-  and no hosted database URL. EAS `preview` selects app mode `staging`; its
-  hosted Supabase URL and publishable key are configured outside git. Vercel
-  Preview's staging mapping is user-confirmed, but it does not identify the
-  EAS staging project or establish backup/retention status.
+- The repository's EAS `preview`, `testflight`, and `play-internal` profiles
+  explicitly select app mode `staging` and contain the hosted Supabase URL for
+  staging (`rporaeagbsfmgbmhyett.supabase.co`) in `eas.json`; the staging
+  project reference is also recorded in the traceability matrix. The
+  publishable key remains in protected Expo Preview configuration. These
+  repository values identify the intended staging target but do not prove the
+  current Dashboard selection, Vercel runtime environment, or backup/retention
+  status. Vercel Preview's staging mapping remains user-confirmed.
 - Never print, commit, or paste DB passwords, service-role keys, access tokens,
   DSNs, or signing credentials into this evidence.
 
