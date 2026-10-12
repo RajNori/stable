@@ -106,7 +106,8 @@ As a Club Admin, I want to sign in with Google or Facebook so that I can return 
 - provider identity collision follows a documented account-link policy;
 - revoked Club Admin membership denies the next authoritative request.
 
-**Current state:** **NOT IMPLEMENTED target**.
+**Current state:** **NOT IMPLEMENTED**.
+
 - Google OAuth abstractions exist but are frozen disabled.
 - Facebook is not in the current provider implementation.
 
@@ -123,7 +124,14 @@ As a Club Admin, I want to sign in with my email and password so that normal das
 - successful auth still requires active authorization context;
 - rate-limit/brute-force protection is configured at the provider boundary.
 
-**Current state:** **NOT IMPLEMENTED**.
+**Current state:** **IMPLEMENTED LOCALLY; HOSTED ROLE JOURNEYS PARTIAL**.
+
+Email/password sign-in is available through Supabase Auth. The password is
+passed only to the SDK; safe fixed errors and server-side membership
+resolution remain in place. Local web unit, typecheck, and browser tests cover
+sign-in and sign-out. Hosted sign-in has been verified for synthetic Club
+Admin + Head Coach and Club Admin-only users; registration and full role
+journeys remain incomplete.
 
 ## CA-AUTH-03 — Password recovery
 
@@ -138,7 +146,16 @@ As an email/password dashboard user who has forgotten my password, I want a secu
 - previous reset link reuse is rejected;
 - normal membership/RLS still governs dashboard data.
 
-**Current state:** **NOT IMPLEMENTED target**.
+**Current state:** **IMPLEMENTED LOCALLY; HOSTED FLOW NOT VERIFIED**.
+
+The web login now offers a neutral recovery request using the configured
+`NEXT_PUBLIC_SITE_URL`, a code-only Supabase callback, a short-lived HttpOnly
+recovery marker, and a password-update form. While the marker is active, the
+web proxy admits only the recovery route; an expired marker clears local
+Supabase session cookies. Successful password update signs out the local
+session before normal sign-in. Membership and RLS authorization remain
+unchanged. Local component, callback, route-gate tests, typecheck and build
+pass. A hosted recovery email and single-use-link journey has not been run.
 
 ## RCA
 
