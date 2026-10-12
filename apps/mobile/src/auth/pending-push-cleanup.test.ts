@@ -80,4 +80,25 @@ describe("pending push cleanup fence", () => {
     expect(rejectCalls).toBe(1);
     expect(await readPendingPushCleanup(store)).toBe("prior-user");
   });
+
+  it("keeps the fence when local token state cannot prove endpoint revocation", async () => {
+    const values = new Map<string, string>();
+    const store: PendingPushCleanupStore = {
+      getItem: async (key) => values.get(key) ?? null,
+      setItem: async (key, value) => void values.set(key, value),
+      removeItem: async (key) => void values.delete(key),
+    };
+    await markPendingPushCleanup(store, "prior-user");
+
+    await enforcePendingPushCleanup({
+      store,
+      nextUserId: "prior-user",
+      removeRegistration: async () => false,
+      rejectOtherAccount: async () => {
+        throw new Error("same account must remain recoverable");
+      },
+    });
+
+    expect(await readPendingPushCleanup(store)).toBe("prior-user");
+  });
 });

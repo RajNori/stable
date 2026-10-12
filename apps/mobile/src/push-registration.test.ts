@@ -165,4 +165,19 @@ describe("mobile push registration", () => {
     ).rejects.toThrow("private rpc response");
     expect(values.get(key)).toBe("ExpoPushToken[current]");
   });
+
+  it("reports missing local token state as unresolved cleanup", async () => {
+    const { storage } = testStorage();
+    let removeCalls = 0;
+
+    const removed = await removePushRegistration({
+      storage,
+      userId: "adult-1",
+      removeDevice: async () => {
+        removeCalls += 1;
+      },
+    });
+    expect(removed).toBe(false);
+    expect(removeCalls).toBe(0);
+  });
 });

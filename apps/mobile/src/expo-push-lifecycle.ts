@@ -69,8 +69,8 @@ export async function refreshLivePushRegistration(
 
 export async function removeLivePushRegistration(
   userId: string,
-): Promise<void> {
-  await removePushRegistration({
+): Promise<boolean> {
+  return removePushRegistration({
     storage: secureTokenStorage,
     userId,
     removeDevice: removeMobileDevice,
@@ -81,8 +81,8 @@ export async function removeLivePushRegistrationForSession(
   userId: string,
   accessToken: string,
   refreshToken: string,
-): Promise<void> {
-  await removePushRegistration({
+): Promise<boolean> {
+  return removePushRegistration({
     storage: secureTokenStorage,
     userId,
     removeDevice: (token) =>

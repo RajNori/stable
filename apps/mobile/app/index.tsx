@@ -124,6 +124,16 @@ export default function CurrentClubContextRoute() {
 
     const priorUserId = restored.principal.userId;
     try {
+      // A restored identity that conflicts with the persisted account-switch
+      // fence must not leave this device's endpoint active for that identity.
+      // If local token state is missing or the server is unavailable, retain
+      // the existing fence and still clear the mismatched local session below.
+      await removeLivePushRegistration(priorUserId);
+    } catch {
+      // Local sign-out is still required; the pending fence prevents accepting
+      // a different account until endpoint cleanup can be retried.
+    }
+    try {
       await getMobileSupabaseClient().auth.signOut({ scope: "local" });
     } finally {
       await clearLiveMobileAuthSessionStorage();
@@ -146,9 +156,14 @@ export default function CurrentClubContextRoute() {
     [],
   );
   const clearPushRegistration = useCallback(async (userId: string) => {
-    await removeLivePushRegistration(userId);
-    if ((await readPendingPushCleanup(pendingPushCleanupStore)) === userId) {
+    const removed = await removeLivePushRegistration(userId);
+    const pendingUserId = await readPendingPushCleanup(pendingPushCleanupStore);
+    if (removed && pendingUserId === userId) {
       await clearPendingPushCleanup(pendingPushCleanupStore);
+    } else if (!removed && pendingUserId === null) {
+      // Sign-out can proceed, but fence a later account switch until this
+      // account's endpoint has been positively revoked.
+      await markPendingPushCleanup(pendingPushCleanupStore, userId);
     }
   }, []);
   const clearFailedCallbackSession = useCallback(
@@ -178,11 +193,14 @@ export default function CurrentClubContextRoute() {
       refreshToken: previousSession.refresh_token,
     };
     if (pendingUserId !== null && previousSession.user.id === pendingUserId) {
-      await removeLivePushRegistrationForSession(
+      const removed = await removeLivePushRegistrationForSession(
         pendingUserId,
         previous.accessToken,
         previous.refreshToken,
       );
+      if (!removed) {
+        throw new Error("The previous account push endpoint is unresolved.");
+      }
       await clearPendingPushCleanup(pendingPushCleanupStore);
     }
     await markPendingPushCleanup(pendingPushCleanupStore, previous.userId);
@@ -191,11 +209,14 @@ export default function CurrentClubContextRoute() {
     // previous session only if the successful callback switches accounts.
     return async (next: AuthSessionSnapshot) => {
       if (next.state !== "authenticated") return;
-      await removePreviousPushAfterSuccessfulAccountSwitch(
+      const removed = await removePreviousPushAfterSuccessfulAccountSwitch(
         previous,
         next.principal.userId,
         removeLivePushRegistrationForSession,
       );
+      if (!removed) {
+        throw new Error("The previous account push endpoint is unresolved.");
+      }
       await clearPendingPushCleanup(pendingPushCleanupStore);
     };
   }, []);

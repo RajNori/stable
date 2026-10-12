@@ -111,11 +111,15 @@ export async function removePushRegistration(input: {
   storage: PushTokenStorage;
   userId: string;
   removeDevice: (token: string) => Promise<void>;
-}): Promise<void> {
+}): Promise<boolean> {
   const key = pushTokenStorageKey(input.userId);
   const token = await input.storage.getItem(key);
-  if (token === null) return;
+  // The server may still have an active endpoint if this local SecureStore
+  // entry was lost. Callers enforcing account-switch cleanup must distinguish
+  // that unknown state from a successful revocation and keep their fence.
+  if (token === null) return false;
 
   await input.removeDevice(token);
   await input.storage.removeItem(key);
+  return true;
 }

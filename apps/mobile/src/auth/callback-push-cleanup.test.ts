@@ -71,7 +71,7 @@ describe("callback push cleanup", () => {
       calls.push(args);
     };
     let finishSuccessfulAccountSwitch:
-      ((nextUserId: string) => Promise<void>) | undefined;
+      ((nextUserId: string) => Promise<boolean>) | undefined;
     let failure: unknown;
     try {
       finishSuccessfulAccountSwitch = async (nextUserId) =>
@@ -111,5 +111,14 @@ describe("callback push cleanup", () => {
       },
     );
     expect(calls).toBe(0);
+  });
+
+  it("propagates unresolved token state instead of claiming cleanup succeeded", async () => {
+    const removed = await removePreviousPushAfterSuccessfulAccountSwitch(
+      previous,
+      "29292929-2929-4929-8929-292929292929",
+      async () => false,
+    );
+    expect(removed).toBe(false);
   });
 });

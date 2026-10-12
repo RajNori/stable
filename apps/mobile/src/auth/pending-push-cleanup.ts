@@ -31,7 +31,7 @@ export async function clearPendingPushCleanup(
 export async function enforcePendingPushCleanup(input: {
   readonly store: PendingPushCleanupStore;
   readonly nextUserId: string;
-  readonly removeRegistration: (userId: string) => Promise<void>;
+  readonly removeRegistration: (userId: string) => Promise<void | boolean>;
   readonly rejectOtherAccount: () => Promise<void>;
 }): Promise<void> {
   const pendingUserId = await readPendingPushCleanup(input.store);
@@ -41,6 +41,11 @@ export async function enforcePendingPushCleanup(input: {
     throw new Error("A previous account push cleanup is still required.");
   }
 
-  await input.removeRegistration(pendingUserId);
+  const removed = await input.removeRegistration(pendingUserId);
+  // A returning prior account may be admitted so the device lifecycle can
+  // restore its current Expo token. Keep the marker until the endpoint is
+  // subsequently revoked; never interpret missing local token state as proof
+  // that the server endpoint was removed.
+  if (removed === false) return;
   await clearPendingPushCleanup(input.store);
 }
