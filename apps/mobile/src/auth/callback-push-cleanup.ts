@@ -26,7 +26,15 @@ export async function tryRemoveCallbackPushRegistrationOrRetainFence(input: {
   return withPendingPushCleanupTransaction(
     input.store,
     async ({ mark, clear }) => {
-      await mark(input.previous.userId);
+      let fenced = false;
+      try {
+        await mark(input.previous.userId);
+        fenced = true;
+      } catch {
+        // Secure storage can fail independently of the remote endpoint. Do
+        // not let that prevent the best-effort revocation attempt below.
+      }
+
       try {
         const removed = await input.removeRegistration(
           input.previous.userId,
@@ -34,11 +42,24 @@ export async function tryRemoveCallbackPushRegistrationOrRetainFence(input: {
           input.previous.refreshToken,
         );
         if (removed !== false) {
-          await clear(input.previous.userId);
+          if (fenced) await clear(input.previous.userId);
           return true;
         }
       } catch {
         // Keep the account fenced while endpoint revocation is unresolved.
+      }
+
+      if (!fenced) {
+        // The first marker write may have failed transiently. Retry after the
+        // remote attempt so unresolved revocation still survives app restart
+        // whenever SecureStore recovers. The caller keeps registration
+        // suspended in memory if this retry also fails.
+        try {
+          await mark(input.previous.userId);
+        } catch {
+          // Return unresolved; never report cleanup complete without either
+          // confirmed revocation or a persisted cleanup fence.
+        }
       }
       return false;
     },
@@ -108,22 +129,28 @@ export async function removePreviousPushAfterSuccessfulAccountSwitch(
 }
 
 /**
- * A failed account-transition cleanup must leave no restorable local session.
+ * Clear the callback session only after the prior push endpoint is confirmed
+ * removed or its cleanup fence is persisted. If cleanup is unresolved, keep
+ * the session in recovery so the callback cannot admit a different account.
  * Supabase signOut can resolve with an error object, so callers must clear the
  * persisted session themselves in that case (and when signOut throws).
  */
 export async function clearSessionAfterCallbackTransitionFailure(
   signOut: () => Promise<{ readonly error: unknown }>,
   clearLocalSession: () => Promise<void>,
-): Promise<void> {
+  isPushCleanupResolved: () => Promise<boolean> = async () => true,
+): Promise<boolean> {
+  if (!(await isPushCleanupResolved())) return false;
+
   try {
     const result = await signOut();
     if (result.error === null || result.error === undefined) {
-      return;
+      return true;
     }
   } catch {
     // Fall through to clearing the persisted session.
   }
 
   await clearLocalSession();
+  return true;
 }

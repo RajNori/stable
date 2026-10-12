@@ -1,4 +1,7 @@
-import type { AuthSessionSnapshot } from "@stable/contracts";
+import {
+  AUTH_ERROR_MESSAGES,
+  type AuthSessionSnapshot,
+} from "@stable/contracts";
 import { themeFor } from "@stable/design-tokens";
 import { useQueryClient } from "@tanstack/react-query";
 import * as Linking from "expo-linking";
@@ -130,6 +133,25 @@ export default function CurrentClubContextRoute() {
   const callbackSuspendedUserId = useRef<string | null>(null);
   const callbackPreviousSession = useRef<PreviousPushSession | null>(null);
   const restoreWithPushCleanupFence = useCallback(async () => {
+    const callbackPrevious = callbackPreviousSession.current;
+    if (callbackPrevious !== null) {
+      const cleaned = await tryRemoveCallbackPushRegistrationOrRetainFence({
+        store: pendingPushCleanupStore,
+        previous: callbackPrevious,
+        removeRegistration: removeLivePushRegistrationForSession,
+      }).catch(() => false);
+      if (!cleaned) {
+        return {
+          state: "recovery",
+          errorCode: "UPSTREAM_UNAVAILABLE",
+          message: AUTH_ERROR_MESSAGES.UPSTREAM_UNAVAILABLE,
+        } as const;
+      }
+      callbackPreviousSession.current = null;
+      callbackSuspendedUserId.current = null;
+      resumePushRegistration(callbackPrevious.userId);
+    }
+
     const restored = await restoreLiveMobileAuthSession();
     if (restored.state !== "authenticated") {
       return restored;
@@ -192,26 +214,25 @@ export default function CurrentClubContextRoute() {
   }, []);
   const clearFailedCallbackSession = useCallback(async () => {
     const previous = callbackPreviousSession.current;
-    if (previous !== null) {
-      suspendPushRegistration(previous.userId);
-      try {
-        await tryRemoveCallbackPushRegistrationOrRetainFence({
+    const sessionCleared = await clearSessionAfterCallbackTransitionFailure(
+      () => getMobileSupabaseClient().auth.signOut({ scope: "local" }),
+      clearLiveMobileAuthSessionStorage,
+      async () => {
+        if (previous === null) return true;
+        const cleaned = await tryRemoveCallbackPushRegistrationOrRetainFence({
           store: pendingPushCleanupStore,
           previous,
           removeRegistration: removeLivePushRegistrationForSession,
-        });
-      } catch {
-        // Local sign-out below still clears the failed callback session. The
-        // push registration stays suspended for this process lifetime.
-      } finally {
-        callbackPreviousSession.current = null;
-        callbackSuspendedUserId.current = null;
-      }
-    }
-    await clearSessionAfterCallbackTransitionFailure(
-      () => getMobileSupabaseClient().auth.signOut({ scope: "local" }),
-      clearLiveMobileAuthSessionStorage,
+        }).catch(() => false);
+        return cleaned;
+      },
     );
+
+    if (sessionCleared && previous !== null) {
+      suspendPushRegistration(previous.userId);
+      callbackPreviousSession.current = null;
+      callbackSuspendedUserId.current = null;
+    }
   }, []);
   const beforeCompleteCallback = useCallback(async () => {
     const { data, error } = await getMobileSupabaseClient().auth.getSession();

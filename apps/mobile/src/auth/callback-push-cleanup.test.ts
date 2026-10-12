@@ -69,6 +69,26 @@ describe("callback push cleanup", () => {
     expect(clearCalls).toBe(0);
   });
 
+  it("keeps callback recovery blocked while endpoint cleanup is unresolved", async () => {
+    let signOutCalls = 0;
+    let clearCalls = 0;
+
+    const cleared = await clearSessionAfterCallbackTransitionFailure(
+      async () => {
+        signOutCalls += 1;
+        return { error: null };
+      },
+      async () => {
+        clearCalls += 1;
+      },
+      async () => false,
+    );
+
+    expect(cleared).toBe(false);
+    expect(signOutCalls).toBe(0);
+    expect(clearCalls).toBe(0);
+  });
+
   it("clears persisted auth when local sign-out throws", async () => {
     let clearCalls = 0;
 
@@ -167,6 +187,55 @@ describe("callback push cleanup", () => {
 
     expect(cleaned).toBe(false);
     expect(await readPendingPushCleanupUsers(store)).toEqual([previous.userId]);
+  });
+
+  it("attempts endpoint revocation when the initial cleanup-fence write fails", async () => {
+    let removeCalls = 0;
+    const store: PendingPushCleanupStore = {
+      getItem: async () => null,
+      setItem: async () => {
+        throw new Error("secure storage unavailable");
+      },
+      removeItem: async () => undefined,
+    };
+
+    const cleaned = await tryRemoveCallbackPushRegistrationOrRetainFence({
+      store,
+      previous,
+      removeRegistration: async () => {
+        removeCalls += 1;
+        return true;
+      },
+    });
+
+    expect(removeCalls).toBe(1);
+    expect(cleaned).toBe(true);
+  });
+
+  it("keeps unresolved cleanup incomplete when both fence writes fail", async () => {
+    let fenceWriteCalls = 0;
+    let removeCalls = 0;
+    const store: PendingPushCleanupStore = {
+      getItem: async () => null,
+      setItem: async () => {
+        fenceWriteCalls += 1;
+        throw new Error("secure storage unavailable");
+      },
+      removeItem: async () => undefined,
+    };
+
+    const cleaned = await tryRemoveCallbackPushRegistrationOrRetainFence({
+      store,
+      previous,
+      removeRegistration: async () => {
+        removeCalls += 1;
+        return false;
+      },
+    });
+
+    expect(removeCalls).toBe(1);
+    expect(fenceWriteCalls).toBe(2);
+    expect(cleaned).toBe(false);
   });
 
   it("does not remove an endpoint for an invalid callback", async () => {
