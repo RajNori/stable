@@ -15,7 +15,7 @@ test("club admin creates a season and team and reads them back", async ({
   const page = await context.newPage();
   await page.goto("/");
 
-  await page.getByRole("link", { name: "Club structure" }).click();
+  await page.getByRole("link", { name: "Club structure", exact: true }).click();
   await expect(page.getByRole("list", { name: "Seasons" })).toContainText(
     "2026 Winter",
   );

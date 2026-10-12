@@ -19,8 +19,10 @@ test("roster names follow the caller's capability", async ({ browser }) => {
   await applyLocalSession(memberContext, MEMBER_EMAIL);
   const member = await memberContext.newPage();
   await member.goto("/club-structure");
-  await member.getByLabel("Season name").fill(`Roster Season ${suffix}`);
-  await member.getByLabel("Team name").fill(teamName);
+  await member
+    .getByLabel("Season name", { exact: true })
+    .fill(`Roster Season ${suffix}`);
+  await member.getByLabel("Team name", { exact: true }).fill(teamName);
   await member.getByRole("button", { name: "Create season and team" }).click();
   const teamItem = member.getByRole("listitem").filter({ hasText: teamName });
   const rosterPath = await teamItem
