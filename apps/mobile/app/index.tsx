@@ -2,6 +2,7 @@ import {
   AUTH_ERROR_MESSAGES,
   type AuthSessionSnapshot,
 } from "@stable/contracts";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import { themeFor } from "@stable/design-tokens";
 import { useQueryClient } from "@tanstack/react-query";
 import * as Linking from "expo-linking";
@@ -16,6 +17,7 @@ import {
 } from "../src/auth/mobile-auth-actions";
 import { MobileAuthGate } from "../src/auth/mobile-auth-gate";
 import {
+  createMirroredPendingPushCleanupStore,
   enforcePendingPushCleanup,
   readPendingPushCleanupUsers,
   resumePushRegistration,
@@ -93,7 +95,7 @@ const theme = themeFor("mustangs");
 const boot = loadMobileBootEnv();
 const pendingPushCleanupScope =
   new URL(boot.supabaseUrl).hostname.split(".")[0] ?? "invalid-project";
-const pendingPushCleanupStore: PendingPushCleanupStore = {
+const securePendingPushCleanupStore: PendingPushCleanupStore = {
   getItem: (key) =>
     SecureStore.getItemAsync(`${pendingPushCleanupScope}:${key}`),
   setItem: (key, value) =>
@@ -101,6 +103,19 @@ const pendingPushCleanupStore: PendingPushCleanupStore = {
   removeItem: (key) =>
     SecureStore.deleteItemAsync(`${pendingPushCleanupScope}:${key}`),
 };
+const asyncPendingPushCleanupStore: PendingPushCleanupStore = {
+  getItem: (key) => AsyncStorage.getItem(`${pendingPushCleanupScope}:${key}`),
+  setItem: (key, value) =>
+    AsyncStorage.setItem(`${pendingPushCleanupScope}:${key}`, value),
+  removeItem: (key) =>
+    AsyncStorage.removeItem(`${pendingPushCleanupScope}:${key}`),
+};
+// This mirror contains only project-scoped opaque user ids needed to recover
+// endpoint cleanup; it never stores session tokens or notification payloads.
+const pendingPushCleanupStore = createMirroredPendingPushCleanupStore(
+  securePendingPushCleanupStore,
+  asyncPendingPushCleanupStore,
+);
 
 export default function CurrentClubContextRoute() {
   const queryClient = useQueryClient();

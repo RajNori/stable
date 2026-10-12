@@ -39,6 +39,51 @@ export type PendingPushCleanupStore = {
   removeItem(key: string): Promise<void>;
 };
 
+/**
+ * Mirror cleanup fences across independent stores so one storage backend
+ * failing cannot erase the only durable record of an unresolved endpoint.
+ * Reads require both stores to be available and merge their values; writes and
+ * removals attempt both stores and reject unless both operations complete.
+ */
+export function createMirroredPendingPushCleanupStore(
+  primary: PendingPushCleanupStore,
+  fallback: PendingPushCleanupStore,
+): PendingPushCleanupStore {
+  return {
+    async getItem(key) {
+      const [primaryValue, fallbackValue] = await Promise.all([
+        primary.getItem(key),
+        fallback.getItem(key),
+      ]);
+      const users = [
+        ...new Set([
+          ...parsePendingUsers(primaryValue),
+          ...parsePendingUsers(fallbackValue),
+        ]),
+      ];
+      return users.length === 0 ? null : JSON.stringify(users);
+    },
+    async setItem(key, value) {
+      const results = await Promise.allSettled([
+        primary.setItem(key, value),
+        fallback.setItem(key, value),
+      ]);
+      if (results.some((result) => result.status === "rejected")) {
+        throw new Error("Could not persist push cleanup state.");
+      }
+    },
+    async removeItem(key) {
+      const results = await Promise.allSettled([
+        primary.removeItem(key),
+        fallback.removeItem(key),
+      ]);
+      if (results.some((result) => result.status === "rejected")) {
+        throw new Error("Could not clear push cleanup state.");
+      }
+    },
+  };
+}
+
 export async function withPushRegistrationAdmission<T>(input: {
   readonly store: PendingPushCleanupStore;
   readonly userId: string;
@@ -77,7 +122,10 @@ export async function withPushRegistrationAdmission<T>(input: {
 async function readPendingUsers(
   store: PendingPushCleanupStore,
 ): Promise<string[]> {
-  const value = await store.getItem(pendingPushCleanupKey);
+  return parsePendingUsers(await store.getItem(pendingPushCleanupKey));
+}
+
+function parsePendingUsers(value: string | null): string[] {
   if (value === null || value.length === 0) return [];
 
   try {

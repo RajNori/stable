@@ -1,5 +1,6 @@
 import {
   clearPendingPushCleanup,
+  createMirroredPendingPushCleanupStore,
   enforcePendingPushCleanup,
   markPendingPushCleanup,
   readPendingPushCleanup,
@@ -12,6 +13,74 @@ import {
 } from "./pending-push-cleanup";
 
 describe("pending push cleanup fence", () => {
+  it("retains a mirrored fence when the primary store cannot write", async () => {
+    const primaryValues = new Map<string, string>();
+    const fallbackValues = new Map<string, string>();
+    let primaryWritable = false;
+    const primary: PendingPushCleanupStore = {
+      getItem: async (key) => primaryValues.get(key) ?? null,
+      setItem: async (key, value) => {
+        if (!primaryWritable) throw new Error("primary store unavailable");
+        primaryValues.set(key, value);
+      },
+      removeItem: async (key) => void primaryValues.delete(key),
+    };
+    const fallback: PendingPushCleanupStore = {
+      getItem: async (key) => fallbackValues.get(key) ?? null,
+      setItem: async (key, value) => void fallbackValues.set(key, value),
+      removeItem: async (key) => void fallbackValues.delete(key),
+    };
+    const store = createMirroredPendingPushCleanupStore(primary, fallback);
+
+    await expect(markPendingPushCleanup(store, "prior-user")).rejects.toThrow(
+      "Could not persist push cleanup state.",
+    );
+    expect(await readPendingPushCleanupUsers(store)).toEqual(["prior-user"]);
+
+    primaryWritable = true;
+    const removedUsers: string[] = [];
+    await enforcePendingPushCleanup({
+      store,
+      nextUserId: "prior-user",
+      removeRegistration: async (userId) => {
+        removedUsers.push(userId);
+        return true;
+      },
+      rejectOtherAccount: async () => {
+        throw new Error("the same account must remain recoverable");
+      },
+    });
+
+    expect(removedUsers).toEqual(["prior-user"]);
+    expect(await readPendingPushCleanupUsers(store)).toEqual([]);
+  });
+
+  it("merges stale markers from either store instead of losing a fence", async () => {
+    const primaryValues = new Map([
+      ["stable-pending-push-cleanup-v1", JSON.stringify(["first-user"])],
+    ]);
+    const fallbackValues = new Map([
+      ["stable-pending-push-cleanup-v1", JSON.stringify(["second-user"])],
+    ]);
+    const store = createMirroredPendingPushCleanupStore(
+      {
+        getItem: async (key) => primaryValues.get(key) ?? null,
+        setItem: async (key, value) => void primaryValues.set(key, value),
+        removeItem: async (key) => void primaryValues.delete(key),
+      },
+      {
+        getItem: async (key) => fallbackValues.get(key) ?? null,
+        setItem: async (key, value) => void fallbackValues.set(key, value),
+        removeItem: async (key) => void fallbackValues.delete(key),
+      },
+    );
+
+    expect(await readPendingPushCleanupUsers(store)).toEqual([
+      "first-user",
+      "second-user",
+    ]);
+  });
+
   it("persists only the prior account id and clears it after cleanup", async () => {
     const values = new Map<string, string>();
     const store: PendingPushCleanupStore = {
