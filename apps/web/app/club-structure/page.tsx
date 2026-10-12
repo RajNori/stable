@@ -64,6 +64,7 @@ export default async function ClubStructurePage({
       <ClubAdminShell presentation={presentation}>
         <ClubStructurePanel
           clubId={context.club.id}
+          canManage={presentation.capabilities.includes("club.manage")}
           snapshot={snapshot}
           action={createSeasonAndTeamAction}
           createCompetitionAction={createCompetitionAction}
@@ -86,6 +87,7 @@ export default async function ClubStructurePage({
       <ClubAdminShell presentation={presentation}>
         <ClubStructurePanel
           clubId={null}
+          canManage={false}
           snapshot={EMPTY_SNAPSHOT}
           action={createSeasonAndTeamAction}
           createCompetitionAction={createCompetitionAction}

@@ -26,9 +26,7 @@ test("invalid credentials show a generic error without exposing credentials", as
   await page.getByLabel("Password").fill("incorrect-local-password");
   await page.getByRole("button", { name: "Sign in" }).click();
 
-  await expect(
-    page.getByText("Sign-in could not be completed."),
-  ).toBeVisible();
+  await expect(page.getByText("Sign-in could not be completed.")).toBeVisible();
   await expect(page.getByTestId("club-admin-frame")).toHaveCount(0);
   expect(page.url()).not.toContain(MEMBER_EMAIL);
   expect(page.url()).not.toContain("incorrect-local-password");

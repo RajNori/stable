@@ -36,9 +36,7 @@ test("a transient auth network failure can recover through explicit retry", asyn
   await page.getByLabel("Email address").fill(MEMBER_EMAIL);
   await page.getByLabel("Password").fill(MEMBER_PASSWORD);
   await page.getByRole("button", { name: "Sign in" }).click();
-  await expect(
-    page.getByText("Sign-in could not be completed."),
-  ).toBeVisible();
+  await expect(page.getByText("Sign-in could not be completed.")).toBeVisible();
   await expect(page.getByLabel("Email address")).toHaveValue(MEMBER_EMAIL);
   await expect(page.getByTestId("club-admin-frame")).toHaveCount(0);
 

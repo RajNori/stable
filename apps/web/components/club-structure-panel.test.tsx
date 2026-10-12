@@ -40,6 +40,7 @@ describe("club structure panel", () => {
     render(
       <ClubStructurePanel
         clubId={clubId}
+        canManage={true}
         snapshot={snapshot}
         action={action}
       />,
@@ -112,6 +113,7 @@ describe("club structure panel", () => {
     render(
       <ClubStructurePanel
         clubId={clubId}
+        canManage={true}
         snapshot={{
           ...snapshot,
           seasons: [...snapshot.seasons, inactiveSeason],
@@ -174,6 +176,7 @@ describe("club structure panel", () => {
     render(
       <ClubStructurePanel
         clubId={clubId}
+        canManage={true}
         snapshot={{
           ...snapshot,
           competitions: [
@@ -244,6 +247,7 @@ describe("club structure panel", () => {
     render(
       <ClubStructurePanel
         clubId={null}
+        canManage={false}
         snapshot={{ seasons: [], competitions: [], teams: [], venues: [] }}
         action={vi.fn()}
         error="Club structure could not be read."
@@ -256,6 +260,38 @@ describe("club structure panel", () => {
     expect(
       screen.queryByRole("button", { name: "Create season and team" }),
     ).toBeNull();
+  });
+
+  it("keeps structure readable but hides management forms without club.manage", () => {
+    render(
+      <ClubStructurePanel
+        clubId={clubId}
+        canManage={false}
+        snapshot={snapshot}
+        action={vi.fn()}
+        createCompetitionAction={vi.fn()}
+        createTeamAction={vi.fn()}
+        createVenueAction={vi.fn()}
+        updateSeasonAction={vi.fn()}
+        updateCompetitionAction={vi.fn()}
+        updateTeamAction={vi.fn()}
+        updateVenueAction={vi.fn()}
+      />,
+    );
+
+    expect(screen.getByRole("list", { name: "Teams" }).textContent).toContain(
+      "U14 Boys",
+    );
+    expect(
+      screen.queryByRole("button", { name: "Create season and team" }),
+    ).toBeNull();
+    expect(
+      screen.queryByRole("button", { name: "Create competition" }),
+    ).toBeNull();
+    expect(screen.queryByRole("button", { name: "Create venue" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Create team" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Save season" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Save team" })).toBeNull();
   });
 });
 

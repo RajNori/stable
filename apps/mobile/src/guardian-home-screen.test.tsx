@@ -88,8 +88,8 @@ describe("Guardian home", () => {
     expect(await screen.findByRole("header", { name: "Hi Alex" })).toBeTruthy();
     expect(screen.getByText("Round 2: Southside")).toBeTruthy();
     expect(screen.getByText("Court 2")).toBeTruthy();
-    expect(screen.getByText("Your RSVP: UNANSWERED")).toBeTruthy();
-    expect(screen.getByText("Your duty: Scorebook")).toBeTruthy();
+    expect(await screen.findByText("Your RSVP: UNANSWERED")).toBeTruthy();
+    expect(await screen.findByText("Your duty: Scorebook")).toBeTruthy();
     fireEvent.press(screen.getByRole("button", { name: "Open schedule" }));
     expect(openedSchedule).toBe(true);
 

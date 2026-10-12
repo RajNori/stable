@@ -42,6 +42,15 @@ export function ClubAdminShell({
     boxShadow: theme.shadow.sm,
     padding: theme.space[6],
   };
+  const canManageClub =
+    presentation.status === "member" &&
+    presentation.capabilities.includes("club.manage");
+  const canManagePeople =
+    presentation.status === "member" &&
+    presentation.capabilities.includes("people.manage");
+  const workspaceName = canManageClub
+    ? "Club administration"
+    : "Team workspace";
 
   return (
     <div
@@ -70,7 +79,7 @@ export function ClubAdminShell({
           }
         }
       `}</style>
-      <aside aria-label="Club administration" style={sidebarStyle}>
+      <aside aria-label={workspaceName} style={sidebarStyle}>
         <p
           style={{
             margin: 0,
@@ -90,9 +99,12 @@ export function ClubAdminShell({
             lineHeight: `${theme.typeScale.headingSm.lineHeight}px`,
           }}
         >
-          Club administration
+          {workspaceName}
         </p>
-        <nav aria-label="Admin sections" style={{ marginTop: theme.space[8] }}>
+        <nav
+          aria-label={canManageClub ? "Admin sections" : "Team navigation"}
+          style={{ marginTop: theme.space[8] }}
+        >
           <ul
             style={{
               listStyle: "none",
@@ -104,17 +116,17 @@ export function ClubAdminShell({
           >
             <li>Overview</li>
             <li>Needs attention</li>
-            {presentation.status === "member" ? (
+            {canManageClub ? (
               <li>
                 <a href="/club-structure">Club structure</a>
               </li>
             ) : null}
-            {presentation.status === "member" ? (
+            {canManagePeople ? (
               <li>
                 <a href="/players">Players</a>
               </li>
             ) : null}
-            {presentation.status === "member" ? (
+            {canManagePeople ? (
               <li>
                 <a href="/notifications">Notifications</a>
               </li>
@@ -219,8 +231,9 @@ function ClubContextPanel({
           <article style={cardStyle}>
             <h2 style={subheadingStyle(theme)}>Needs attention</h2>
             <p style={{ color: theme.color.text.secondary }}>
-              Nothing needs attention in this club yet.
+              Open Home for the current role-specific overview.
             </p>
+            <a href="/">Open Home</a>
           </article>
         </div>
       </section>

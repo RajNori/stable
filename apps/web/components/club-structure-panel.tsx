@@ -4,6 +4,7 @@ import { themeFor } from "@stable/design-tokens";
 
 type ClubStructurePanelProps = {
   clubId: string | null;
+  canManage: boolean;
   snapshot: ClubStructureSnapshot;
   action: (formData: FormData) => void | Promise<void>;
   createCompetitionAction?:
@@ -23,6 +24,7 @@ type ClubStructurePanelProps = {
 
 export function ClubStructurePanel({
   clubId,
+  canManage,
   snapshot,
   action,
   createCompetitionAction,
@@ -85,7 +87,7 @@ export function ClubStructurePanel({
             id: season.id,
             name: season.active ? season.name : `${season.name} (inactive)`,
             edit:
-              updateSeasonAction === undefined
+              !canManage || updateSeasonAction === undefined
                 ? undefined
                 : {
                     action: updateSeasonAction,
@@ -103,7 +105,7 @@ export function ClubStructurePanel({
               ? competition.name
               : `${competition.name} (inactive)`,
             edit:
-              updateCompetitionAction === undefined
+              !canManage || updateCompetitionAction === undefined
                 ? undefined
                 : {
                     action: updateCompetitionAction,
@@ -119,7 +121,7 @@ export function ClubStructurePanel({
             id: team.id,
             name: team.active ? team.name : `${team.name} (inactive)`,
             edit:
-              updateTeamAction === undefined
+              !canManage || updateTeamAction === undefined
                 ? undefined
                 : {
                     action: updateTeamAction,
@@ -146,7 +148,7 @@ export function ClubStructurePanel({
             id: venue.id,
             name: venue.active ? venue.name : `${venue.name} (inactive)`,
             edit:
-              updateVenueAction === undefined
+              !canManage || updateVenueAction === undefined
                 ? undefined
                 : {
                     action: updateVenueAction,
@@ -157,7 +159,7 @@ export function ClubStructurePanel({
           }))}
         />
       </div>
-      {clubId === null ? null : (
+      {clubId === null || !canManage ? null : (
         <div
           style={{
             display: "grid",

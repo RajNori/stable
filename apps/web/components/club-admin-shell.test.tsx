@@ -72,6 +72,23 @@ describe("current club context shell", () => {
     ).toBeTruthy();
   });
 
+  it("does not show Club Admin navigation to a team-only member", () => {
+    render(
+      <ClubAdminShell
+        presentation={{
+          status: "member",
+          clubName: "Mentone Mustangs",
+          displayName: "Taylor Coach",
+          capabilities: ["club.read"],
+        }}
+      />,
+    );
+
+    expect(screen.queryByRole("link", { name: "Club structure" })).toBeNull();
+    expect(screen.queryByRole("link", { name: "Players" })).toBeNull();
+    expect(screen.queryByRole("link", { name: "Notifications" })).toBeNull();
+  });
+
   it("shows a sign-in next step when the principal is missing", async () => {
     const presentation = await loadClubContext(
       fixtureClubContextInput("unauthenticated"),

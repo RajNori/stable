@@ -70,7 +70,10 @@ const projection: GameDayProjection = {
 describe("team game day screen", () => {
   it("shows the caller's RSVP and duty without staff counts", async () => {
     const queryClient = new QueryClient({
-      defaultOptions: { queries: { retry: false, gcTime: 0 } },
+      defaultOptions: {
+        queries: { retry: false, gcTime: 0 },
+        mutations: { retry: false, gcTime: 0 },
+      },
     });
     await render(
       <QueryClientProvider client={queryClient}>
@@ -247,7 +250,10 @@ describe("team game day screen", () => {
   it("saves the online read and shows that snapshot when offline", async () => {
     const store = memoryGameDaySnapshotStore();
     const queryClient = new QueryClient({
-      defaultOptions: { queries: { retry: false, gcTime: 0 } },
+      defaultOptions: {
+        queries: { retry: false, gcTime: 0 },
+        mutations: { retry: false, gcTime: 0 },
+      },
     });
     await render(
       <QueryClientProvider client={queryClient}>
@@ -274,7 +280,10 @@ describe("team game day screen", () => {
     });
 
     const offlineClient = new QueryClient({
-      defaultOptions: { queries: { retry: false, gcTime: 0 } },
+      defaultOptions: {
+        queries: { retry: false, gcTime: 0 },
+        mutations: { retry: false, gcTime: 0 },
+      },
     });
     let contextCalls = 0;
     let loadOfflineRsvpCalled = false;
@@ -358,7 +367,10 @@ describe("team game day screen", () => {
   it("keeps the stale snapshot read-only until reconnect refresh succeeds", async () => {
     const store = memoryGameDaySnapshotStore();
     const client = new QueryClient({
-      defaultOptions: { queries: { retry: false, gcTime: 0 } },
+      defaultOptions: {
+        queries: { retry: false, gcTime: 0 },
+        mutations: { retry: false, gcTime: 0 },
+      },
     });
     await persistOfflineGameDay(
       store,
@@ -628,7 +640,10 @@ describe("team game day screen", () => {
       roundLabel: "Round 2",
     };
     const client = new QueryClient({
-      defaultOptions: { queries: { retry: false, gcTime: 0 } },
+      defaultOptions: {
+        queries: { retry: false, gcTime: 0 },
+        mutations: { retry: false, gcTime: 0 },
+      },
     });
     const view = await renderScreen({
       client,
@@ -879,7 +894,10 @@ function screenTree({
   const queryClient =
     client ??
     new QueryClient({
-      defaultOptions: { queries: { retry: false, gcTime: 0 } },
+      defaultOptions: {
+        queries: { retry: false, gcTime: 0 },
+        mutations: { retry: false, gcTime: 0 },
+      },
     });
   return (
     <QueryClientProvider client={queryClient}>

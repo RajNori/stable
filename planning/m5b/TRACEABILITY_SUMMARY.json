@@ -12,10 +12,7 @@
       "email_password",
       "password_recovery_link"
     ],
-    "mobile": [
-      "sms_otp_primary",
-      "email_magic_link_alternative"
-    ],
+    "mobile": ["sms_otp_primary", "email_magic_link_alternative"],
     "identity_authority": "supabase_auth",
     "sms_provider": "twilio",
     "email_provider": "sendgrid"
@@ -51,14 +48,8 @@
         "recognition",
         "practice_planner"
       ],
-      "gaps_p0": [
-        "coach_home",
-        "hosted_staging",
-        "team_context_ux"
-      ],
-      "decision": [
-        "primary_channel_for_dense_coaching_commands"
-      ]
+      "gaps_p0": ["coach_home", "hosted_staging", "team_context_ux"],
+      "decision": ["primary_channel_for_dense_coaching_commands"]
     },
     "ASSISTANT_COACH": {
       "strong": [

@@ -4,7 +4,7 @@
   "private": true,
   "main": "expo-router/entry",
   "scripts": {
-    "test": "jest --watchAll=false",
+    "test": "jest --watchAll=false --watchman=false",
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
   "jest": {

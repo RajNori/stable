@@ -7,10 +7,19 @@ import { useState } from "react";
 
 import { MobileDestinations } from "./mobile-destinations";
 
+function testQueryClient(): QueryClient {
+  return new QueryClient({
+    defaultOptions: {
+      queries: { retry: false, gcTime: 0 },
+      mutations: { retry: false, gcTime: 0 },
+    },
+  });
+}
+
 describe("mobile destinations", () => {
   it("keeps home, schedule, team, updates, and profile on one tab bar", async () => {
     await render(
-      <QueryClientProvider client={new QueryClient()}>
+      <QueryClientProvider client={testQueryClient()}>
         <MobileDestinations
           home={<Text>Mentone Mustangs</Text>}
           schedule={<Text>Training at Tuesday</Text>}
@@ -44,7 +53,7 @@ describe("mobile destinations", () => {
 
   it("lets the Home projection open Schedule", async () => {
     await render(
-      <QueryClientProvider client={new QueryClient()}>
+      <QueryClientProvider client={testQueryClient()}>
         <MobileDestinations
           home={(navigate) => (
             <Text onPress={() => navigate("Schedule")}>Next game</Text>
@@ -104,7 +113,7 @@ describe("mobile destinations", () => {
       );
     }
     await render(
-      <QueryClientProvider client={new QueryClient()}>
+      <QueryClientProvider client={testQueryClient()}>
         <MobileDestinations
           loadContext={() => Promise.resolve(context)}
           home={(_navigate, loadContext) => (

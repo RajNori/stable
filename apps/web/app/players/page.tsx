@@ -100,6 +100,18 @@ export default async function PlayersPage({ searchParams }: PlayersPageProps) {
     if (context.club === null) {
       return <ClubAdminShell presentation={presentation} />;
     }
+    if (!context.capabilities.includes("people.manage")) {
+      return (
+        <ClubAdminShell presentation={presentation}>
+          <p role="alert">
+            Player administration is available to club staff with
+            people-management access. Open your team Home to view your
+            authorized family and team context.
+          </p>
+          <a href="/">Open Home</a>
+        </ClubAdminShell>
+      );
+    }
 
     const gateway = createSupabasePlayerGateway(supabase);
     const structure = createSupabaseClubStructureGateway(supabase);
