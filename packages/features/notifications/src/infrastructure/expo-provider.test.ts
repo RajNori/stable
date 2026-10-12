@@ -3,6 +3,31 @@ import { describe, expect, it, vi } from "vitest";
 import { createExpoProvider, type FetchLike } from "./expo-provider.js";
 
 describe("Expo push provider adapter", () => {
+  it.each([
+    "DeviceNotRegistered",
+    "MessageTooBig",
+    "MessageRateExceeded",
+    "MismatchSenderId",
+    "InvalidCredentials",
+  ])("preserves allowlisted provider error %s", async (errorCode) => {
+    const fetcher = vi.fn<FetchLike>(async () => ({
+      ok: true,
+      json: async () => ({
+        data: { status: "error", details: { error: errorCode } },
+      }),
+    }));
+
+    const result = await createExpoProvider(fetcher).send({
+      to: "token",
+      title: "The Stable",
+      body: "A team update is available.",
+      sound: "default",
+      data: { requestId: "opaque", notificationType: "ANNOUNCEMENT_PUBLISHED" },
+    });
+
+    expect(result).toEqual({ status: "error", errorCode });
+  });
+
   it("sends only the generic caller-provided payload and returns the receipt id", async () => {
     const fetcher = vi.fn<FetchLike>(async () => ({
       ok: true,
@@ -95,5 +120,62 @@ describe("Expo push provider adapter", () => {
       ignored: { status: "error" },
     });
     expect(JSON.stringify(receipts)).not.toContain("provider message");
+  });
+
+  it("does not expose non-OK or malformed push responses", async () => {
+    const provider = createExpoProvider(
+      vi.fn<FetchLike>(async () => ({
+        ok: false,
+        json: async () => ({ message: "private response detail" }),
+      })),
+    );
+    const message = {
+      to: "token",
+      title: "The Stable" as const,
+      body: "A team update is available.",
+      sound: "default" as const,
+      data: { requestId: "opaque", notificationType: "ANNOUNCEMENT_PUBLISHED" },
+    };
+
+    await expect(provider.send(message)).resolves.toEqual({ status: "error" });
+    expect(
+      JSON.stringify(
+        await createExpoProvider(
+          vi.fn<FetchLike>(async () => ({
+            ok: true,
+            json: async () => ({ data: { status: "ok", id: "" } }),
+          })),
+        ).send(message),
+      ),
+    ).not.toContain("private response detail");
+    await expect(
+      createExpoProvider(
+        vi.fn<FetchLike>(async () => ({ ok: true, json: async () => null })),
+      ).send(message),
+    ).resolves.toEqual({ status: "error" });
+  });
+
+  it("rejects failed receipt requests and safely ignores malformed receipts", async () => {
+    await expect(
+      createExpoProvider(
+        vi.fn<FetchLike>(async () => ({
+          ok: false,
+          json: async () => ({ message: "private provider error" }),
+        })),
+      ).getReceipts(["receipt"]),
+    ).rejects.toThrow("Expo receipt request failed.");
+
+    const receipts = await createExpoProvider(
+      vi.fn<FetchLike>(async () => ({
+        ok: true,
+        json: async () => ({
+          data: {
+            malformed: null,
+            unknown: { status: "other", details: { error: "ignored" } },
+          },
+        }),
+      })),
+    ).getReceipts(["malformed", "unknown"]);
+    expect(receipts).toEqual({});
   });
 });

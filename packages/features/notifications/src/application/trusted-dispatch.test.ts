@@ -36,6 +36,30 @@ function dispatchStore(
 }
 
 describe("trusted notification dispatch", () => {
+  it.each([
+    ["ANNOUNCEMENT_PUBLISHED", "A team update is available."],
+    ["DUTY_ASSIGNED", "There is an update to a team duty."],
+    ["DUTY_SWAP_REQUESTED", "There is an update to a team duty."],
+    ["DUTY_SWAP_ACCEPTED", "There is an update to a team duty."],
+    ["FILL_IN_REQUESTED", "A fill-in opportunity is available."],
+    ["FILL_IN_CONFIRMED", "A fill-in response was confirmed."],
+    ["TRAINING_CHANGED", "There is an update to a team training session."],
+    ["TRAINING_CANCELLED", "There is an update to a team training session."],
+    ["COACH_CHECKED_IN", "A coach checked in."],
+    ["FIXTURE_CHANGED", "There is an update to a team event."],
+    ["GAME_REMINDER", "There is an update to a team event."],
+    ["RSVP_REQUIRED", "There is an update to a team event."],
+    ["UNRECOGNIZED", "There is an update to a team event."],
+  ])("uses safe copy for %s", (notificationType, body) => {
+    expect(
+      createPrivacySafeExpoMessage({
+        requestId: "opaque",
+        notificationType,
+        pushToken: "token",
+      }).body,
+    ).toBe(body);
+  });
+
   it("sends generic content with only opaque routing data", () => {
     const message = createPrivacySafeExpoMessage({
       requestId: "request-opaque",
@@ -100,6 +124,74 @@ describe("trusted notification dispatch", () => {
     expect(summary.skipped).toBe(1);
   });
 
+  it("returns an empty summary when there are no pending claims", async () => {
+    const store = dispatchStore({
+      claimDispatches: vi.fn(async () => []),
+    });
+
+    await expect(dispatchNotificationBatch(store, vi.fn())).resolves.toEqual({
+      claimed: 0,
+      attempted: 0,
+      sent: 0,
+      pending: 0,
+      skipped: 0,
+      failed: 0,
+    });
+  });
+
+  it.each([
+    ["SKIPPED", { sent: 0, skipped: 1, failed: 0 }],
+    ["FAILED", { sent: 0, skipped: 0, failed: 1 }],
+  ])(
+    "counts a successful provider ticket persisted as %s",
+    async (state, counts) => {
+      const store = dispatchStore({
+        applyDispatchResult: vi.fn(async () => state),
+      });
+
+      const summary = await dispatchNotificationBatch(store, async () => ({
+        status: "ok",
+        id: "receipt",
+      }));
+
+      expect(summary).toMatchObject(counts);
+    },
+  );
+
+  it.each([
+    ["SKIPPED", { pending: 0, skipped: 1, failed: 0 }],
+    ["FAILED", { pending: 0, skipped: 0, failed: 1 }],
+  ])("counts an invalid endpoint persisted as %s", async (state, counts) => {
+    const store = dispatchStore({
+      applyDispatchResult: vi.fn(async () => state),
+    });
+
+    const summary = await dispatchNotificationBatch(store, async () => ({
+      status: "error",
+      errorCode: "DeviceNotRegistered",
+    }));
+
+    expect(summary).toMatchObject(counts);
+  });
+
+  it("counts a provider failure as failed and preserves its safe error code", async () => {
+    const store = dispatchStore({
+      applyDispatchResult: vi.fn(async () => "FAILED"),
+    });
+
+    await dispatchNotificationBatch(store, async () => ({
+      status: "error",
+      errorCode: "MessageTooBig",
+    }));
+
+    expect(store.applyDispatchResult).toHaveBeenCalledWith({
+      claim,
+      target,
+      result: "ERROR",
+      errorCode: "MessageTooBig",
+    });
+  });
+
   it("disables an invalid endpoint and leaves retryable work pending", async () => {
     const store = dispatchStore({
       applyDispatchResult: vi.fn(async () => "PENDING"),
@@ -162,5 +254,56 @@ describe("trusted notification dispatch", () => {
       errorCode: "DeviceNotRegistered",
     });
     expect(summary).toEqual({ claimed: 2, checked: 1, pending: 1, errors: 1 });
+  });
+
+  it("returns an empty receipt summary when no receipts are ready", async () => {
+    const store = dispatchStore();
+
+    await expect(collectNotificationReceipts(store, vi.fn())).resolves.toEqual({
+      claimed: 0,
+      checked: 0,
+      pending: 0,
+      errors: 0,
+    });
+  });
+
+  it("records successful receipts without provider error text", async () => {
+    const ready: NotificationReceiptClaim = {
+      providerReceiptId: "receipt-ready",
+      endpointId: "endpoint-opaque",
+    };
+    const store = dispatchStore({
+      claimReceipts: vi.fn(async () => [ready]),
+    });
+
+    const summary = await collectNotificationReceipts(store, async () => ({
+      [ready.providerReceiptId]: { status: "ok" },
+    }));
+
+    expect(store.applyReceipt).toHaveBeenCalledExactlyOnceWith({
+      receipt: ready,
+      status: "OK",
+    });
+    expect(summary).toEqual({ claimed: 1, checked: 1, pending: 0, errors: 0 });
+  });
+
+  it("records provider receipt errors when no error code is supplied", async () => {
+    const receipt: NotificationReceiptClaim = {
+      providerReceiptId: "receipt-error",
+      endpointId: "endpoint-opaque",
+    };
+    const store = dispatchStore({
+      claimReceipts: vi.fn(async () => [receipt]),
+    });
+
+    const summary = await collectNotificationReceipts(store, async () => ({
+      [receipt.providerReceiptId]: { status: "error" },
+    }));
+
+    expect(store.applyReceipt).toHaveBeenCalledExactlyOnceWith({
+      receipt,
+      status: "ERROR",
+    });
+    expect(summary.errors).toBe(1);
   });
 });
