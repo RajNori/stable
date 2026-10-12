@@ -78,6 +78,7 @@ export function RoleHomePanel({
   }
 
   const isGuardian = role === "Guardian";
+  const isCoach = role === "Head Coach" || role === "Assistant Coach";
   const formatDate = (event: ScheduleEntry) =>
     formatScheduleDateTime(event.startsAt, timezone);
 
@@ -221,6 +222,26 @@ export function RoleHomePanel({
             Open team updates
           </a>
         </article>
+      ) : null}
+
+      {isCoach ? (
+        <nav aria-label="Coaching tools" style={card}>
+          <h2>Coaching tools</h2>
+          <ul>
+            <li>
+              <a href={`/teams/${selectedTeam.id}/training`}>
+                Training and practice plans
+              </a>
+            </li>
+            {nextGame ? (
+              <li>
+                <a href={`/teams/${selectedTeam.id}/games/${nextGame.eventId}`}>
+                  Game Day, stats and review
+                </a>
+              </li>
+            ) : null}
+          </ul>
+        </nav>
       ) : null}
 
       <article style={card}>

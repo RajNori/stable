@@ -124,6 +124,9 @@ describe("role home panel", () => {
       screen.queryByRole("heading", { name: "Game Day operations" }),
     ).toBeNull();
     expect(
+      screen.queryByRole("navigation", { name: "Coaching tools" }),
+    ).toBeNull();
+    expect(
       screen.getByRole("link", { name: "Open training" }).getAttribute("href"),
     ).toBe("/teams/team-a/training");
     expect(
@@ -185,6 +188,20 @@ describe("role home panel", () => {
     expect(screen.getByText("Your duty: Scorer (ASSIGNED)")).toBeTruthy();
     expect(screen.getByText("Confirmed fill-in: Player R.")).toBeTruthy();
     expect(screen.queryByText("Private plan context")).toBeNull();
+    const coachingTools = screen.getByRole("navigation", {
+      name: "Coaching tools",
+    });
+    expect(
+      screen
+        .getByRole("link", { name: "Training and practice plans" })
+        .getAttribute("href"),
+    ).toBe("/teams/team-a/training");
+    expect(
+      screen
+        .getByRole("link", { name: "Game Day, stats and review" })
+        .getAttribute("href"),
+    ).toBe("/teams/team-a/games/11111111-1111-4111-8111-111111111111");
+    expect(coachingTools).toBeTruthy();
   });
 
   it("keeps role switching explicit when one adult has several team roles", () => {
@@ -239,7 +256,27 @@ describe("role home panel", () => {
           roundLabel: null,
         }}
         nextTraining={null}
-        gameDay={null}
+        gameDay={{
+          eventId: "11111111-1111-4111-8111-111111111111",
+          clubId: "22222222-2222-4222-8222-222222222222",
+          teamId: "33333333-3333-4333-8333-333333333333",
+          opponentName: "Visitors",
+          roundLabel: null,
+          officialStartAt: "2026-10-17T00:30:00.000Z",
+          arrivalAt: null,
+          venueText: null,
+          courtLabel: null,
+          uniformNote: null,
+          coachFocus: "Private coaching focus",
+          ownRsvp: "UNANSWERED",
+          ownDutyLabel: null,
+          ownDutyStatus: null,
+          fillInLabel: null,
+          attendingCount: 3,
+          unavailableCount: 1,
+          unsureCount: 0,
+          unansweredCount: 2,
+        }}
         managerOperations={{
           unassignedDutyCount: 1,
           assignedDutyCount: 2,
@@ -257,6 +294,10 @@ describe("role home panel", () => {
     );
 
     expect(screen.getByText("Duties: 2 assigned, 1 unassigned")).toBeTruthy();
+    expect(screen.getByText("2 unanswered RSVP(s)")).toBeTruthy();
+    expect(screen.getByText("Attending: 3")).toBeTruthy();
+    expect(screen.getByText("Unavailable: 1")).toBeTruthy();
+    expect(screen.queryByText("Private coaching focus")).toBeNull();
     expect(
       screen.getByText("Duty acknowledgements: 1 of 2 complete; 1 pending"),
     ).toBeTruthy();
@@ -264,5 +305,8 @@ describe("role home panel", () => {
     expect(
       screen.getByText("Fill-in needs: 1 open; 2 responses; 0 confirmed"),
     ).toBeTruthy();
+    expect(
+      screen.queryByRole("navigation", { name: "Coaching tools" }),
+    ).toBeNull();
   });
 });
