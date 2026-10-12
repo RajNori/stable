@@ -30,11 +30,11 @@ export function cleanupPushAfterSuccessfulCallback(
 }
 
 /**
- * A failed push-registration cleanup must leave no restorable local session.
+ * A failed account-transition cleanup must leave no restorable local session.
  * Supabase signOut can resolve with an error object, so callers must clear the
  * persisted session themselves in that case (and when signOut throws).
  */
-export async function clearSessionAfterPushCleanupFailure(
+export async function clearSessionAfterCallbackTransitionFailure(
   signOut: () => Promise<{ readonly error: unknown }>,
   clearLocalSession: () => Promise<void>,
 ): Promise<void> {

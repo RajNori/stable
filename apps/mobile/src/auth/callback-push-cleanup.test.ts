@@ -1,5 +1,5 @@
 import {
-  clearSessionAfterPushCleanupFailure,
+  clearSessionAfterCallbackTransitionFailure,
   cleanupPushAfterSuccessfulCallback,
 } from "./callback-push-cleanup";
 
@@ -24,7 +24,7 @@ describe("callback push cleanup", () => {
   it("clears persisted auth when local sign-out resolves with an error", async () => {
     let clearCalls = 0;
 
-    await clearSessionAfterPushCleanupFailure(
+    await clearSessionAfterCallbackTransitionFailure(
       async () => ({ error: new Error("sign-out failed") }),
       async () => {
         clearCalls += 1;
@@ -37,7 +37,7 @@ describe("callback push cleanup", () => {
   it("does not clear persisted auth when local sign-out succeeds", async () => {
     let clearCalls = 0;
 
-    await clearSessionAfterPushCleanupFailure(
+    await clearSessionAfterCallbackTransitionFailure(
       async () => ({ error: null }),
       async () => {
         clearCalls += 1;
@@ -50,7 +50,7 @@ describe("callback push cleanup", () => {
   it("clears persisted auth when local sign-out throws", async () => {
     let clearCalls = 0;
 
-    await clearSessionAfterPushCleanupFailure(
+    await clearSessionAfterCallbackTransitionFailure(
       async () => {
         throw new Error("sign-out threw");
       },

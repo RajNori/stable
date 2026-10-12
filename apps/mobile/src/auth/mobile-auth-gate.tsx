@@ -41,6 +41,7 @@ type MobileAuthGateProps = {
         ((next: AuthSessionSnapshot) => Promise<void>) | undefined
       >)
     | undefined;
+  readonly clearFailedCallbackSession?: (() => Promise<void>) | undefined;
   readonly linking?: MobileLinking;
   readonly clearPrivateCache?: (
     previousUserId: string | null,
@@ -53,6 +54,7 @@ export function MobileAuthGate({
   signOut,
   actions,
   beforeCompleteCallback,
+  clearFailedCallbackSession,
   linking,
   clearPrivateCache = noopClearPrivateCache,
   authenticated,
@@ -71,7 +73,7 @@ export function MobileAuthGate({
   const updateSession = React.useCallback(
     async (next: AuthSessionSnapshot, transition: number) => {
       if (transition !== sessionTransition.current) {
-        return;
+        return "stale" as const;
       }
       const nextUserId =
         next.state === "authenticated" ? next.principal.userId : null;
@@ -81,15 +83,17 @@ export function MobileAuthGate({
         } catch (error: unknown) {
           if (transition === sessionTransition.current) {
             setSession(recoverySnapshot(error));
+            return "cache-clear-failed" as const;
           }
-          return;
+          return "stale" as const;
         }
         if (transition !== sessionTransition.current) {
-          return;
+          return "stale" as const;
         }
         sessionUserId.current = nextUserId;
       }
       setSession(next);
+      return "applied" as const;
     },
     [clearPrivateCache],
   );
@@ -138,7 +142,10 @@ export function MobileAuthGate({
           const next = await actions.completeCallback(url);
           callbackExchangeSucceeded = true;
           await completeTransition?.(next);
-          await updateSession(next, transition);
+          const updateResult = await updateSession(next, transition);
+          if (updateResult === "cache-clear-failed") {
+            await clearFailedCallbackSession?.();
+          }
         } catch (error: unknown) {
           if (callbackExchangeSucceeded) {
             // The provider accepted the callback, but account-transition
@@ -187,6 +194,7 @@ export function MobileAuthGate({
     actions,
     beforeCompleteCallback,
     beginSessionTransition,
+    clearFailedCallbackSession,
     linking,
     updateSession,
   ]);

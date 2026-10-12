@@ -10,7 +10,7 @@ import {
 } from "../src/auth/mobile-auth-actions";
 import { MobileAuthGate } from "../src/auth/mobile-auth-gate";
 import {
-  clearSessionAfterPushCleanupFailure,
+  clearSessionAfterCallbackTransitionFailure,
   cleanupPushAfterSuccessfulCallback,
 } from "../src/auth/callback-push-cleanup";
 import {
@@ -113,6 +113,14 @@ export default function CurrentClubContextRoute() {
     async (userId: string) => removeLivePushRegistration(userId),
     [],
   );
+  const clearFailedCallbackSession = useCallback(
+    async () =>
+      clearSessionAfterCallbackTransitionFailure(
+        () => getMobileSupabaseClient().auth.signOut({ scope: "local" }),
+        clearLiveMobileAuthSessionStorage,
+      ),
+    [],
+  );
   const beforeCompleteCallback = useCallback(async () => {
     const { data, error } = await getMobileSupabaseClient().auth.getSession();
     if (error !== null) throw new Error("The session could not be read.");
@@ -132,10 +140,7 @@ export default function CurrentClubContextRoute() {
             refreshToken,
           );
         } catch {
-          await clearSessionAfterPushCleanupFailure(
-            () => getMobileSupabaseClient().auth.signOut({ scope: "local" }),
-            clearLiveMobileAuthSessionStorage,
-          );
+          await clearFailedCallbackSession();
           throw new Error("The account switch could not be completed safely.");
         }
       },
@@ -151,6 +156,7 @@ export default function CurrentClubContextRoute() {
         signOut={() => signOutLiveMobileAuthSession(clearPushRegistration)}
         actions={actions}
         beforeCompleteCallback={beforeCompleteCallback}
+        clearFailedCallbackSession={clearFailedCallbackSession}
         linking={linking}
         clearPrivateCache={clearPrivateCache}
         authenticated={(userId) => (

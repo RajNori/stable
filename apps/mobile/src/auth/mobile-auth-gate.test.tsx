@@ -322,6 +322,57 @@ describe("mobile auth gate", () => {
     expect(restoreCalls).toBe(1);
   });
 
+  it("clears the exchanged account if prior-account private-cache cleanup fails", async () => {
+    let receive: ((url: string) => void) | undefined;
+    let restoreCalls = 0;
+    let clearFailedSessionCalls = 0;
+    await render(
+      <MobileAuthGate
+        restore={async () => {
+          restoreCalls += 1;
+          return authenticated;
+        }}
+        signOut={async () => ({ state: "unauthenticated" })}
+        actions={idleActions({
+          async completeCallback() {
+            return secondAuthenticated;
+          },
+        })}
+        clearPrivateCache={async (previousUserId) => {
+          if (previousUserId === userId) {
+            throw new Error("SecureStore cleanup failed");
+          }
+        }}
+        clearFailedCallbackSession={async () => {
+          clearFailedSessionCalls += 1;
+        }}
+        linking={{
+          async getInitialUrl() {
+            return null;
+          },
+          subscribe(listener) {
+            receive = listener;
+            return () => {
+              receive = undefined;
+            };
+          },
+        }}
+        authenticated={(id) => <Text>Signed in as {id}</Text>}
+      />,
+    );
+
+    expect(await screen.findByText(`Signed in as ${userId}`)).toBeTruthy();
+    await act(async () => {
+      receive?.("stable://auth/callback?code=account-switch");
+      await new Promise<void>((resolve) => setTimeout(resolve, 0));
+    });
+
+    expect(await screen.findByText(AUTH_ERROR_MESSAGES.INTERNAL)).toBeTruthy();
+    expect(screen.queryByText(`Signed in as ${secondUserId}`)).toBeNull();
+    expect(clearFailedSessionCalls).toBe(1);
+    expect(restoreCalls).toBe(1);
+  });
+
   it("shows expired and recovery without pretending the adult signed out", async () => {
     const { rerender } = await render(
       <MobileAuthGate
