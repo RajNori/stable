@@ -90,7 +90,7 @@ describe("team game day screen", () => {
     expect(
       await screen.findByRole("header", { name: "Round 1: Visitors" }),
     ).toBeTruthy();
-    expect(screen.getByText("RSVP UNANSWERED")).toBeTruthy();
+    expect(screen.getByText("Your RSVP UNANSWERED")).toBeTruthy();
     expect(screen.getByText("Duty Scorebook")).toBeTruthy();
     expect(screen.queryByText("Fixture Manual · scheduled")).toBeNull();
     expect(screen.queryByText(/Attending/)).toBeNull();
@@ -182,6 +182,7 @@ describe("team game day screen", () => {
         },
       ]),
     );
+    expect(screen.getAllByText("RSVP UNANSWERED").length).toBe(1);
   });
 
   it("retries a failed RSVP-choice read without refreshing unrelated data", async () => {

@@ -24,7 +24,9 @@ import {
   cleanPendingCallbackPushRegistration,
   clearSessionAfterCallbackTransitionFailure,
   removePreviousPushAfterSuccessfulAccountSwitch,
+  tryRemoveCallbackPushRegistrationOrRetainFence,
 } from "../src/auth/callback-push-cleanup";
+import type { PreviousPushSession } from "../src/auth/callback-push-cleanup";
 import {
   clearLiveMobileAuthSessionStorage,
   restoreLiveMobileAuthSession,
@@ -126,6 +128,7 @@ export default function CurrentClubContextRoute() {
   const monitor = useMemo(() => expoNetworkMonitor(), []);
   const online = useMobileOnline(monitor);
   const callbackSuspendedUserId = useRef<string | null>(null);
+  const callbackPreviousSession = useRef<PreviousPushSession | null>(null);
   const restoreWithPushCleanupFence = useCallback(async () => {
     const restored = await restoreLiveMobileAuthSession();
     if (restored.state !== "authenticated") {
@@ -187,24 +190,44 @@ export default function CurrentClubContextRoute() {
       removeRegistration: removeLivePushRegistration,
     });
   }, []);
-  const clearFailedCallbackSession = useCallback(
-    async () =>
-      clearSessionAfterCallbackTransitionFailure(
-        () => getMobileSupabaseClient().auth.signOut({ scope: "local" }),
-        clearLiveMobileAuthSessionStorage,
-      ),
-    [],
-  );
+  const clearFailedCallbackSession = useCallback(async () => {
+    const previous = callbackPreviousSession.current;
+    if (previous !== null) {
+      suspendPushRegistration(previous.userId);
+      try {
+        await tryRemoveCallbackPushRegistrationOrRetainFence({
+          store: pendingPushCleanupStore,
+          previous,
+          removeRegistration: removeLivePushRegistrationForSession,
+        });
+      } catch {
+        // Local sign-out below still clears the failed callback session. The
+        // push registration stays suspended for this process lifetime.
+      } finally {
+        callbackPreviousSession.current = null;
+        callbackSuspendedUserId.current = null;
+      }
+    }
+    await clearSessionAfterCallbackTransitionFailure(
+      () => getMobileSupabaseClient().auth.signOut({ scope: "local" }),
+      clearLiveMobileAuthSessionStorage,
+    );
+  }, []);
   const beforeCompleteCallback = useCallback(async () => {
     const { data, error } = await getMobileSupabaseClient().auth.getSession();
     if (error !== null) throw new Error("The session could not be read.");
     const previousSession = data.session;
-    if (previousSession === null) return undefined;
+    if (previousSession === null) {
+      callbackPreviousSession.current = null;
+      callbackSuspendedUserId.current = null;
+      return undefined;
+    }
     const previous = {
       userId: previousSession.user.id,
       accessToken: previousSession.access_token,
       refreshToken: previousSession.refresh_token,
     };
+    callbackPreviousSession.current = previous;
     callbackSuspendedUserId.current = previous.userId;
     suspendPushRegistration(previous.userId);
     const cleanedPendingRegistration =
@@ -224,8 +247,10 @@ export default function CurrentClubContextRoute() {
         return;
       }
       if (next.principal.userId === previous.userId) {
-        resumePushRegistration(previous.userId);
-        callbackSuspendedUserId.current = null;
+        // Keep registration suspended until the exchanged Supabase session
+        // has been committed. A failed commit is handled by the callback
+        // cleanup hook, which revokes this user's endpoint and retains a
+        // cleanup fence if revocation cannot be confirmed.
         return;
       }
       const removed = await removePreviousPushAfterSuccessfulAccountSwitch(
@@ -235,10 +260,11 @@ export default function CurrentClubContextRoute() {
         removeLivePushRegistrationForSession,
         cleanedPendingRegistration,
       );
-      callbackSuspendedUserId.current = null;
       if (!removed) {
         throw new Error("The previous account push endpoint is unresolved.");
       }
+      callbackSuspendedUserId.current = null;
+      callbackPreviousSession.current = null;
     };
   }, []);
   const afterCallbackRestore = useCallback(
@@ -251,7 +277,9 @@ export default function CurrentClubContextRoute() {
         restored.principal.userId === suspendedUserId
       ) {
         resumePushRegistration(suspendedUserId);
+        callbackPreviousSession.current = null;
       }
+      callbackSuspendedUserId.current = null;
     },
     [],
   );
@@ -271,6 +299,11 @@ export default function CurrentClubContextRoute() {
           }
         },
       });
+      if (callbackSuspendedUserId.current === next.principal.userId) {
+        resumePushRegistration(next.principal.userId);
+        callbackSuspendedUserId.current = null;
+        callbackPreviousSession.current = null;
+      }
     },
     [],
   );

@@ -80,6 +80,7 @@ describe("offline game day view", () => {
     expect(screen.getByText("Venue Home")).toBeTruthy();
     expect(screen.getByText("Court Court 1")).toBeTruthy();
     expect(screen.getByText("Uniform White")).toBeTruthy();
+    expect(screen.queryByText(/^RSVP /)).toBeNull();
     expect(
       screen.getByText(
         "Reconnect to update RSVP, attendance, fixtures, duties, or check-in.",

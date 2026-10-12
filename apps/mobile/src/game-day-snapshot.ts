@@ -16,7 +16,6 @@ export type GameDaySnapshot = {
   venueText: string | null;
   courtLabel: string | null;
   uniformNote: string | null;
-  ownRsvp: string;
   ownDutyLabel: string | null;
   ownDutyStatus: "ASSIGNED" | null;
   fillInLabel: string | null;
@@ -38,7 +37,6 @@ const REQUIRED_SNAPSHOT_KEYS = [
   "venueText",
   "courtLabel",
   "uniformNote",
-  "ownRsvp",
   "ownDutyLabel",
   "ownDutyStatus",
   "fillInLabel",
@@ -103,7 +101,6 @@ function isSnapshot(value: unknown): value is GameDaySnapshot {
     isNullableText(value["venueText"]) &&
     isNullableText(value["courtLabel"]) &&
     isNullableText(value["uniformNote"]) &&
-    isText(value["ownRsvp"]) &&
     isNullableText(value["ownDutyLabel"]) &&
     (value["ownDutyStatus"] === null ||
       value["ownDutyStatus"] === "ASSIGNED") &&
@@ -150,7 +147,6 @@ export function gameDaySnapshotFromProjection(input: {
     venueText: input.projection.venueText,
     courtLabel: input.projection.courtLabel,
     uniformNote: input.projection.uniformNote,
-    ownRsvp: input.projection.ownRsvp,
     ownDutyLabel: input.projection.ownDutyLabel,
     ownDutyStatus: input.projection.ownDutyStatus,
     fillInLabel: input.projection.fillInLabel,
@@ -222,9 +218,11 @@ export async function readGameDaySnapshot(
     return null;
   }
   const sanitized =
-    isRecord(parsed) && "coachFocus" in parsed
+    isRecord(parsed) && ("coachFocus" in parsed || "ownRsvp" in parsed)
       ? Object.fromEntries(
-          Object.entries(parsed).filter(([key]) => key !== "coachFocus"),
+          Object.entries(parsed).filter(
+            ([key]) => key !== "coachFocus" && key !== "ownRsvp",
+          ),
         )
       : parsed;
   const snapshot = isSnapshot(sanitized) ? sanitized : null;

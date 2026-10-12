@@ -609,7 +609,7 @@ export function TeamGameDayScreen({
         </View>
       ) : null}
       {loadRsvpChoices === undefined ? (
-        <Text style={styles.body}>RSVP {projection.ownRsvp}</Text>
+        <Text style={styles.body}>Your RSVP {projection.ownRsvp}</Text>
       ) : null}
       <Text style={styles.body}>Duty {projection.ownDutyLabel ?? "None"}</Text>
       {acknowledgeDuty === undefined &&

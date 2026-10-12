@@ -13,7 +13,14 @@ test("club overview fits a phone viewport and keeps navigation keyboard-accessib
   ).toBeVisible();
 
   const nav = page.getByRole("navigation", { name: "Admin sections" });
+  const overviewLink = nav.getByRole("link", { name: "Overview", exact: true });
+  const clubStructureLink = nav.getByRole("link", {
+    name: "Club structure",
+    exact: true,
+  });
   const playersLink = nav.getByRole("link", { name: "Players", exact: true });
+  await expect(overviewLink).toBeVisible();
+  await expect(clubStructureLink).toBeVisible();
   await expect(playersLink).toBeVisible();
 
   const dimensions = await page.evaluate(() => ({
@@ -26,7 +33,9 @@ test("club overview fits a phone viewport and keeps navigation keyboard-accessib
   expect(dimensions.body).toBeLessThanOrEqual(dimensions.viewport);
 
   await page.keyboard.press("Tab");
-  await expect(nav.getByRole("link", { name: "Club structure" })).toBeFocused();
+  await expect(overviewLink).toBeFocused();
+  await page.keyboard.press("Tab");
+  await expect(clubStructureLink).toBeFocused();
   await page.keyboard.press("Tab");
   await expect(playersLink).toBeFocused();
 });

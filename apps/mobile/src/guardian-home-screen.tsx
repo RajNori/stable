@@ -222,9 +222,6 @@ export function GuardianHomeScreen({
                   <Text style={styles.body}>{gameDay.data.venueText}</Text>
                 )}
                 <Text style={styles.body}>
-                  Your RSVP: {gameDay.data.ownRsvp}
-                </Text>
-                <Text style={styles.body}>
                   Your duty: {gameDay.data.ownDutyLabel ?? "None"}
                 </Text>
               </>

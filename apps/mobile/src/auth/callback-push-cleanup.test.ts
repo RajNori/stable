@@ -2,6 +2,7 @@ import {
   cleanPendingCallbackPushRegistration,
   clearSessionAfterCallbackTransitionFailure,
   removePreviousPushAfterSuccessfulAccountSwitch,
+  tryRemoveCallbackPushRegistrationOrRetainFence,
 } from "./callback-push-cleanup";
 import {
   markPendingPushCleanup,
@@ -123,6 +124,49 @@ describe("callback push cleanup", () => {
 
     expect(removed).toBe(true);
     expect(calls).toBe(0);
+  });
+
+  it("fences and revokes the previous endpoint after callback commit failure", async () => {
+    const values = new Map<string, string>();
+    const store: PendingPushCleanupStore = {
+      getItem: async (key) => values.get(key) ?? null,
+      setItem: async (key, value) => void values.set(key, value),
+      removeItem: async (key) => void values.delete(key),
+    };
+    const removed: string[][] = [];
+
+    const cleaned = await tryRemoveCallbackPushRegistrationOrRetainFence({
+      store,
+      previous,
+      removeRegistration: async (...credentials) => {
+        removed.push(credentials);
+        return true;
+      },
+    });
+
+    expect(cleaned).toBe(true);
+    expect(removed).toEqual([
+      [previous.userId, previous.accessToken, previous.refreshToken],
+    ]);
+    expect(await readPendingPushCleanupUsers(store)).toEqual([]);
+  });
+
+  it("retains the callback cleanup fence when endpoint revocation is unresolved", async () => {
+    const values = new Map<string, string>();
+    const store: PendingPushCleanupStore = {
+      getItem: async (key) => values.get(key) ?? null,
+      setItem: async (key, value) => void values.set(key, value),
+      removeItem: async (key) => void values.delete(key),
+    };
+
+    const cleaned = await tryRemoveCallbackPushRegistrationOrRetainFence({
+      store,
+      previous,
+      removeRegistration: async () => false,
+    });
+
+    expect(cleaned).toBe(false);
+    expect(await readPendingPushCleanupUsers(store)).toEqual([previous.userId]);
   });
 
   it("does not remove an endpoint for an invalid callback", async () => {

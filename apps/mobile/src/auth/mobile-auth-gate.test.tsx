@@ -330,6 +330,47 @@ describe("mobile auth gate", () => {
     expect(clearFailedCallbackSession.mock.calls.length).toBe(1);
   });
 
+  it("cleans the callback endpoint when a same-account session commit fails", async () => {
+    let receive: ((url: string) => void) | undefined;
+    const clearFailedCallbackSession = jest.fn(async () => undefined);
+    await render(
+      <MobileAuthGate
+        restore={async () => authenticated}
+        signOut={async () => ({ state: "unauthenticated" })}
+        actions={idleActions({
+          async completeCallback(
+            _url: string,
+            beforeCommit?: (next: AuthSessionSnapshot) => Promise<void>,
+          ) {
+            await beforeCommit?.(authenticated);
+            throw new Error("session commit failed");
+          },
+        })}
+        beforeCompleteCallback={async () => async () => undefined}
+        clearFailedCallbackSession={clearFailedCallbackSession}
+        linking={{
+          async getInitialUrl() {
+            return null;
+          },
+          subscribe(listener) {
+            receive = listener;
+            return () => {
+              receive = undefined;
+            };
+          },
+        }}
+        authenticated={(id) => <Text>Signed in as {id}</Text>}
+      />,
+    );
+
+    expect(await screen.findByText(`Signed in as ${userId}`)).toBeTruthy();
+    receive?.("stable://auth/callback?code=same-account");
+
+    expect(await screen.findByText(AUTH_ERROR_MESSAGES.INTERNAL)).toBeTruthy();
+    expect(screen.queryByText(`Signed in as ${userId}`)).toBeNull();
+    expect(clearFailedCallbackSession.mock.calls.length).toBe(1);
+  });
+
   it("clears the exchanged account if prior-account private-cache cleanup fails", async () => {
     let receive: ((url: string) => void) | undefined;
     let restoreCalls = 0;

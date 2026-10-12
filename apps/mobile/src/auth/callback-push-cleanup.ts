@@ -9,6 +9,42 @@ export type PreviousPushSession = {
   refreshToken: string;
 };
 
+/**
+ * Revoke the previous endpoint after a callback exchange succeeds but local
+ * session commit/admission fails. The persistent marker fences future push
+ * registration until removal is confirmed.
+ */
+export async function tryRemoveCallbackPushRegistrationOrRetainFence(input: {
+  readonly store: PendingPushCleanupStore;
+  readonly previous: PreviousPushSession;
+  readonly removeRegistration: (
+    userId: string,
+    accessToken: string,
+    refreshToken: string,
+  ) => Promise<void | boolean>;
+}): Promise<boolean> {
+  return withPendingPushCleanupTransaction(
+    input.store,
+    async ({ mark, clear }) => {
+      await mark(input.previous.userId);
+      try {
+        const removed = await input.removeRegistration(
+          input.previous.userId,
+          input.previous.accessToken,
+          input.previous.refreshToken,
+        );
+        if (removed !== false) {
+          await clear(input.previous.userId);
+          return true;
+        }
+      } catch {
+        // Keep the account fenced while endpoint revocation is unresolved.
+      }
+      return false;
+    },
+  );
+}
+
 export async function cleanPendingCallbackPushRegistration(input: {
   readonly store: PendingPushCleanupStore;
   readonly userId: string;

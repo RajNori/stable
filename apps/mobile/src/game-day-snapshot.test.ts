@@ -78,6 +78,7 @@ describe("game day snapshot", () => {
       savedAt,
     });
     expect(Object.keys(snapshot).includes("privateNote")).toBe(false);
+    expect(Object.keys(snapshot)).not.toContain("ownRsvp");
     expect(snapshot.uniformNote).toBe("White");
     expect(Object.keys(snapshot)).not.toContain("coachFocus");
     expect(gameDaySnapshotFreshness(savedAt, Date.parse(savedAt))).toBe(
@@ -140,6 +141,24 @@ describe("game day snapshot", () => {
 
     await store.setItem(key, JSON.stringify({ ...snapshot, teamName: "" }));
     expect(await readGameDaySnapshot(store, userId, teamId)).toBeNull();
+  });
+
+  it("strips an ambiguously attributed RSVP from legacy cached snapshots", async () => {
+    const store = memoryGameDaySnapshotStore();
+    const snapshot = gameDaySnapshotFromProjection({
+      userId,
+      teamName: "U14 Boys",
+      projection,
+      savedAt,
+    });
+    const key = `stable.game-day.v1.${userId}.${teamId}`;
+    await store.setItem(
+      key,
+      JSON.stringify({ ...snapshot, ownRsvp: "ATTENDING" }),
+    );
+
+    expect(await readGameDaySnapshot(store, userId, teamId)).toEqual(snapshot);
+    expect(await store.getItem(key)).toBe(JSON.stringify(snapshot));
   });
 
   it("scrubs legacy coach-only focus while preserving common uniform logistics", async () => {

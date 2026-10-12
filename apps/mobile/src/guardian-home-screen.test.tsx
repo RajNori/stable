@@ -105,7 +105,7 @@ async function renderHome(input?: {
 }
 
 describe("Guardian home", () => {
-  it("shows the next event and current RSVP/duty, with a Schedule action", async () => {
+  it("shows the next event and duty without attributing a sibling RSVP", async () => {
     let openedSchedule = false;
     let openedGameDay = false;
     const view = await renderHome({
@@ -120,7 +120,7 @@ describe("Guardian home", () => {
     expect(await view.findByRole("header", { name: "Hi Alex" })).toBeTruthy();
     expect(view.getByText("Round 2: Southside")).toBeTruthy();
     expect(view.getByText("Court 2")).toBeTruthy();
-    expect(await view.findByText("Your RSVP: UNANSWERED")).toBeTruthy();
+    expect(view.queryByText(/Your RSVP/)).toBeNull();
     expect(await view.findByText("Your duty: Scorebook")).toBeTruthy();
     expect(view.getByText(/Arrive/)).toBeTruthy();
     expect(view.getByText("Mentone Stadium")).toBeTruthy();
@@ -142,7 +142,7 @@ describe("Guardian home", () => {
       },
     });
     expect(await view.findByText(announcement.title)).toBeTruthy();
-    expect(await view.findByText("Your RSVP: UNANSWERED")).toBeTruthy();
+    expect(view.queryByText(/Your RSVP/)).toBeNull();
     expect(view.getByText(announcement.body)).toBeTruthy();
     expect(view.getByText("Response requested")).toBeTruthy();
     await fireEvent.press(
