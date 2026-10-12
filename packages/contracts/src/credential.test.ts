@@ -93,6 +93,13 @@ describe("oauth sign-in navigation contract", () => {
         authorizationUrl: `${LOCAL_SUPABASE_AUTH_ORIGIN}/auth/v1/authorize#provider=google`,
       }).success,
     ).toBe(true);
+    expect(
+      oauthSignInNavigationSchema.parse({
+        status: "redirect_required",
+        provider: "facebook",
+        authorizationUrl: `${LOCAL_SUPABASE_AUTH_ORIGIN}/auth/v1/authorize?provider=facebook`,
+      }).provider,
+    ).toBe("facebook");
   });
 
   it("rejects tokens, emails, and unsafe authorize URLs", () => {

@@ -1,9 +1,17 @@
 "use client";
 
-import type { AuthSessionSnapshot } from "@stable/contracts";
+import type {
+  AuthSessionSnapshot,
+  OAuthSignInProvider,
+} from "@stable/contracts";
+import {
+  createSupabaseOAuthSignInGateway,
+  startOAuthBrowserSignIn,
+} from "@stable/auth";
 import { useMemo } from "react";
 import { useRouter } from "next/navigation";
 
+import { frozenAuthProviderSettings } from "../lib/provider-visibility";
 import { createSupabaseBrowserClient } from "../lib/supabase/browser";
 import { recoveryRedirectTo } from "../lib/password-recovery";
 import { ClubSignIn } from "./club-sign-in";
@@ -13,6 +21,7 @@ type ClubSignInLiveProps = {
   readonly supabaseUrl: string;
   readonly publishableKey: string;
   readonly webOrigin: string;
+  readonly appEnv: "local" | "staging" | "production";
   readonly notice: string | null;
 };
 
@@ -21,9 +30,11 @@ export function ClubSignInLive({
   supabaseUrl,
   publishableKey,
   webOrigin,
+  appEnv,
   notice,
 }: ClubSignInLiveProps) {
   const router = useRouter();
+  const providerSettings = useMemo(() => frozenAuthProviderSettings(), []);
   const actions = useMemo(
     () => ({
       async signInPassword(email: string, password: string) {
@@ -59,9 +70,35 @@ export function ClubSignInLive({
       async retry() {
         router.refresh();
       },
+      async startOAuth(provider: OAuthSignInProvider) {
+        if (provider !== "google" && provider !== "facebook") {
+          throw new Error("The sign-in provider is unavailable.");
+        }
+        const supabase = createSupabaseBrowserClient({
+          url: supabaseUrl,
+          publishableKey,
+        });
+        const gateway = createSupabaseOAuthSignInGateway(supabase.auth);
+        const navigation = await startOAuthBrowserSignIn(gateway, {
+          provider,
+          redirectTo: `${webOrigin}/auth/callback`,
+          appEnv,
+          authOrigin: new URL(supabaseUrl).origin,
+          settings: providerSettings[provider],
+        });
+        window.location.assign(navigation.authorizationUrl);
+      },
     }),
-    [publishableKey, router, supabaseUrl, webOrigin],
+    [appEnv, providerSettings, publishableKey, router, supabaseUrl, webOrigin],
   );
 
-  return <ClubSignIn session={session} actions={actions} notice={notice} />;
+  return (
+    <ClubSignIn
+      session={session}
+      actions={actions}
+      providerSettings={providerSettings}
+      onProvider={(provider) => actions.startOAuth(provider)}
+      notice={notice}
+    />
+  );
 }

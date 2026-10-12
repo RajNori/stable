@@ -16,6 +16,7 @@ import { ClubAdminShell } from "./club-admin-shell";
 import { ClubSignIn, type ClubSignInActions } from "./club-sign-in";
 import { SignOutControl } from "./sign-out-button";
 import {
+  frozenAuthProviderSettings,
   visibleAuthProviders,
   type AuthProviderSettings,
 } from "../lib/provider-visibility";
@@ -42,13 +43,16 @@ describe("club sign-in", () => {
       screen.queryByRole("button", { name: "Continue with Google" }),
     ).toBeNull();
     expect(
-      screen.queryByRole("button", { name: "Continue with Apple" }),
+      screen.queryByRole("button", { name: "Continue with Facebook" }),
     ).toBeNull();
-    expect(visibleAuthProviders()).toEqual({ google: false, apple: false });
+    expect(visibleAuthProviders()).toEqual({
+      google: false,
+      facebook: false,
+    });
   });
 
   it("hides a provider that is enabled without a client id or handler", () => {
-    const start = (): void => undefined;
+    const start = async (): Promise<void> => undefined;
     render(
       <ClubSignIn
         session={unauthenticated}
@@ -61,11 +65,11 @@ describe("club sign-in", () => {
       screen.queryByRole("button", { name: "Continue with Google" }),
     ).toBeNull();
     expect(
-      screen.queryByRole("button", { name: "Continue with Apple" }),
+      screen.queryByRole("button", { name: "Continue with Facebook" }),
     ).toBeNull();
     expect(
       visibleAuthProviders({ settings: missingProviderConfig, start }),
-    ).toEqual({ google: false, apple: false });
+    ).toEqual({ google: false, facebook: false });
 
     cleanup();
     render(
@@ -78,18 +82,15 @@ describe("club sign-in", () => {
     expect(
       screen.queryByRole("button", { name: "Continue with Google" }),
     ).toBeNull();
-    expect(
-      screen.queryByRole("button", { name: "Continue with Apple" }),
-    ).toBeNull();
     expect(visibleAuthProviders({ settings: readyProviderConfig })).toEqual({
       google: false,
-      apple: false,
+      facebook: false,
     });
   });
 
-  it("shows a ready provider and invokes its start handler", () => {
+  it("shows a ready provider and invokes its start handler", async () => {
     const started: string[] = [];
-    const start = (provider: "google" | "apple"): void => {
+    const start = async (provider: "google" | "facebook"): Promise<void> => {
       started.push(provider);
     };
     render(
@@ -104,13 +105,32 @@ describe("club sign-in", () => {
     fireEvent.click(
       screen.getByRole("button", { name: "Continue with Google" }),
     );
+    await waitFor(() => expect(started).toEqual(["google"]));
     fireEvent.click(
-      screen.getByRole("button", { name: "Continue with Apple" }),
+      screen.getByRole("button", { name: "Continue with Facebook" }),
     );
-    expect(started).toEqual(["google", "apple"]);
+    await waitFor(() => expect(started).toEqual(["google", "facebook"]));
     expect(
       visibleAuthProviders({ settings: readyProviderConfig, start }),
-    ).toEqual({ google: true, apple: true });
+    ).toEqual({ google: true, facebook: true });
+  });
+
+  it("reads only explicit public readiness and public client IDs", () => {
+    expect(
+      frozenAuthProviderSettings({
+        NEXT_PUBLIC_GOOGLE_SIGN_IN_ENABLED: "true",
+        NEXT_PUBLIC_GOOGLE_OAUTH_CLIENT_ID: "google-public-client.apps.example",
+        NEXT_PUBLIC_FACEBOOK_SIGN_IN_ENABLED: "true",
+        NEXT_PUBLIC_FACEBOOK_OAUTH_CLIENT_ID: "facebook-public-app-id",
+        SUPABASE_SECRET_KEY: "must-not-be-read",
+      }),
+    ).toEqual({
+      google: {
+        enabled: true,
+        clientId: "google-public-client.apps.example",
+      },
+      facebook: { enabled: true, clientId: "facebook-public-app-id" },
+    });
   });
 
   it("keeps error text at or above 4.5:1", () => {
@@ -336,12 +356,12 @@ describe("club sign-in", () => {
 
 const missingProviderConfig = {
   google: { enabled: true, clientId: null },
-  apple: { enabled: true, clientId: "local-test-otp" },
+  facebook: { enabled: true, clientId: "local-test-otp" },
 } as const satisfies AuthProviderSettings;
 
 const readyProviderConfig = {
   google: { enabled: true, clientId: "unit-test-client" },
-  apple: { enabled: true, clientId: "unit-test-client" },
+  facebook: { enabled: true, clientId: "unit-test-client" },
 } as const satisfies AuthProviderSettings;
 
 function contrastRatio(foreground: string, background: string): number {

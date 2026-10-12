@@ -1,20 +1,46 @@
-import { OAUTH_PROVIDER_SETTINGS, oauthProviderReady } from "@stable/auth";
+import { oauthProviderReady } from "@stable/auth";
 import type { OAuthProviderSettings } from "@stable/contracts";
 
-export type AuthProviderName = "google" | "apple";
+export type AuthProviderName = "google" | "facebook";
 
 export type AuthProviderSettings = {
   readonly google: OAuthProviderSettings;
-  readonly apple: OAuthProviderSettings;
+  readonly facebook: OAuthProviderSettings;
 };
 
 export type VisibleAuthProviders = {
   readonly google: boolean;
-  readonly apple: boolean;
+  readonly facebook: boolean;
 };
 
-export function frozenAuthProviderSettings(): AuthProviderSettings {
-  return OAUTH_PROVIDER_SETTINGS;
+type PublicOAuthEnv = Readonly<Record<string, string | undefined>>;
+
+export function frozenAuthProviderSettings(
+  env: PublicOAuthEnv = {
+    NEXT_PUBLIC_GOOGLE_SIGN_IN_ENABLED:
+      process.env.NEXT_PUBLIC_GOOGLE_SIGN_IN_ENABLED,
+    NEXT_PUBLIC_GOOGLE_OAUTH_CLIENT_ID:
+      process.env.NEXT_PUBLIC_GOOGLE_OAUTH_CLIENT_ID,
+    NEXT_PUBLIC_FACEBOOK_SIGN_IN_ENABLED:
+      process.env.NEXT_PUBLIC_FACEBOOK_SIGN_IN_ENABLED,
+    NEXT_PUBLIC_FACEBOOK_OAUTH_CLIENT_ID:
+      process.env.NEXT_PUBLIC_FACEBOOK_OAUTH_CLIENT_ID,
+  },
+): AuthProviderSettings {
+  return {
+    google: {
+      enabled: env.NEXT_PUBLIC_GOOGLE_SIGN_IN_ENABLED === "true",
+      clientId: nonEmpty(env.NEXT_PUBLIC_GOOGLE_OAUTH_CLIENT_ID),
+    },
+    facebook: {
+      enabled: env.NEXT_PUBLIC_FACEBOOK_SIGN_IN_ENABLED === "true",
+      clientId: nonEmpty(env.NEXT_PUBLIC_FACEBOOK_OAUTH_CLIENT_ID),
+    },
+  };
+}
+
+function nonEmpty(value: string | undefined): string | null {
+  return value === undefined || value.trim().length === 0 ? null : value.trim();
 }
 
 /**
@@ -23,18 +49,18 @@ export function frozenAuthProviderSettings(): AuthProviderSettings {
  */
 export function providerButtonReady(
   settings: OAuthProviderSettings,
-  start: ((provider: AuthProviderName) => void) | undefined,
-): start is (provider: AuthProviderName) => void {
+  start: ((provider: AuthProviderName) => Promise<void>) | undefined,
+): start is (provider: AuthProviderName) => Promise<void> {
   return oauthProviderReady(settings) && typeof start === "function";
 }
 
 export function visibleAuthProviders(input?: {
   readonly settings?: AuthProviderSettings;
-  readonly start?: (provider: AuthProviderName) => void;
+  readonly start?: (provider: AuthProviderName) => Promise<void>;
 }): VisibleAuthProviders {
   const settings = input?.settings ?? frozenAuthProviderSettings();
   return {
     google: providerButtonReady(settings.google, input?.start),
-    apple: providerButtonReady(settings.apple, input?.start),
+    facebook: providerButtonReady(settings.facebook, input?.start),
   };
 }

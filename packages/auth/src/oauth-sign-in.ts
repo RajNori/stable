@@ -5,6 +5,7 @@ import {
   isExpectedSupabaseAuthOrigin,
   isSafeOAuthAuthorizationUrl,
   oauthSignInNavigationSchema,
+  type OAuthSignInProvider,
   type AppEnv,
   type AuthSessionSnapshot,
   type OAuthProviderSettings,
@@ -19,16 +20,11 @@ import { OAUTH_PROVIDER_SETTINGS, oauthProviderReady } from "./oauth-link.js";
 import { mapAuthError } from "./map-auth-error.js";
 import { principalFromSession } from "./principal-from-session.js";
 
-/**
- * Mobile Apple uses native Sign in with Apple and signInWithIdToken.
- * Mobile Google uses the same browser OAuth path as web, through the
- * stable:// callback, because this Expo app has no Google native SDK.
- * A native Google ID token can still use completeOAuthIdTokenSignIn later.
- */
-export const MOBILE_OAUTH_SIGN_IN = {
-  apple: "native_id_token",
-  google: "browser_oauth",
-} as const;
+export const OAUTH_SIGN_IN_PROVIDER_SETTINGS = {
+  google: { enabled: false, clientId: null },
+  apple: { enabled: false, clientId: null },
+  facebook: { enabled: false, clientId: null },
+} as const satisfies Record<OAuthSignInProvider, OAuthProviderSettings>;
 
 const NONCE_PATTERN = /^[A-Za-z0-9_-]{16,128}$/;
 
@@ -39,7 +35,7 @@ export type OAuthSignInAdult = {
 
 export type OAuthSignInGateway = {
   startBrowserSignIn(input: {
-    provider: "google" | "apple";
+    provider: OAuthSignInProvider;
     redirectTo: string;
   }): Promise<{ authorizationUrl: string }>;
   exchangeSignInCode(input: { code: string }): Promise<OAuthSignInAdult | null>;
@@ -53,7 +49,7 @@ export type OAuthSignInGateway = {
 export async function requestOAuthSignIn(
   gateway: OAuthSignInGateway,
   input: {
-    provider: "google" | "apple";
+    provider: OAuthSignInProvider;
     redirectTo: string;
     appEnv: AppEnv;
     authOrigin: string;
@@ -61,7 +57,7 @@ export async function requestOAuthSignIn(
 ): Promise<OAuthSignInNavigation> {
   return startOAuthBrowserSignIn(gateway, {
     ...input,
-    settings: OAUTH_PROVIDER_SETTINGS[input.provider],
+    settings: OAUTH_SIGN_IN_PROVIDER_SETTINGS[input.provider],
   });
 }
 
@@ -72,7 +68,7 @@ export async function requestOAuthSignIn(
 export async function startOAuthBrowserSignIn(
   gateway: OAuthSignInGateway,
   input: {
-    provider: "google" | "apple";
+    provider: OAuthSignInProvider;
     redirectTo: string;
     appEnv: AppEnv;
     authOrigin: string;
@@ -104,7 +100,7 @@ export async function completeOAuthSignIn(
 ): Promise<AuthSessionSnapshot> {
   return finishOAuthBrowserSignIn(gateway, {
     ...input,
-    settings: OAUTH_PROVIDER_SETTINGS,
+    settings: OAUTH_SIGN_IN_PROVIDER_SETTINGS,
   });
 }
 
@@ -113,13 +109,10 @@ export async function finishOAuthBrowserSignIn(
   input: {
     callbackUrl: string;
     appEnv: AppEnv;
-    settings: { google: OAuthProviderSettings; apple: OAuthProviderSettings };
+    settings: Record<OAuthSignInProvider, OAuthProviderSettings>;
   },
 ): Promise<AuthSessionSnapshot> {
-  if (
-    !oauthProviderReady(input.settings.google) &&
-    !oauthProviderReady(input.settings.apple)
-  ) {
+  if (!Object.values(input.settings).some(oauthProviderReady)) {
     throw unavailable();
   }
   rejectUnsafeCallback(input.callbackUrl);

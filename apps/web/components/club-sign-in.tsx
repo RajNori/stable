@@ -35,7 +35,7 @@ type ClubSignInProps = {
   readonly session: AuthSessionSnapshot;
   readonly actions: ClubSignInActions;
   readonly providerSettings?: AuthProviderSettings;
-  readonly onProvider?: (provider: "google" | "apple") => void;
+  readonly onProvider?: (provider: "google" | "facebook") => Promise<void>;
   readonly notice?: string | null;
 };
 
@@ -100,7 +100,10 @@ export function ClubSignIn({
   const startGoogle = providerButtonReady(providerSettings.google, onProvider)
     ? onProvider
     : undefined;
-  const startApple = providerButtonReady(providerSettings.apple, onProvider)
+  const startFacebook = providerButtonReady(
+    providerSettings.facebook,
+    onProvider,
+  )
     ? onProvider
     : undefined;
 
@@ -272,22 +275,22 @@ export function ClubSignIn({
                     type="button"
                     disabled={busy}
                     onClick={() => {
-                      startGoogle("google");
+                      void run(() => startGoogle("google"));
                     }}
                   >
                     Continue with Google
                   </button>
                 ) : null}
-                {startApple !== undefined ? (
+                {startFacebook !== undefined ? (
                   <button
                     className="club-sign-in-secondary"
                     type="button"
                     disabled={busy}
                     onClick={() => {
-                      startApple("apple");
+                      void run(() => startFacebook("facebook"));
                     }}
                   >
-                    Continue with Apple
+                    Continue with Facebook
                   </button>
                 ) : null}
               </>

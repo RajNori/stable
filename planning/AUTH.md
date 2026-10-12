@@ -14,6 +14,11 @@ experience is intentionally different by client:
 - Social-only users are not offered a password reset flow that cannot help them.
 - Do not add mobile password login or automatically add Google/Facebook to mobile.
 - Apple sign-in is outside the approved M5B target.
+- Web Google/Facebook buttons remain hidden unless the corresponding
+  `NEXT_PUBLIC_*_SIGN_IN_ENABLED=true` and public client ID are present. These
+  IDs are identifiers, not provider secrets; the matching Supabase Auth
+  provider and exact callback must also be configured. Provider secrets never
+  belong in a `NEXT_PUBLIC_*` variable.
 - Players do not authenticate in V1.
 - Authentication proves adult identity only; it never creates membership or grants a capability.
 
