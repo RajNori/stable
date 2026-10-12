@@ -683,19 +683,55 @@ select extensions.dblink_exec(
   $setup$
     do $body$
     begin
-      delete from public.notification_provider_receipts
-      where provider_receipt_id = 'expo-receipt-parallel-claim-test';
-      delete from public.notification_deliveries
-      where event_key = 'receipt-parallel-claim-test';
-      delete from public.notification_requests
-      where id = '9f9f9f9f-9f9f-49f9-89f9-9f9f9f9f9f03';
-      delete from public.device_endpoints
-      where id = '9f9f9f9f-9f9f-49f9-89f9-9f9f9f9f9f02';
-      delete from public.profiles
-      where user_id = '9f9f9f9f-9f9f-49f9-89f9-9f9f9f9f9f01';
-      delete from auth.users
-      where id = '9f9f9f9f-9f9f-49f9-89f9-9f9f9f9f9f01';
+      if exists (
+        select 1 from public.clubs
+        where id = 'adadadad-adad-4dad-8dad-adadadadad01'
+      ) or exists (
+        select 1 from public.seasons
+        where id = 'adadadad-adad-4dad-8dad-adadadadad02'
+      ) or exists (
+        select 1 from public.teams
+        where id = 'adadadad-adad-4dad-8dad-adadadadad03'
+      ) or exists (
+        select 1 from auth.users
+        where id = '9f9f9f9f-9f9f-49f9-89f9-9f9f9f9f9f01'
+      ) or exists (
+        select 1 from public.profiles
+        where user_id = '9f9f9f9f-9f9f-49f9-89f9-9f9f9f9f9f01'
+      ) or exists (
+        select 1 from public.device_endpoints
+        where id = '9f9f9f9f-9f9f-49f9-89f9-9f9f9f9f9f02'
+      ) or exists (
+        select 1 from public.notification_requests
+        where id = '9f9f9f9f-9f9f-49f9-89f9-9f9f9f9f9f03'
+      ) or exists (
+        select 1 from public.notification_deliveries
+        where event_key = 'receipt-parallel-claim-test'
+      ) or exists (
+        select 1 from public.notification_provider_receipts
+        where provider_receipt_id = 'expo-receipt-parallel-claim-test'
+      ) then
+        raise exception 'RECEIPT_RACE_FIXTURE_ID_COLLISION';
+      end if;
 
+      insert into public.clubs (id, name, slug, timezone, theme_key)
+      values (
+        'adadadad-adad-4dad-8dad-adadadadad01',
+        'Receipt Race Club', 'receipt-race-club', 'Australia/Melbourne', 'mustangs'
+      );
+      insert into public.seasons (id, club_id, name)
+      values (
+        'adadadad-adad-4dad-8dad-adadadadad02',
+        'adadadad-adad-4dad-8dad-adadadadad01',
+        'Receipt Race Season'
+      );
+      insert into public.teams (id, club_id, season_id, name)
+      values (
+        'adadadad-adad-4dad-8dad-adadadadad03',
+        'adadadad-adad-4dad-8dad-adadadadad01',
+        'adadadad-adad-4dad-8dad-adadadadad02',
+        'Receipt Race Team'
+      );
       insert into auth.users (
         instance_id, id, aud, role, email, encrypted_password,
         email_confirmed_at, raw_app_meta_data, raw_user_meta_data,
@@ -724,8 +760,8 @@ select extensions.dblink_exec(
         recipient_user_id, payload, status
       ) values (
         '9f9f9f9f-9f9f-49f9-89f9-9f9f9f9f9f03',
-        '11111111-1111-4111-8111-111111111111',
-        '99999999-9999-4999-8999-999999999999',
+        'adadadad-adad-4dad-8dad-adadadadad01',
+        'adadadad-adad-4dad-8dad-adadadadad03',
         'GAME_REMINDER', '9f9f9f9f-9f9f-49f9-89f9-9f9f9f9f9f04',
         '9f9f9f9f-9f9f-49f9-89f9-9f9f9f9f9f01', '{}', 'SENT'
       );
@@ -817,6 +853,12 @@ select extensions.dblink_exec(
       where event_key = 'receipt-parallel-claim-test';
       delete from public.notification_requests
       where id = '9f9f9f9f-9f9f-49f9-89f9-9f9f9f9f9f03';
+      delete from public.teams
+      where id = 'adadadad-adad-4dad-8dad-adadadadad03';
+      delete from public.seasons
+      where id = 'adadadad-adad-4dad-8dad-adadadadad02';
+      delete from public.clubs
+      where id = 'adadadad-adad-4dad-8dad-adadadadad01';
       delete from public.device_endpoints
       where id = '9f9f9f9f-9f9f-49f9-89f9-9f9f9f9f9f02';
       delete from public.profiles

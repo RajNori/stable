@@ -42,6 +42,8 @@ type MobileAuthGateProps = {
       >)
     | undefined;
   readonly clearFailedCallbackSession?: (() => Promise<void>) | undefined;
+  readonly beforeAcceptAuthenticated?:
+    ((next: AuthSessionSnapshot) => Promise<void>) | undefined;
   readonly linking?: MobileLinking;
   readonly clearPrivateCache?: (
     previousUserId: string | null,
@@ -55,6 +57,7 @@ export function MobileAuthGate({
   actions,
   beforeCompleteCallback,
   clearFailedCallbackSession,
+  beforeAcceptAuthenticated,
   linking,
   clearPrivateCache = noopClearPrivateCache,
   authenticated,
@@ -156,6 +159,7 @@ export function MobileAuthGate({
           const next = await actions.completeCallback(url);
           callbackExchangeSucceeded = true;
           await completeTransition?.(next);
+          await beforeAcceptAuthenticated?.(next);
           const updateResult = await updateSession(next, transition);
           if (updateResult === "cache-clear-failed") {
             await clearFailedCallbackSession?.();
@@ -209,6 +213,7 @@ export function MobileAuthGate({
   }, [
     actions,
     beforeCompleteCallback,
+    beforeAcceptAuthenticated,
     beginSessionTransition,
     clearFailedCallbackSession,
     enqueueSessionOperation,
@@ -268,10 +273,9 @@ export function MobileAuthGate({
           verifyPhone: async (phone, token) => {
             await enqueueSessionOperation(async () => {
               const transition = beginSessionTransition();
-              await updateSession(
-                await actions.verifyPhone(phone, token),
-                transition,
-              );
+              const next = await actions.verifyPhone(phone, token);
+              await beforeAcceptAuthenticated?.(next);
+              await updateSession(next, transition);
             });
           },
           requestEmail: actions.requestEmail,
