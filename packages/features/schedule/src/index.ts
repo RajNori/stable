@@ -6,6 +6,7 @@ export {
   listTeamSchedule,
   scheduleEntrySchema,
 } from "./application/schedule-commands.js";
+export { formatScheduleDateTime } from "./application/schedule-time.js";
 export type {
   ScheduleAccess,
   ScheduleEntry,

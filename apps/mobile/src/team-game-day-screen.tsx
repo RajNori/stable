@@ -3,6 +3,7 @@ import type { CurrentClubContext } from "@stable/contracts";
 import { themeFor } from "@stable/design-tokens";
 import type { GameDayProjection } from "@stable/game-day";
 import { gameDayMessages } from "@stable/game-day";
+import { formatScheduleDateTime } from "@stable/schedule";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import React, { useEffect, useRef } from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
@@ -177,14 +178,16 @@ export function TeamGameDayScreen({
   const gameDay = useQuery({
     queryKey: ["game-day", teamId],
     queryFn: async () => {
+      const currentContext = context.data;
       if (
         teamId === null ||
-        context.data === undefined ||
-        context.data.activeTeam === null
+        currentContext === undefined ||
+        currentContext.club === null ||
+        currentContext.activeTeam === null
       ) {
         throw new Error(gameDayMessages.readFailed);
       }
-      const team = context.data.activeTeam;
+      const team = currentContext.activeTeam;
       const projection = await loadGameDay(teamId);
       if (
         projection !== null &&
@@ -197,6 +200,7 @@ export function TeamGameDayScreen({
           gameDaySnapshotFromProjection({
             userId,
             teamName: team.name,
+            timezone: currentContext.club.timezone,
             projection,
             savedAt: new Date(now).toISOString(),
           }),
@@ -490,10 +494,25 @@ export function TeamGameDayScreen({
   }
 
   const projection = gameDay.data;
+  const timezone = context.data.club.timezone;
   return (
     <View style={styles.screen}>
       <Text accessibilityRole="header" style={styles.title}>
         {projection.roundLabel ?? "Game"}: {projection.opponentName}
+      </Text>
+      <Text style={styles.body}>
+        Official start{" "}
+        {formatScheduleDateTime(projection.officialStartAt, timezone)}
+      </Text>
+      <Text style={styles.body}>
+        Arrival{" "}
+        {projection.arrivalAt === null
+          ? "Not set"
+          : formatScheduleDateTime(projection.arrivalAt, timezone)}
+      </Text>
+      <Text style={styles.body}>Venue {projection.venueText ?? "Not set"}</Text>
+      <Text style={styles.body}>
+        Court {projection.courtLabel ?? "Not set"}
       </Text>
       {loadRsvpChoices === undefined ? (
         <Text style={styles.body}>RSVP {projection.ownRsvp}</Text>

@@ -32,6 +32,7 @@ describe("schedule panel", () => {
     render(
       <SchedulePanel
         teamName="U14 Boys"
+        timezone="Australia/Melbourne"
         entries={[entry("GAME"), entry("TRAINING")]}
       />,
     );
@@ -42,7 +43,13 @@ describe("schedule panel", () => {
   });
 
   it("shows an empty range", () => {
-    render(<SchedulePanel teamName="U14 Boys" entries={[]} />);
+    render(
+      <SchedulePanel
+        teamName="U14 Boys"
+        timezone="Australia/Melbourne"
+        entries={[]}
+      />,
+    );
     expect(screen.getByText("No events in this range.")).toBeTruthy();
   });
 
@@ -50,6 +57,7 @@ describe("schedule panel", () => {
     render(
       <SchedulePanel
         teamName="U14 Boys"
+        timezone="Australia/Melbourne"
         error="Schedule could not be refreshed."
         entries={[
           {

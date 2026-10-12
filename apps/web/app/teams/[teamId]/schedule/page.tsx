@@ -71,7 +71,12 @@ export default async function TeamSchedulePage({ params }: SchedulePageProps) {
 
   return (
     <ClubAdminShell presentation={presentation}>
-      <SchedulePanel teamName={team.name} entries={entries} error={error} />
+      <SchedulePanel
+        teamName={team.name}
+        timezone={club.timezone}
+        entries={entries}
+        error={error}
+      />
     </ClubAdminShell>
   );
 }

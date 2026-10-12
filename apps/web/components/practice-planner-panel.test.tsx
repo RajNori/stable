@@ -6,6 +6,7 @@ import { PracticePlannerPanel } from "./practice-planner-panel";
 const props = {
   clubId: "10000000-0000-4000-8000-000000000001",
   teamId: "20000000-0000-4000-8000-000000000001",
+  timezone: "Australia/Melbourne",
   trainings: [
     {
       eventId: "30000000-0000-4000-8000-000000000001",
@@ -55,6 +56,9 @@ describe("practice planner panel", () => {
     ).toBeTruthy();
     expect(screen.getAllByLabelText("Plan title").length).toBe(2);
     expect(screen.getAllByLabelText(/PASSING/).length).toBeGreaterThan(0);
+    expect(
+      screen.getAllByText("PASSING · Thursday 8 October at 11:00 am"),
+    ).toHaveLength(2);
     expect(screen.getByRole("button", { name: "Apply template" })).toBeTruthy();
     expect(
       screen.getAllByRole("option", { name: "Passing triangles" }).length,

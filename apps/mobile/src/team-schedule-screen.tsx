@@ -2,7 +2,7 @@ import { ApplicationError } from "@stable/contracts";
 import type { CurrentClubContext } from "@stable/contracts";
 import { themeFor } from "@stable/design-tokens";
 import type { ScheduleEntry } from "@stable/schedule";
-import { scheduleMessages } from "@stable/schedule";
+import { formatScheduleDateTime, scheduleMessages } from "@stable/schedule";
 import { useQuery } from "@tanstack/react-query";
 import React from "react";
 import { StyleSheet, Text, View } from "react-native";
@@ -35,13 +35,14 @@ function message(error: unknown): string {
   return scheduleMessages.readFailed;
 }
 
-function label(entry: ScheduleEntry): string {
+function label(entry: ScheduleEntry, timezone: string): string {
+  const time = formatScheduleDateTime(entry.startsAt, timezone);
   if (entry.eventType === "TRAINING") {
-    return `Training at ${entry.startsAt}`;
+    return `Training at ${time}`;
   }
   const round = entry.roundLabel ?? "Game";
   const opponent = entry.opponentName ?? "Opponent";
-  return `${round}: ${opponent} at ${entry.startsAt}`;
+  return `${round}: ${opponent} at ${time}`;
 }
 
 export function TeamScheduleScreen({
@@ -78,11 +79,7 @@ export function TeamScheduleScreen({
     );
   }
 
-  if (
-    context.isError ||
-    context.data === undefined ||
-    context.data.club === null
-  ) {
+  if (context.isError || context.data === undefined) {
     return (
       <View style={styles.screen}>
         <Text accessibilityRole="header" style={styles.title}>
@@ -94,7 +91,19 @@ export function TeamScheduleScreen({
     );
   }
 
-  if (context.data.activeTeam === null) {
+  const currentContext = context.data;
+  const timezone = currentContext.club?.timezone;
+  if (timezone === undefined) {
+    return (
+      <View style={styles.screen}>
+        <Text accessibilityRole="header" style={styles.title}>
+          {scheduleMessages.forbidden}
+        </Text>
+      </View>
+    );
+  }
+
+  if (currentContext.activeTeam === null) {
     return (
       <View style={styles.screen}>
         <Text accessibilityRole="header" style={styles.title}>
@@ -125,14 +134,14 @@ export function TeamScheduleScreen({
   return (
     <View style={styles.screen}>
       <Text accessibilityRole="header" style={styles.title}>
-        {context.data.activeTeam.name}
+        {currentContext.activeTeam.name}
       </Text>
       {schedule.data.length === 0 ? (
         <Text style={styles.body}>No events in this range.</Text>
       ) : null}
       {schedule.data.map((entry) => (
         <Text key={entry.eventId} style={styles.body}>
-          {label(entry)}
+          {label(entry, timezone)}
         </Text>
       ))}
     </View>

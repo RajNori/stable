@@ -3,6 +3,7 @@ import type { CurrentClubContext } from "@stable/contracts";
 import { themeFor } from "@stable/design-tokens";
 import type { GameDayProjection } from "@stable/game-day";
 import type { ScheduleEntry } from "@stable/schedule";
+import { formatScheduleDateTime } from "@stable/schedule";
 import { useQuery } from "@tanstack/react-query";
 import React from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
@@ -55,14 +56,7 @@ function eventTitle(event: ScheduleEntry): string {
 }
 
 function eventTime(event: ScheduleEntry, timezone: string): string {
-  return new Intl.DateTimeFormat(undefined, {
-    weekday: "long",
-    day: "numeric",
-    month: "long",
-    hour: "numeric",
-    minute: "2-digit",
-    timeZone: timezone,
-  }).format(new Date(event.startsAt));
+  return formatScheduleDateTime(event.startsAt, timezone);
 }
 
 export function GuardianHomeScreen({

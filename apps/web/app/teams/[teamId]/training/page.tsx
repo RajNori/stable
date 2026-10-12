@@ -159,6 +159,7 @@ export default async function TrainingPage({
       <PracticePlannerPanel
         clubId={club.id}
         teamId={team.id}
+        timezone={club.timezone}
         trainings={plannerData.trainings}
         templates={plannerData.templates}
         focusOptions={plannerData.focusOptions}

@@ -70,10 +70,12 @@ describe("team schedule screen", () => {
     );
 
     expect(
-      await screen.findByText("Round 1: Visitors at 2026-10-10T07:30:00.000Z"),
+      await screen.findByText(
+        "Round 1: Visitors at Saturday 10 October at 6:30 pm",
+      ),
     ).toBeTruthy();
     expect(
-      screen.getByText("Training at 2026-10-12T07:00:00.000Z"),
+      screen.getByText("Training at Monday 12 October at 6:00 pm"),
     ).toBeTruthy();
     expect(calls).toEqual([teamId]);
   });
@@ -222,7 +224,9 @@ describe("team schedule screen", () => {
     );
 
     expect(
-      await screen.findByText("Game: Opponent at 2026-10-10T07:30:00.000Z"),
+      await screen.findByText(
+        "Game: Opponent at Saturday 10 October at 6:30 pm",
+      ),
     ).toBeTruthy();
   });
 });

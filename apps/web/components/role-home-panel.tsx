@@ -1,7 +1,7 @@
 import type { GameDayProjection } from "@stable/game-day";
 import type { AnnouncementRecord } from "@stable/announcements";
 import { themeFor } from "@stable/design-tokens";
-import type { ScheduleEntry } from "@stable/schedule";
+import { formatScheduleDateTime, type ScheduleEntry } from "@stable/schedule";
 
 export type RoleHomeTeam = { id: string; name: string };
 export type RoleHomeRole =
@@ -74,14 +74,7 @@ export function RoleHomePanel({
 
   const isGuardian = role === "Guardian";
   const formatDate = (event: ScheduleEntry) =>
-    new Intl.DateTimeFormat("en-AU", {
-      timeZone: timezone,
-      weekday: "long",
-      day: "numeric",
-      month: "long",
-      hour: "numeric",
-      minute: "2-digit",
-    }).format(new Date(event.startsAt));
+    formatScheduleDateTime(event.startsAt, timezone);
 
   return (
     <section
@@ -133,12 +126,7 @@ export function RoleHomePanel({
             <p>{formatDate(nextGame)}</p>
             {gameDay?.arrivalAt ? (
               <p>
-                Arrive{" "}
-                {new Intl.DateTimeFormat("en-AU", {
-                  timeZone: timezone,
-                  hour: "numeric",
-                  minute: "2-digit",
-                }).format(new Date(gameDay.arrivalAt))}
+                Arrive {formatScheduleDateTime(gameDay.arrivalAt, timezone)}
                 {gameDay.venueText ? ` · ${gameDay.venueText}` : ""}
                 {gameDay.courtLabel ? ` · ${gameDay.courtLabel}` : ""}
               </p>

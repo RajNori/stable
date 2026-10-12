@@ -1,3 +1,5 @@
+import { formatScheduleDateTime } from "@stable/schedule";
+
 import type {
   FocusOption,
   PracticeDrill,
@@ -14,6 +16,7 @@ function PlanFields({
   trainingEventId,
   clubId,
   teamId,
+  timezone,
   save,
 }: {
   plan: PracticePlan | null;
@@ -22,6 +25,7 @@ function PlanFields({
   trainingEventId: string | null;
   clubId: string;
   teamId: string;
+  timezone: string;
   save: Action;
 }) {
   const blocks = plan?.blocks ?? [];
@@ -145,7 +149,8 @@ function PlanFields({
                   value={value}
                   defaultChecked={selected.has(value)}
                 />
-                {focus.code} · {focus.reviewedAt}
+                {focus.code} ·{" "}
+                {formatScheduleDateTime(focus.reviewedAt, timezone)}
               </label>
             );
           })
@@ -159,6 +164,7 @@ function PlanFields({
 export function PracticePlannerPanel({
   clubId,
   teamId,
+  timezone,
   trainings,
   templates,
   focusOptions,
@@ -171,6 +177,7 @@ export function PracticePlannerPanel({
 }: {
   clubId: string;
   teamId: string;
+  timezone: string;
   trainings: TrainingOption[];
   templates: PracticePlan[];
   focusOptions: FocusOption[];
@@ -197,7 +204,9 @@ export function PracticePlannerPanel({
         return (
           <article key={training.eventId}>
             <h3>
-              Training · {training.startsAt} · {duration}
+              Training · {formatScheduleDateTime(training.startsAt, timezone)}
+              {" · "}
+              {duration}
             </h3>
             <PlanFields
               plan={training.plan}
@@ -206,6 +215,7 @@ export function PracticePlannerPanel({
               trainingEventId={training.eventId}
               clubId={clubId}
               teamId={teamId}
+              timezone={timezone}
               save={save}
             />
             {training.plan === null && templates.length > 0 ? (
@@ -275,6 +285,7 @@ export function PracticePlannerPanel({
         trainingEventId={null}
         clubId={clubId}
         teamId={teamId}
+        timezone={timezone}
         save={save}
       />
       <h3>Team drill library</h3>

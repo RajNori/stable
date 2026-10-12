@@ -25,6 +25,7 @@ describe("post-game review panel", () => {
   it("shows separate review fields, typed focus and explicit completion action", () => {
     render(
       <PostGameReviewPanel
+        timezone="Australia/Melbourne"
         review={review}
         players={[player]}
         privateNotes={new Map()}
@@ -61,6 +62,7 @@ describe("post-game review panel", () => {
   it("renders private-note affordance only for an active team coach", () => {
     const { rerender } = render(
       <PostGameReviewPanel
+        timezone="Australia/Melbourne"
         review={review}
         players={[player]}
         privateNotes={new Map([[player.playerId, "confidence"]])}
@@ -81,6 +83,7 @@ describe("post-game review panel", () => {
     ).toBe("confidence");
     rerender(
       <PostGameReviewPanel
+        timezone="Australia/Melbourne"
         review={review}
         players={[player]}
         privateNotes={new Map()}
@@ -103,6 +106,7 @@ describe("post-game review panel", () => {
   it("does not expose a public leaderboard or manager mutation surface", () => {
     render(
       <PostGameReviewPanel
+        timezone="Australia/Melbourne"
         review={review}
         players={[player]}
         privateNotes={new Map()}
@@ -130,6 +134,7 @@ describe("post-game review panel", () => {
     };
     render(
       <PostGameReviewPanel
+        timezone="Australia/Melbourne"
         review={review}
         players={[player, unlinked]}
         privateNotes={new Map()}
@@ -150,6 +155,7 @@ describe("post-game review panel", () => {
   it("renders a completed review and historical recognition without edit controls", () => {
     render(
       <PostGameReviewPanel
+        timezone="Australia/Melbourne"
         review={{
           ...review,
           completedAt: "2026-10-07T00:00:00.000Z",
@@ -172,7 +178,9 @@ describe("post-game review panel", () => {
       />,
     );
 
-    expect(screen.getByText("Completed 2026-10-07T00:00:00.000Z")).toBeTruthy();
+    expect(
+      screen.getByText("Completed Wednesday 7 October at 11:00 am"),
+    ).toBeTruthy();
     expect(screen.getByText("Player: Hustle")).toBeTruthy();
     expect(screen.queryByRole("button", { name: /Remove/ })).toBeNull();
     expect(
@@ -185,6 +193,7 @@ describe("post-game review panel", () => {
   it("shows a recognized player's optional staff note and coach removal action", () => {
     render(
       <PostGameReviewPanel
+        timezone="Australia/Melbourne"
         review={{
           ...review,
           recognitions: [

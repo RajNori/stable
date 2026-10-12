@@ -12,6 +12,7 @@ import {
   gameDaySnapshotFreshness,
   type GameDaySnapshot,
 } from "./game-day-snapshot";
+import { formatScheduleDateTime } from "@stable/schedule";
 
 const theme = themeFor("mustangs");
 
@@ -41,10 +42,14 @@ export function OfflineGameDayView({
 }) {
   const freshness =
     snapshot === null ? null : gameDaySnapshotFreshness(snapshot.savedAt, now);
+  const savedAt =
+    snapshot?.timezone === undefined
+      ? "before the latest app update"
+      : formatScheduleDateTime(snapshot.savedAt, snapshot.timezone);
   const statusAnnouncement =
     snapshot === null
       ? null
-      : `Offline. Last updated ${snapshot.savedAt}${freshness === "stale" ? ". This snapshot is stale." : "."}`;
+      : `Offline. Last updated ${savedAt}${freshness === "stale" ? ". This snapshot is stale." : "."}`;
 
   useEffect(() => {
     if (Platform.OS === "ios" && statusAnnouncement !== null) {
@@ -66,8 +71,24 @@ export function OfflineGameDayView({
         {snapshot.teamName}: {snapshot.opponentName}
       </Text>
       <Text accessibilityLiveRegion="polite" style={styles.body}>
-        Offline · Last updated {snapshot.savedAt}
+        Offline · Last updated {savedAt}
       </Text>
+      <Text style={styles.body}>
+        Official start{" "}
+        {snapshot.timezone === undefined
+          ? "Time unavailable offline"
+          : formatScheduleDateTime(snapshot.officialStartAt, snapshot.timezone)}
+      </Text>
+      <Text style={styles.body}>
+        Arrival{" "}
+        {snapshot.arrivalAt === null
+          ? "Not set"
+          : snapshot.timezone === undefined
+            ? "Time unavailable offline"
+            : formatScheduleDateTime(snapshot.arrivalAt, snapshot.timezone)}
+      </Text>
+      <Text style={styles.body}>Venue {snapshot.venueText ?? "Not set"}</Text>
+      <Text style={styles.body}>Court {snapshot.courtLabel ?? "Not set"}</Text>
       {freshness === "stale" ? (
         <Text accessibilityLiveRegion="polite" style={styles.body}>
           This snapshot is stale.

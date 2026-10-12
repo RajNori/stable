@@ -9,6 +9,7 @@ export type GameDaySnapshot = {
   userId: string;
   teamId: string;
   teamName: string;
+  timezone?: string;
   opponentName: string;
   officialStartAt: string;
   arrivalAt: string | null;
@@ -27,7 +28,7 @@ export type GameDaySnapshot = {
   savedAt: string;
 };
 
-const SNAPSHOT_KEYS = [
+const REQUIRED_SNAPSHOT_KEYS = [
   "version",
   "userId",
   "teamId",
@@ -48,6 +49,11 @@ const SNAPSHOT_KEYS = [
   "unsureCount",
   "unansweredCount",
   "savedAt",
+] as const;
+const OPTIONAL_SNAPSHOT_KEYS = ["timezone"] as const;
+const SNAPSHOT_KEYS = [
+  ...REQUIRED_SNAPSHOT_KEYS,
+  ...OPTIONAL_SNAPSHOT_KEYS,
 ] as const;
 
 export type GameDaySnapshotStore = {
@@ -80,8 +86,9 @@ function isSnapshot(value: unknown): value is GameDaySnapshot {
   }
   const keys = Object.keys(value);
   if (
-    keys.length !== SNAPSHOT_KEYS.length ||
-    SNAPSHOT_KEYS.some((key) => !keys.includes(key))
+    keys.length < REQUIRED_SNAPSHOT_KEYS.length ||
+    keys.some((key) => !SNAPSHOT_KEYS.some((allowed) => allowed === key)) ||
+    REQUIRED_SNAPSHOT_KEYS.some((key) => !keys.includes(key))
   ) {
     return false;
   }
@@ -91,6 +98,7 @@ function isSnapshot(value: unknown): value is GameDaySnapshot {
     isText(value["teamId"]) &&
     isText(value["teamName"]) &&
     value["teamName"].length > 0 &&
+    (value["timezone"] === undefined || isText(value["timezone"])) &&
     isText(value["opponentName"]) &&
     isText(value["officialStartAt"]) &&
     isNullableText(value["arrivalAt"]) &&
@@ -129,6 +137,7 @@ export function memoryGameDaySnapshotStore(): GameDaySnapshotStore {
 export function gameDaySnapshotFromProjection(input: {
   userId: string;
   teamName: string;
+  timezone?: string;
   projection: GameDayProjection;
   savedAt: string;
 }): GameDaySnapshot {
@@ -137,6 +146,7 @@ export function gameDaySnapshotFromProjection(input: {
     userId: input.userId,
     teamId: input.projection.teamId,
     teamName: input.teamName,
+    ...(input.timezone === undefined ? {} : { timezone: input.timezone }),
     opponentName: input.projection.opponentName,
     officialStartAt: input.projection.officialStartAt,
     arrivalAt: input.projection.arrivalAt,

@@ -1,3 +1,5 @@
+import { formatScheduleDateTime } from "@stable/schedule";
+
 export function TrainingPanel({
   clubId,
   teamId,
@@ -31,7 +33,9 @@ export function TrainingPanel({
           <input type="hidden" name="clubId" value={clubId} />
           <input type="hidden" name="teamId" value={teamId} />
           <input type="hidden" name="eventId" value={session.eventId} />
-          <p>Training at {session.startsAt}</p>
+          <p>
+            Training at {formatScheduleDateTime(session.startsAt, timezone)}
+          </p>
           {canCheckIn ? <button type="submit">Check in</button> : null}
         </form>
       ))}

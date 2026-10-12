@@ -31,7 +31,7 @@ describe("training panel", () => {
       />,
     );
     expect(
-      screen.getByText("Training at 2026-10-14T07:30:00.000Z"),
+      screen.getByText("Training at Wednesday 14 October at 6:30 pm"),
     ).toBeTruthy();
     expect(screen.getByRole("button", { name: "Check in" })).toBeTruthy();
     expect(screen.getByRole("button", { name: "Add practice" })).toBeTruthy();
@@ -77,7 +77,9 @@ describe("training panel", () => {
       />,
     );
 
-    expect(screen.getByText("Training at 2026-10-14T07:30:00Z")).toBeTruthy();
+    expect(
+      screen.getByText("Training at Wednesday 14 October at 6:30 pm"),
+    ).toBeTruthy();
     expect(screen.queryByRole("button", { name: "Check in" })).toBeNull();
     expect(screen.queryByRole("button", { name: "Add practice" })).toBeNull();
     expect(

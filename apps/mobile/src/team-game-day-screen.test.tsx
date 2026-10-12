@@ -313,7 +313,7 @@ describe("team game day screen", () => {
     );
     expect(
       await screen.findByText(
-        "Offline · Last updated 2026-10-07T01:00:00.000Z",
+        "Offline · Last updated Wednesday 7 October at 12:00 pm",
       ),
     ).toBeTruthy();
     expect(screen.getByText("Save RSVP").props.accessibilityState).toEqual({
@@ -333,6 +333,7 @@ describe("team game day screen", () => {
       gameDaySnapshotFromProjection({
         userId: context.userId,
         teamName: "U14 Boys",
+        timezone: "Australia/Melbourne",
         projection,
         savedAt: "2026-10-07T01:00:00.000Z",
       }),
@@ -352,7 +353,7 @@ describe("team game day screen", () => {
 
     expect(
       await screen.findByText(
-        "Offline · Last updated 2026-10-07T01:00:00.000Z",
+        "Offline · Last updated Wednesday 7 October at 12:00 pm",
       ),
     ).toBeTruthy();
     expect(screen.getByText("U14 Boys: Visitors")).toBeTruthy();
@@ -377,6 +378,7 @@ describe("team game day screen", () => {
       gameDaySnapshotFromProjection({
         userId: context.userId,
         teamName: "U14 Boys",
+        timezone: "Australia/Melbourne",
         projection,
         savedAt: "2026-10-07T01:00:00.000Z",
       }),
@@ -455,6 +457,7 @@ describe("team game day screen", () => {
       gameDaySnapshotFromProjection({
         userId: context.userId,
         teamName: "U14 Boys",
+        timezone: "Australia/Melbourne",
         projection,
         savedAt: "2026-10-07T01:00:00.000Z",
       }),
@@ -474,6 +477,7 @@ describe("team game day screen", () => {
       gameDaySnapshotFromProjection({
         userId: context.userId,
         teamName: "U14 Boys",
+        timezone: "Australia/Melbourne",
         projection,
         savedAt: "2026-10-07T01:00:00.000Z",
       }),
@@ -504,6 +508,7 @@ describe("team game day screen", () => {
       gameDaySnapshotFromProjection({
         userId: context.userId,
         teamName: "U14 Boys",
+        timezone: "Australia/Melbourne",
         projection,
         savedAt: "2026-10-07T01:00:00.000Z",
       }),
@@ -563,6 +568,7 @@ describe("team game day screen", () => {
       gameDaySnapshotFromProjection({
         userId: context.userId,
         teamName: "U14 Boys",
+        timezone: "Australia/Melbourne",
         projection,
         savedAt: "2026-10-07T01:00:00.000Z",
       }),
@@ -602,6 +608,7 @@ describe("team game day screen", () => {
       gameDaySnapshotFromProjection({
         userId: context.userId,
         teamName: "U14 Boys",
+        timezone: "Australia/Melbourne",
         projection,
         savedAt: "2026-10-07T01:00:00.000Z",
       }),
@@ -627,6 +634,7 @@ describe("team game day screen", () => {
       gameDaySnapshotFromProjection({
         userId: context.userId,
         teamName: "U14 Boys",
+        timezone: "Australia/Melbourne",
         projection,
         savedAt: "2026-10-07T01:00:00.000Z",
       }),
@@ -667,7 +675,7 @@ describe("team game day screen", () => {
 
     expect(
       await screen.findByText(
-        "Offline · Last updated 2026-10-07T01:00:00.000Z",
+        "Offline · Last updated Wednesday 7 October at 12:00 pm",
       ),
     ).toBeTruthy();
     expect(calls.context).toBe(0);
@@ -723,6 +731,7 @@ describe("team game day screen", () => {
       gameDaySnapshotFromProjection({
         userId: context.userId,
         teamName: "U14 Boys",
+        timezone: "Australia/Melbourne",
         projection,
         savedAt: "2026-10-07T01:00:00.000Z",
       }),
@@ -736,7 +745,7 @@ describe("team game day screen", () => {
     });
     expect(
       await screen.findByText(
-        "Offline · Last updated 2026-10-07T01:00:00.000Z",
+        "Offline · Last updated Wednesday 7 October at 12:00 pm",
       ),
     ).toBeTruthy();
     expect(screen.getByText("Save RSVP").props.accessibilityState).toEqual({
@@ -756,6 +765,7 @@ describe("team game day screen", () => {
       gameDaySnapshotFromProjection({
         userId: context.userId,
         teamName: "U14 Boys",
+        timezone: "Australia/Melbourne",
         projection,
         savedAt: "2026-10-07T01:00:00.000Z",
       }),
@@ -769,7 +779,7 @@ describe("team game day screen", () => {
     });
     expect(
       await screen.findByText(
-        "Offline · Last updated 2026-10-07T01:00:00.000Z",
+        "Offline · Last updated Wednesday 7 October at 12:00 pm",
       ),
     ).toBeTruthy();
     expect(screen.getByText("Save RSVP").props.accessibilityState).toEqual({
@@ -787,6 +797,7 @@ describe("team game day screen", () => {
       gameDaySnapshotFromProjection({
         userId: context.userId,
         teamName: "U14 Boys",
+        timezone: "Australia/Melbourne",
         projection,
         savedAt: "2026-10-07T01:00:00.000Z",
       }),
@@ -826,6 +837,7 @@ describe("team game day screen", () => {
       gameDaySnapshotFromProjection({
         userId: context.userId,
         teamName: "U14 Boys",
+        timezone: "Australia/Melbourne",
         projection,
         savedAt: "2026-10-07T01:00:00.000Z",
       }),

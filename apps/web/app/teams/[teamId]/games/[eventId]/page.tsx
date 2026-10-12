@@ -383,6 +383,7 @@ export default async function GameDayPage({
     <ClubAdminShell presentation={presentation}>
       <GameDayPanel
         projection={projection}
+        timezone={club.timezone}
         error={error}
         players={players}
         recordAction={recordAttendanceAction}
@@ -419,6 +420,7 @@ export default async function GameDayPage({
           stats={coachingStats}
           corrections={statCorrections}
           teamId={team.id}
+          timezone={club.timezone}
           canWrite={canWriteCoachingStats}
           scoreAction={saveManualGameResultAction}
           playerStatAction={saveGamePlayerStatAction}
@@ -427,6 +429,7 @@ export default async function GameDayPage({
       {postGameReview !== null ? (
         <PostGameReviewPanel
           review={postGameReview}
+          timezone={club.timezone}
           players={reviewPlayers}
           privateNotes={privateNotes}
           canWrite={canWriteReview}

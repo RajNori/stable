@@ -53,6 +53,7 @@ describe("offline game day view", () => {
     const snapshot = gameDaySnapshotFromProjection({
       userId: "19191919-1919-4919-8919-191919191919",
       teamName: "U14 Boys",
+      timezone: "Australia/Melbourne",
       projection,
       savedAt: "2026-10-07T01:00:00.000Z",
     });
@@ -63,8 +64,8 @@ describe("offline game day view", () => {
       />,
     );
     expect(
-      screen.getByText("Offline · Last updated 2026-10-07T01:00:00.000Z").props
-        .accessibilityLiveRegion,
+      screen.getByText("Offline · Last updated Wednesday 7 October at 12:00 pm")
+        .props.accessibilityLiveRegion,
     ).toBe("polite");
     expect(
       screen.getByText("This snapshot is stale.").props.accessibilityLiveRegion,
@@ -72,6 +73,12 @@ describe("offline game day view", () => {
     expect(
       screen.getByRole("header", { name: "U14 Boys: Visitors" }),
     ).toBeTruthy();
+    expect(
+      screen.getByText("Official start Saturday 10 October at 6:30 pm"),
+    ).toBeTruthy();
+    expect(screen.getByText("Arrival Not set")).toBeTruthy();
+    expect(screen.getByText("Venue Home")).toBeTruthy();
+    expect(screen.getByText("Court Court 1")).toBeTruthy();
     expect(
       screen.getByText(
         "Reconnect to update RSVP, attendance, fixtures, duties, or check-in.",
@@ -83,9 +90,32 @@ describe("offline game day view", () => {
     expect(screen.queryByText(/Fever/)).toBeNull();
     expect(
       announcements.includes(
-        "Offline. Last updated 2026-10-07T01:00:00.000Z. This snapshot is stale.",
+        "Offline. Last updated Wednesday 7 October at 12:00 pm. This snapshot is stale.",
       ),
     ).toBe(true);
     announce.mockRestore();
+  });
+
+  it("keeps legacy cached snapshots readable without showing raw UTC", async () => {
+    const snapshot = gameDaySnapshotFromProjection({
+      userId: "19191919-1919-4919-8919-191919191919",
+      teamName: "U14 Boys",
+      projection,
+      savedAt: "2026-10-07T01:00:00.000Z",
+    });
+    await render(
+      <OfflineGameDayView
+        snapshot={snapshot}
+        now={Date.parse(snapshot.savedAt)}
+      />,
+    );
+
+    expect(
+      screen.getByText("Offline · Last updated before the latest app update"),
+    ).toBeTruthy();
+    expect(
+      screen.getByText("Official start Time unavailable offline"),
+    ).toBeTruthy();
+    expect(screen.queryByText(/2026-10-/)).toBeNull();
   });
 });

@@ -66,6 +66,7 @@ describe("game stats panel", () => {
   it("allows coaches to save manual scores and registered-player stats", () => {
     render(
       <GameStatsPanel
+        timezone="Australia/Melbourne"
         stats={fixture}
         corrections={corrections}
         teamId={fixture.teamId}
@@ -99,6 +100,7 @@ describe("game stats panel", () => {
   it("shows imported results read-only and offers no score form", () => {
     render(
       <GameStatsPanel
+        timezone="Australia/Melbourne"
         stats={{ ...fixture, source: "IMPORT" }}
         corrections={[]}
         teamId={fixture.teamId}
@@ -118,6 +120,7 @@ describe("game stats panel", () => {
   it("permits correction for a transferred historical line", () => {
     render(
       <GameStatsPanel
+        timezone="Australia/Melbourne"
         stats={fixture}
         corrections={[]}
         teamId={fixture.teamId}
@@ -134,6 +137,7 @@ describe("game stats panel", () => {
   it("does not show any write buttons without write access", () => {
     render(
       <GameStatsPanel
+        timezone="Australia/Melbourne"
         stats={fixture}
         corrections={[]}
         teamId={fixture.teamId}

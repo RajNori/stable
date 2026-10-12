@@ -1,7 +1,9 @@
 import type { GameDayProjection } from "@stable/game-day";
+import { formatScheduleDateTime } from "@stable/schedule";
 
 export function GameDayPanel({
   projection,
+  timezone,
   error,
   players = [],
   recordAction,
@@ -21,6 +23,7 @@ export function GameDayPanel({
   respondFillIn,
 }: {
   projection: GameDayProjection | null;
+  timezone: string;
   error?: string | undefined;
   players?: { playerId: string; label: string }[] | undefined;
   recordAction?: ((formData: FormData) => Promise<void>) | undefined;
@@ -50,8 +53,16 @@ export function GameDayPanel({
           <p>
             {projection.roundLabel ?? "Game"}: {projection.opponentName}
           </p>
-          <p>Official start {projection.officialStartAt}</p>
-          <p>Arrival {projection.arrivalAt ?? "Not set"}</p>
+          <p>
+            Official start{" "}
+            {formatScheduleDateTime(projection.officialStartAt, timezone)}
+          </p>
+          <p>
+            Arrival{" "}
+            {projection.arrivalAt === null
+              ? "Not set"
+              : formatScheduleDateTime(projection.arrivalAt, timezone)}
+          </p>
           <p>Venue {projection.venueText ?? "Not set"}</p>
           <p>Court {projection.courtLabel ?? "Not set"}</p>
           <p>Uniform {projection.uniformNote ?? "Not set"}</p>
