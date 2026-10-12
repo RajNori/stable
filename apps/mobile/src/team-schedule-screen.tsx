@@ -4,8 +4,8 @@ import { themeFor } from "@stable/design-tokens";
 import type { ScheduleEntry } from "@stable/schedule";
 import { formatScheduleDateTime, scheduleMessages } from "@stable/schedule";
 import { useQuery } from "@tanstack/react-query";
-import React from "react";
-import { StyleSheet, Text, View } from "react-native";
+import React, { useState } from "react";
+import { Pressable, StyleSheet, Text, View } from "react-native";
 
 const theme = themeFor("mustangs");
 
@@ -26,6 +26,28 @@ const styles = StyleSheet.create({
     fontSize: theme.typeScale.bodyMd.fontSize,
     lineHeight: theme.typeScale.bodyMd.lineHeight,
   },
+  event: {
+    minHeight: 48,
+    justifyContent: "center",
+    gap: theme.space[1],
+    padding: theme.space[3],
+    borderColor: theme.color.border.default,
+    borderWidth: 1,
+    borderRadius: theme.radius.md,
+    backgroundColor: theme.color.background.surface,
+  },
+  eventLabel: {
+    color: theme.color.text.primary,
+    fontSize: theme.typeScale.bodyMd.fontSize,
+    lineHeight: theme.typeScale.bodyMd.lineHeight,
+    fontWeight: "600",
+  },
+  details: {
+    gap: theme.space[2],
+    padding: theme.space[3],
+    borderRadius: theme.radius.md,
+    backgroundColor: theme.color.background.surface,
+  },
 });
 
 function message(error: unknown): string {
@@ -45,6 +67,19 @@ function label(entry: ScheduleEntry, timezone: string): string {
   return `${round}: ${opponent} at ${time}`;
 }
 
+function durationLabel(entry: ScheduleEntry): string | null {
+  if (entry.endsAt === null) return null;
+  const minutes = Math.round(
+    (Date.parse(entry.endsAt) - Date.parse(entry.startsAt)) / 60_000,
+  );
+  if (!Number.isFinite(minutes) || minutes <= 0) return null;
+  const hours = Math.floor(minutes / 60);
+  const remainingMinutes = minutes % 60;
+  if (hours === 0) return `${remainingMinutes} min`;
+  if (remainingMinutes === 0) return `${hours} hr`;
+  return `${hours} hr ${remainingMinutes} min`;
+}
+
 export function TeamScheduleScreen({
   loadContext,
   loadSchedule,
@@ -52,6 +87,7 @@ export function TeamScheduleScreen({
   loadContext: () => Promise<CurrentClubContext>;
   loadSchedule: (teamId: string) => Promise<ScheduleEntry[]>;
 }) {
+  const [expandedEventId, setExpandedEventId] = useState<string | null>(null);
   const context = useQuery({
     queryKey: ["current-club-context"],
     queryFn: loadContext,
@@ -140,9 +176,56 @@ export function TeamScheduleScreen({
         <Text style={styles.body}>No events in this range.</Text>
       ) : null}
       {schedule.data.map((entry) => (
-        <Text key={entry.eventId} style={styles.body}>
-          {label(entry, timezone)}
-        </Text>
+        <View key={entry.eventId} style={{ gap: theme.space[2] }}>
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel={label(entry, timezone)}
+            accessibilityState={{
+              expanded: expandedEventId === entry.eventId,
+            }}
+            onPress={() =>
+              setExpandedEventId((current) =>
+                current === entry.eventId ? null : entry.eventId,
+              )
+            }
+            style={styles.event}
+          >
+            <Text style={styles.eventLabel}>{label(entry, timezone)}</Text>
+            {entry.courtLabel ? (
+              <Text style={styles.body}>Court: {entry.courtLabel}</Text>
+            ) : null}
+          </Pressable>
+          {expandedEventId === entry.eventId ? (
+            <View
+              accessibilityLabel={
+                entry.eventType === "TRAINING"
+                  ? "Training details"
+                  : "Game details"
+              }
+              style={styles.details}
+            >
+              <Text accessibilityRole="header" style={styles.eventLabel}>
+                {entry.eventType === "TRAINING"
+                  ? "Training details"
+                  : "Game details"}
+              </Text>
+              <Text style={styles.body}>
+                {formatScheduleDateTime(entry.startsAt, timezone)}
+              </Text>
+              <Text style={styles.body}>
+                Status: {entry.eventStatus.toLowerCase()}
+              </Text>
+              {entry.courtLabel ? (
+                <Text style={styles.body}>Court: {entry.courtLabel}</Text>
+              ) : null}
+              {durationLabel(entry) !== null ? (
+                <Text style={styles.body}>
+                  Duration: {durationLabel(entry)}
+                </Text>
+              ) : null}
+            </View>
+          ) : null}
+        </View>
       ))}
     </View>
   );
