@@ -36,7 +36,11 @@ type MobileAuthGateProps = {
   readonly restore: () => Promise<AuthSessionSnapshot>;
   readonly signOut: (userId: string) => Promise<AuthSessionSnapshot>;
   readonly actions: GateActions;
-  readonly beforeCompleteCallback?: (() => Promise<void>) | undefined;
+  readonly beforeCompleteCallback?:
+    | (() => Promise<
+        ((next: AuthSessionSnapshot) => Promise<void>) | undefined
+      >)
+    | undefined;
   readonly linking?: MobileLinking;
   readonly clearPrivateCache?: (
     previousUserId: string | null,
@@ -129,8 +133,10 @@ export function MobileAuthGate({
       void (async () => {
         try {
           actions.validateCallback(url);
-          await beforeCompleteCallback?.();
-          await updateSession(await actions.completeCallback(url), transition);
+          const completeTransition = await beforeCompleteCallback?.();
+          const next = await actions.completeCallback(url);
+          await completeTransition?.(next);
+          await updateSession(next, transition);
         } catch (error: unknown) {
           let restored: AuthSessionSnapshot;
           try {

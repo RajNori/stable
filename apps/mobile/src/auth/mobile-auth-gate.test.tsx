@@ -391,6 +391,45 @@ describe("mobile auth gate", () => {
     expect(await screen.findByText("Club home")).toBeTruthy();
   });
 
+  it("does not finalize account-transition cleanup when callback exchange fails", async () => {
+    let receive: ((url: string) => void) | undefined;
+    const finalize = jest.fn(async () => undefined);
+    const beforeCompleteCallback = jest.fn(async () => finalize);
+    const completeCallback = jest.fn(async () => {
+      throw new Error("expired or invalid code");
+    });
+    await render(
+      <MobileAuthGate
+        restore={async () => authenticated}
+        signOut={async () => ({ state: "unauthenticated" })}
+        actions={idleActions({ completeCallback })}
+        beforeCompleteCallback={beforeCompleteCallback}
+        linking={{
+          async getInitialUrl() {
+            return null;
+          },
+          subscribe(listener) {
+            receive = listener;
+            return () => {
+              receive = undefined;
+            };
+          },
+        }}
+        authenticated={() => <Text>Club home</Text>}
+      />,
+    );
+
+    expect(await screen.findByText("Club home")).toBeTruthy();
+    await act(async () => {
+      receive?.("stable://auth/callback?code=syntactically-valid-code");
+      await new Promise<void>((resolve) => setTimeout(resolve, 0));
+    });
+    await waitFor(() => expect(completeCallback.mock.calls.length).toBe(1));
+    expect(beforeCompleteCallback.mock.calls.length).toBe(1);
+    expect(finalize.mock.calls.length).toBe(0);
+    expect(await screen.findByText("Club home")).toBeTruthy();
+  });
+
   it("uses a successful initial auth callback to open the app", async () => {
     const complete = jest.fn(async () => authenticated);
     await render(

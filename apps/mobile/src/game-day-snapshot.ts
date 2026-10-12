@@ -252,6 +252,13 @@ export async function clearUserGameDaySnapshots(
   await store.removeItem(indexKey(userId));
 }
 
+export async function listGameDaySnapshotTeamIds(
+  store: GameDaySnapshotStore,
+  userId: string,
+): Promise<string[]> {
+  return readIndex(store, userId);
+}
+
 function snapshotKey(userId: string, teamId: string): string {
   return `stable.game-day.v1.${userId}.${teamId}`;
 }

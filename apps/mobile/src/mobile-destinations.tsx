@@ -96,6 +96,7 @@ export function MobileDestinations({
   const [selected, setSelected] = useState<MobileDestination>("Home");
   const [selectedTeamId, setSelectedTeamId] = useState<string | null>(null);
   const [switchingTeam, setSwitchingTeam] = useState(false);
+  const [teamSelectionFailed, setTeamSelectionFailed] = useState(false);
   const context = useQuery({
     queryKey: ["mobile-destination-context"],
     queryFn: () => {
@@ -110,9 +111,11 @@ export function MobileDestinations({
   const defaultTeamId =
     baseContext?.activeTeam?.id ??
     (availableTeams.length === 1 ? availableTeams[0]?.id : null);
-  const activeTeamId = availableTeams.some((team) => team.id === selectedTeamId)
-    ? selectedTeamId
-    : defaultTeamId;
+  const activeTeamId = teamSelectionFailed
+    ? null
+    : availableTeams.some((team) => team.id === selectedTeamId)
+      ? selectedTeamId
+      : defaultTeamId;
   const scopedLoadContext = async (): Promise<CurrentClubContext> => {
     const source = baseContext ?? (await loadContext?.());
     if (source === undefined) throw new Error("Context is unavailable");
@@ -125,6 +128,7 @@ export function MobileDestinations({
   async function switchTeam(teamId: string): Promise<void> {
     if (teamId === activeTeamId || switchingTeam) return;
     setSwitchingTeam(true);
+    setTeamSelectionFailed(false);
     await queryClient.cancelQueries();
     queryClient.removeQueries({
       predicate: (query) => query.queryKey[0] !== "mobile-destination-context",
@@ -135,6 +139,9 @@ export function MobileDestinations({
     setSelectedTeamId(teamId);
     try {
       await onTeamSelected?.(teamId);
+    } catch {
+      setSelectedTeamId(null);
+      setTeamSelectionFailed(true);
     } finally {
       setSwitchingTeam(false);
     }
@@ -181,6 +188,11 @@ export function MobileDestinations({
       {switchingTeam ? (
         <Text accessibilityRole="progressbar" style={styles.placeholder}>
           Switching team
+        </Text>
+      ) : null}
+      {teamSelectionFailed ? (
+        <Text accessibilityRole="alert" style={styles.placeholder}>
+          Could not save the team selection. Choose it again when online.
         </Text>
       ) : null}
       <ScrollView

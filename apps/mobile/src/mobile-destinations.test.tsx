@@ -144,4 +144,50 @@ describe("mobile destinations", () => {
     expect(screen.queryByRole("radio", { name: teamB })).toBeNull();
     expect(selectedTeams).toEqual([teamB]);
   });
+
+  it("fails closed and reports when team selection persistence fails", async () => {
+    const context: CurrentClubContext = {
+      userId: "19191919-1919-4919-8919-191919191919",
+      displayName: "Guardian",
+      club: {
+        id: "11111111-1111-4111-8111-111111111111",
+        name: "Club",
+        slug: "club",
+        timezone: "Australia/Melbourne",
+        themeKey: "mustangs",
+      },
+      activeTeam: null,
+      availableTeams: [
+        { id: "99999999-9999-4999-8999-999999999991", name: "U12" },
+        { id: "99999999-9999-4999-8999-999999999992", name: "U14" },
+      ],
+      capabilities: ["club.read"],
+      managedPlayerIds: [],
+    };
+    await render(
+      <QueryClientProvider client={testQueryClient()}>
+        <MobileDestinations
+          loadContext={() => Promise.resolve(context)}
+          onTeamSelected={() => Promise.reject(new Error("secure storage"))}
+          home={<Text>Home</Text>}
+          schedule={<Text>Schedule</Text>}
+          team={<Text>Team</Text>}
+        />
+      </QueryClientProvider>,
+    );
+
+    await userEvent.press(await screen.findByRole("radio", { name: "U14" }));
+
+    expect(
+      await screen.findByText(
+        "Could not save the team selection. Choose it again when online.",
+      ),
+    ).toBeTruthy();
+    expect(
+      screen.getByRole("radio", { name: "U12" }).props.accessibilityState,
+    ).toMatchObject({ checked: false });
+    expect(
+      screen.getByRole("radio", { name: "U14" }).props.accessibilityState,
+    ).toMatchObject({ checked: false });
+  });
 });

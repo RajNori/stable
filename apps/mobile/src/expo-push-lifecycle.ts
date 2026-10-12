@@ -7,6 +7,7 @@ import { useEffect } from "react";
 import {
   registerMobileDevice,
   removeMobileDevice,
+  removeMobileDeviceForSession,
 } from "./load-mobile-notifications";
 import {
   refreshPushRegistration,
@@ -73,6 +74,19 @@ export async function removeLivePushRegistration(
     storage: secureTokenStorage,
     userId,
     removeDevice: removeMobileDevice,
+  });
+}
+
+export async function removeLivePushRegistrationForSession(
+  userId: string,
+  accessToken: string,
+  refreshToken: string,
+): Promise<void> {
+  await removePushRegistration({
+    storage: secureTokenStorage,
+    userId,
+    removeDevice: (token) =>
+      removeMobileDeviceForSession(token, { accessToken, refreshToken }),
   });
 }
 

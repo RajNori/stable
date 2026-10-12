@@ -3,6 +3,7 @@ import type { CurrentClubContext } from "@stable/contracts";
 
 import {
   clearUserGameDaySnapshots,
+  listGameDaySnapshotTeamIds,
   removeGameDaySnapshot,
   readGameDaySnapshot,
   saveGameDaySnapshot,
@@ -62,6 +63,14 @@ export async function saveOfflineContextPointer(
       teamId: pointer.teamId,
     }),
   );
+}
+
+export async function replaceOfflineContextPointer(
+  store: GameDaySnapshotStore,
+  pointer: OfflineContextPointer,
+): Promise<void> {
+  await clearOfflineContextPointer(store, pointer.userId);
+  await saveOfflineContextPointer(store, pointer);
 }
 
 export async function readOfflineContextPointer(
@@ -168,10 +177,18 @@ export async function removeObsoleteOfflineGameDay(
   context: CurrentClubContext,
 ): Promise<void> {
   const pointer = await readOfflineContextPointer(store, userId);
-  if (pointer === null || contextPermitsTeam(context, pointer.teamId)) {
-    return;
+  const cachedTeamIds = await listGameDaySnapshotTeamIds(store, userId);
+  if (pointer !== null && !contextPermitsTeam(context, pointer.teamId)) {
+    await removeGameDaySnapshot(store, userId, pointer.teamId);
   }
-  await clearStoredOfflineGameDay(store, userId);
+  for (const cachedTeamId of cachedTeamIds) {
+    if (!contextPermitsTeam(context, cachedTeamId)) {
+      await removeGameDaySnapshot(store, userId, cachedTeamId);
+    }
+  }
+  if (pointer !== null && !contextPermitsTeam(context, pointer.teamId)) {
+    await clearOfflineContextPointer(store, userId);
+  }
 }
 
 export function isOfflineAuthorizationFailure(error: unknown): boolean {

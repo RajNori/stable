@@ -9,6 +9,7 @@ import {
   createMobileOtpClient,
 } from "../src/auth/mobile-auth-actions";
 import { MobileAuthGate } from "../src/auth/mobile-auth-gate";
+import { cleanupPushAfterSuccessfulCallback } from "../src/auth/callback-push-cleanup";
 import {
   restoreLiveMobileAuthSession,
   signOutLiveMobileAuthSession,
@@ -46,6 +47,7 @@ import { MobileDestinations } from "../src/mobile-destinations";
 import {
   MobilePushRegistrationLifecycle,
   removeLivePushRegistration,
+  removeLivePushRegistrationForSession,
   requestLivePushRegistration,
 } from "../src/expo-push-lifecycle";
 import { ProfileScreen } from "../src/profile-screen";
@@ -53,7 +55,7 @@ import { expoNetworkMonitor } from "../src/expo-network-monitor";
 import { secureGameDaySnapshotStore } from "../src/game-day-snapshot";
 import {
   clearStoredOfflineGameDay,
-  saveOfflineContextPointer,
+  replaceOfflineContextPointer,
 } from "../src/offline-context";
 import { useMobileOnline } from "../src/mobile-connectivity";
 import { TeamAnnouncementsScreen } from "../src/team-announcements-screen";
@@ -110,9 +112,28 @@ export default function CurrentClubContextRoute() {
   const beforeCompleteCallback = useCallback(async () => {
     const { data, error } = await getMobileSupabaseClient().auth.getSession();
     if (error !== null) throw new Error("The session could not be read.");
-    const userId = data.session?.user.id;
-    if (userId !== undefined) await clearPushRegistration(userId);
-  }, [clearPushRegistration]);
+    const previousSession = data.session;
+    if (previousSession === null) return undefined;
+    return cleanupPushAfterSuccessfulCallback(
+      {
+        userId: previousSession.user.id,
+        accessToken: previousSession.access_token,
+        refreshToken: previousSession.refresh_token,
+      },
+      async (userId, accessToken, refreshToken) => {
+        try {
+          await removeLivePushRegistrationForSession(
+            userId,
+            accessToken,
+            refreshToken,
+          );
+        } catch {
+          await getMobileSupabaseClient().auth.signOut({ scope: "local" });
+          throw new Error("The account switch could not be completed safely.");
+        }
+      },
+    );
+  }, []);
 
   return (
     <SafeAreaView
@@ -131,7 +152,7 @@ export default function CurrentClubContextRoute() {
             <MobileDestinations
               loadContext={loadContext}
               onTeamSelected={(teamId) =>
-                saveOfflineContextPointer(snapshotStore, {
+                replaceOfflineContextPointer(snapshotStore, {
                   version: 1,
                   userId,
                   teamId,
