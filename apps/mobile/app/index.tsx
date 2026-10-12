@@ -16,6 +16,8 @@ import {
   enforcePendingPushCleanup,
   markPendingPushCleanup,
   readPendingPushCleanup,
+  readPendingPushCleanupUsers,
+  tryRemovePushRegistrationOrRetainFence,
 } from "../src/auth/pending-push-cleanup";
 import type { PendingPushCleanupStore } from "../src/auth/pending-push-cleanup";
 import {
@@ -123,16 +125,14 @@ export default function CurrentClubContextRoute() {
     if (restored.principal.userId === pendingUserId) return restored;
 
     const priorUserId = restored.principal.userId;
-    try {
-      // A restored identity that conflicts with the persisted account-switch
-      // fence must not leave this device's endpoint active for that identity.
-      // If local token state is missing or the server is unavailable, retain
-      // the existing fence and still clear the mismatched local session below.
-      await removeLivePushRegistration(priorUserId);
-    } catch {
-      // Local sign-out is still required; the pending fence prevents accepting
-      // a different account until endpoint cleanup can be retried.
-    }
+    // A restored identity that conflicts with the persisted account-switch
+    // fence must not leave this device's endpoint active. Missing token state
+    // or server failure adds that identity to the ordered unresolved set.
+    await tryRemovePushRegistrationOrRetainFence({
+      store: pendingPushCleanupStore,
+      userId: priorUserId,
+      removeRegistration: removeLivePushRegistration,
+    });
     try {
       await getMobileSupabaseClient().auth.signOut({ scope: "local" });
     } finally {
@@ -158,9 +158,14 @@ export default function CurrentClubContextRoute() {
   const clearPushRegistration = useCallback(async (userId: string) => {
     const removed = await removeLivePushRegistration(userId);
     const pendingUserId = await readPendingPushCleanup(pendingPushCleanupStore);
-    if (removed && pendingUserId === userId) {
-      await clearPendingPushCleanup(pendingPushCleanupStore);
-    } else if (!removed && pendingUserId === null) {
+    if (removed && pendingUserId !== null) {
+      const pendingUsers = await readPendingPushCleanupUsers(
+        pendingPushCleanupStore,
+      );
+      if (pendingUsers.includes(userId)) {
+        await clearPendingPushCleanup(pendingPushCleanupStore, userId);
+      }
+    } else if (!removed) {
       // Sign-out can proceed, but fence a later account switch until this
       // account's endpoint has been positively revoked.
       await markPendingPushCleanup(pendingPushCleanupStore, userId);
@@ -201,7 +206,7 @@ export default function CurrentClubContextRoute() {
       if (!removed) {
         throw new Error("The previous account push endpoint is unresolved.");
       }
-      await clearPendingPushCleanup(pendingPushCleanupStore);
+      await clearPendingPushCleanup(pendingPushCleanupStore, pendingUserId);
     }
     await markPendingPushCleanup(pendingPushCleanupStore, previous.userId);
     // The callback must first be accepted by Supabase. An expired or forged
@@ -217,7 +222,9 @@ export default function CurrentClubContextRoute() {
       if (!removed) {
         throw new Error("The previous account push endpoint is unresolved.");
       }
-      await clearPendingPushCleanup(pendingPushCleanupStore);
+      if (previous !== null) {
+        await clearPendingPushCleanup(pendingPushCleanupStore, previous.userId);
+      }
     };
   }, []);
 

@@ -180,4 +180,21 @@ describe("mobile push registration", () => {
     expect(removed).toBe(false);
     expect(removeCalls).toBe(0);
   });
+
+  it("recovers the current device token when SecureStore state is missing", async () => {
+    const { storage } = testStorage();
+    const calls: string[] = [];
+
+    const removed = await removePushRegistration({
+      storage,
+      userId: "adult-1",
+      recoverToken: async () => "ExpoPushToken[recovered]",
+      removeDevice: async (token) => {
+        calls.push(token);
+      },
+    });
+
+    expect(removed).toBe(true);
+    expect(calls).toEqual(["ExpoPushToken[recovered]"]);
+  });
 });

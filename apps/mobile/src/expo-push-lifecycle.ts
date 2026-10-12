@@ -37,6 +37,14 @@ function platform(): MobilePushPlatform | null {
   return null;
 }
 
+async function recoverCurrentExpoPushToken(): Promise<string | null> {
+  const selectedProjectId = projectId();
+  if (selectedProjectId === null) return null;
+  return (
+    await Notifications.getExpoPushTokenAsync({ projectId: selectedProjectId })
+  ).data;
+}
+
 function environment(userId: string) {
   const selectedPlatform = platform();
   if (selectedPlatform === null) return null;
@@ -74,6 +82,7 @@ export async function removeLivePushRegistration(
     storage: secureTokenStorage,
     userId,
     removeDevice: removeMobileDevice,
+    recoverToken: recoverCurrentExpoPushToken,
   });
 }
 
@@ -87,6 +96,7 @@ export async function removeLivePushRegistrationForSession(
     userId,
     removeDevice: (token) =>
       removeMobileDeviceForSession(token, { accessToken, refreshToken }),
+    recoverToken: recoverCurrentExpoPushToken,
   });
 }
 

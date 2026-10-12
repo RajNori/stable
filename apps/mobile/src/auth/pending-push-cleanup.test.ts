@@ -3,6 +3,8 @@ import {
   enforcePendingPushCleanup,
   markPendingPushCleanup,
   readPendingPushCleanup,
+  readPendingPushCleanupUsers,
+  tryRemovePushRegistrationOrRetainFence,
   type PendingPushCleanupStore,
 } from "./pending-push-cleanup";
 
@@ -17,7 +19,7 @@ describe("pending push cleanup fence", () => {
 
     await markPendingPushCleanup(store, "prior-user");
     expect(await readPendingPushCleanup(store)).toBe("prior-user");
-    expect([...values.values()]).toEqual(["prior-user"]);
+    expect(await readPendingPushCleanupUsers(store)).toEqual(["prior-user"]);
 
     await clearPendingPushCleanup(store);
     expect(await readPendingPushCleanup(store)).toBeNull();
@@ -100,5 +102,65 @@ describe("pending push cleanup fence", () => {
     });
 
     expect(await readPendingPushCleanup(store)).toBe("prior-user");
+  });
+
+  it("retains multiple unresolved accounts and resolves them in order", async () => {
+    const values = new Map<string, string>();
+    const store: PendingPushCleanupStore = {
+      getItem: async (key) => values.get(key) ?? null,
+      setItem: async (key, value) => void values.set(key, value),
+      removeItem: async (key) => void values.delete(key),
+    };
+    await markPendingPushCleanup(store, "first-user");
+    await markPendingPushCleanup(store, "second-user");
+    await markPendingPushCleanup(store, "second-user");
+
+    expect(await readPendingPushCleanupUsers(store)).toEqual([
+      "first-user",
+      "second-user",
+    ]);
+    let rejectCalls = 0;
+    await expect(
+      enforcePendingPushCleanup({
+        store,
+        nextUserId: "first-user",
+        removeRegistration: async () => true,
+        rejectOtherAccount: async () => void (rejectCalls += 1),
+      }),
+    ).rejects.toThrow("A previous account push cleanup is still required.");
+
+    expect(rejectCalls).toBe(1);
+    expect(await readPendingPushCleanupUsers(store)).toEqual(["second-user"]);
+  });
+
+  it("reads a legacy single-user marker so it can be upgraded safely", async () => {
+    const store: PendingPushCleanupStore = {
+      getItem: async () => "legacy-user",
+      setItem: async () => undefined,
+      removeItem: async () => undefined,
+    };
+    expect(await readPendingPushCleanupUsers(store)).toEqual(["legacy-user"]);
+  });
+
+  it("records a mismatched restored account when endpoint cleanup is unresolved", async () => {
+    const values = new Map<string, string>();
+    const store: PendingPushCleanupStore = {
+      getItem: async (key) => values.get(key) ?? null,
+      setItem: async (key, value) => void values.set(key, value),
+      removeItem: async (key) => void values.delete(key),
+    };
+    await markPendingPushCleanup(store, "previous-user");
+
+    const removed = await tryRemovePushRegistrationOrRetainFence({
+      store,
+      userId: "mismatched-restored-user",
+      removeRegistration: async () => false,
+    });
+
+    expect(removed).toBe(false);
+    expect(await readPendingPushCleanupUsers(store)).toEqual([
+      "previous-user",
+      "mismatched-restored-user",
+    ]);
   });
 });
