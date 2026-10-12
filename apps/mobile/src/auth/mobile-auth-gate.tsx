@@ -29,7 +29,10 @@ type GateActions = {
   verifyPhone: (phone: string, token: string) => Promise<AuthSessionSnapshot>;
   requestEmail: (email: string) => Promise<void>;
   validateCallback: (callbackUrl: string) => void;
-  completeCallback: (callbackUrl: string) => Promise<AuthSessionSnapshot>;
+  completeCallback: (
+    callbackUrl: string,
+    beforeCommit?: (next: AuthSessionSnapshot) => Promise<void>,
+  ) => Promise<AuthSessionSnapshot>;
 };
 
 type MobileAuthGateProps = {
@@ -164,9 +167,24 @@ export function MobileAuthGate({
         try {
           actions.validateCallback(url);
           const completeTransition = await beforeCompleteCallback?.();
-          const next = await actions.completeCallback(url);
-          callbackExchangeSucceeded = true;
-          await completeTransition?.(next);
+          let transitionCompletedBeforeCommit = false;
+          const beforeCommit = async (snapshot: AuthSessionSnapshot) => {
+            callbackExchangeSucceeded = true;
+            await completeTransition?.(snapshot);
+            transitionCompletedBeforeCommit = true;
+          };
+          const next =
+            completeTransition === undefined
+              ? await actions.completeCallback(url)
+              : await actions.completeCallback(url, beforeCommit);
+          // Lightweight test adapters and non-Supabase clients may complete
+          // callbacks without deferred persistence. Keep their established
+          // contract, while the production mobile adapter invokes this hook
+          // after exchange and before saving the new session.
+          if (!transitionCompletedBeforeCommit) {
+            callbackExchangeSucceeded = true;
+            await completeTransition?.(next);
+          }
           await beforeAcceptAuthenticated?.(next);
           const updateResult = await updateSession(next, transition);
           if (updateResult === "cache-clear-failed") {

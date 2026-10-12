@@ -7,6 +7,7 @@ import React, { useCallback, useMemo, useRef } from "react";
 import { SafeAreaView } from "react-native-safe-area-context";
 
 import {
+  createDeferredCallbackAuth,
   createMobileAuthActions,
   createMobileOtpClient,
 } from "../src/auth/mobile-auth-actions";
@@ -77,7 +78,11 @@ import { TeamAnnouncementsScreen } from "../src/team-announcements-screen";
 import { TeamGameDayScreen } from "../src/team-game-day-screen";
 import { TeamRosterScreen } from "../src/team-roster-screen";
 import { TeamScheduleScreen } from "../src/team-schedule-screen";
-import { getMobileSupabaseClient } from "../src/supabase-client";
+import {
+  getMobileSessionStorage,
+  mobileSupabasePublicConfig,
+  getMobileSupabaseClient,
+} from "../src/supabase-client";
 
 const theme = themeFor("mustangs");
 const boot = loadMobileBootEnv();
@@ -106,14 +111,18 @@ export default function CurrentClubContextRoute() {
     [queryClient, snapshotStore],
   );
   const loadContext = useCallback(() => loadMobileCurrentClubContext(), []);
-  const actions = useMemo(
-    () =>
-      createMobileAuthActions(
-        createMobileOtpClient(getMobileSupabaseClient()),
-        boot.appEnv,
+  const actions = useMemo(() => {
+    const supabase = getMobileSupabaseClient();
+    return createMobileAuthActions(
+      createMobileOtpClient(supabase),
+      boot.appEnv,
+      createDeferredCallbackAuth(
+        supabase,
+        getMobileSessionStorage(),
+        mobileSupabasePublicConfig(),
       ),
-    [],
-  );
+    );
+  }, []);
   const monitor = useMemo(() => expoNetworkMonitor(), []);
   const online = useMobileOnline(monitor);
   const callbackSuspendedUserId = useRef<string | null>(null);
