@@ -23,8 +23,18 @@ test("club admin creates a season and team and reads them back", async ({
     "U14 Boys",
   );
 
-  await page.getByLabel("Season name").fill(seasonName);
-  await page.getByLabel("Team name").fill(teamName);
+  const createSeasonForm = page
+    .getByRole("region", { name: "Club structure" })
+    .locator("form")
+    .filter({
+      has: page.getByRole("button", { name: "Create season and team" }),
+    });
+  await createSeasonForm
+    .getByRole("textbox", { name: "Season name" })
+    .fill(seasonName);
+  await createSeasonForm
+    .getByRole("textbox", { name: "First team name" })
+    .fill(teamName);
   await page.getByRole("button", { name: "Create season and team" }).click();
 
   await expect(page.getByRole("list", { name: "Seasons" })).toContainText(
