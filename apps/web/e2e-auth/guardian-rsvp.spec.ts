@@ -65,6 +65,28 @@ test("guardian accepts a player invitation and records a Game Day RSVP", async (
   await expect(guardian).toHaveURL(/\/invitations\/accept\?result=/);
   await guardian.waitForLoadState("networkidle");
 
+  // Guardians use the authorized Home/team journey, not the club-staff player
+  // administration route. Keep this route fail-closed and direct the user back
+  // to the role-specific context chooser instead of exposing roster records.
+  await guardian.goto("/players");
+  await expect(guardian.getByRole("alert")).toContainText(
+    "Player administration is available to club staff with people-management access.",
+  );
+  await expect(
+    guardian.getByRole("button", { name: "Add player" }),
+  ).toHaveCount(0);
+  await expect(
+    guardian.getByRole("region", { name: "Players", exact: true }),
+  ).toHaveCount(0);
+  await guardian.getByRole("link", { name: "Open Home" }).click();
+  await expect(
+    guardian.getByRole("region", { name: "Choose your team" }),
+  ).toBeVisible();
+  await guardian.getByRole("link", { name: "U14 Boys", exact: true }).click();
+  await expect(
+    guardian.getByText("Guardian home", { exact: true }),
+  ).toBeVisible();
+
   await guardian.goto(gameHref);
   const gameDay = guardian.getByRole("region", { name: "Game day" });
   await expect(gameDay.getByText(`Game: ${opponent}`)).toBeVisible();

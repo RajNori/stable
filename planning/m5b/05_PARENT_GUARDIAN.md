@@ -242,6 +242,14 @@ As a Guardian, I want to recognize teammates while seeing only privacy-safe name
 
 The masked roster model and denial tests are strong.
 
+The web `/players` route is club-staff player administration, not the
+Guardian roster experience. A Guardian who opens it is denied the player
+administration projection and directed to Home; Home asks the Guardian to
+choose one of their authorized team contexts before showing the Guardian
+projection. The authorized masked team roster remains a separate team-scoped
+surface. Do not broaden `/players` to return managed-player or club roster
+records.
+
 ---
 
 # PG-E7 — Announcements

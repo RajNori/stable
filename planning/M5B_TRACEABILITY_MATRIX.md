@@ -56,6 +56,8 @@ Using caller-authenticated staging UI on that Preview (synthetic accounts; no se
 
 The protected Preview page fetch through the Vercel connector remains unavailable to its service identity (403); the signed-in Chrome session was used for the UI acceptance above. Password-recovery email delivery, one-time link replay/expiry and post-reset role acceptance remain unverified pending an approved deliverable staging inbox. No production configuration or hosted Supabase privileged operation was used.
 
+**Guardian `/players` route reconciliation (P0-D):** The role-pack defines Guardian roster access as a masked, team-scoped roster journey; `/players` is the club-staff CRUD surface, not that journey. On the Ready branch-alias Preview deployment `dpl_7JfSS66HsVpL3FaHAoJTT75LbSo2`, source SHA `9ceceefd1aefd0ad9ed7991934652376bb1de6c3`, the authenticated synthetic Guardian opening `/players` saw the intentional staff-only explanation and no player rows or administration controls. “Open Home” returned to the team chooser; selecting the Guardian's authorized U14 context rendered “Guardian home” with its next game, RSVP entry point, latest update, training and team actions. This confirms safe route classification and navigation only, not the full Guardian role story or native roster acceptance. An authenticated Playwright regression assertion for the denial and Home path is added in the current test slice; its CI result is pending. No hosted write occurred.
+
 This gate is additional to the 63 role stories in the source inventory.
 
 | Gate | Local implementation and evidence | Hosted staging evidence | Code SHA | State / next evidence |
