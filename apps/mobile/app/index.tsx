@@ -1,3 +1,4 @@
+import type { AuthSessionSnapshot } from "@stable/contracts";
 import { themeFor } from "@stable/design-tokens";
 import { useQueryClient } from "@tanstack/react-query";
 import * as Linking from "expo-linking";
@@ -11,7 +12,7 @@ import {
 import { MobileAuthGate } from "../src/auth/mobile-auth-gate";
 import {
   clearSessionAfterCallbackTransitionFailure,
-  removePreviousPushBeforeCallback,
+  removePreviousPushAfterSuccessfulAccountSwitch,
 } from "../src/auth/callback-push-cleanup";
 import {
   clearLiveMobileAuthSessionStorage,
@@ -126,19 +127,22 @@ export default function CurrentClubContextRoute() {
     if (error !== null) throw new Error("The session could not be read.");
     const previousSession = data.session;
     if (previousSession === null) return undefined;
-    // Remove the prior account's endpoint before exchanging the callback.
-    // If removal fails, the shared Supabase client still holds the prior
-    // session and the callback cannot switch to a new account with an orphaned
-    // endpoint left behind.
-    await removePreviousPushBeforeCallback(
-      {
-        userId: previousSession.user.id,
-        accessToken: previousSession.access_token,
-        refreshToken: previousSession.refresh_token,
-      },
-      removeLivePushRegistrationForSession,
-    );
-    return undefined;
+    const previous = {
+      userId: previousSession.user.id,
+      accessToken: previousSession.access_token,
+      refreshToken: previousSession.refresh_token,
+    };
+    // The callback must first be accepted by Supabase. An expired or forged
+    // link must never delete the prior account's endpoint. Use the captured
+    // previous session only if the successful callback switches accounts.
+    return async (next: AuthSessionSnapshot) => {
+      if (next.state !== "authenticated") return;
+      await removePreviousPushAfterSuccessfulAccountSwitch(
+        previous,
+        next.principal.userId,
+        removeLivePushRegistrationForSession,
+      );
+    };
   }, []);
 
   return (

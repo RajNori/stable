@@ -13,6 +13,7 @@ export type NotificationDispatchTarget = {
 export type NotificationReceiptClaim = {
   providerReceiptId: string;
   endpointId: string;
+  claimId: string;
 };
 
 export type ExpoTicket =

@@ -2283,6 +2283,7 @@ export type Database = {
       };
       apply_notification_provider_receipt: {
         Args: {
+          p_claim_id: string;
           p_error_code?: string;
           p_provider_receipt_id: string;
           p_status: string;
@@ -2332,6 +2333,7 @@ export type Database = {
       claim_notification_provider_receipts: {
         Args: { p_limit?: number };
         Returns: {
+          claim_id: string;
           endpoint_id: string;
           provider_receipt_id: string;
         }[];

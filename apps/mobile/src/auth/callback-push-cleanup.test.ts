@@ -1,6 +1,6 @@
 import {
   clearSessionAfterCallbackTransitionFailure,
-  removePreviousPushBeforeCallback,
+  removePreviousPushAfterSuccessfulAccountSwitch,
 } from "./callback-push-cleanup";
 
 const previous = {
@@ -50,39 +50,66 @@ describe("callback push cleanup", () => {
     expect(clearCalls).toBe(1);
   });
 
-  it("removes the previous endpoint before callback exchange", async () => {
+  it("removes the prior endpoint only after a successful account switch", async () => {
     const calls: unknown[][] = [];
     const removeRegistration = async (...args: string[]) => {
       calls.push(args);
     };
-    await removePreviousPushBeforeCallback(previous, removeRegistration);
+    await removePreviousPushAfterSuccessfulAccountSwitch(
+      previous,
+      "29292929-2929-4929-8929-292929292929",
+      removeRegistration,
+    );
     expect(calls).toEqual([
       [previous.userId, previous.accessToken, previous.refreshToken],
     ]);
   });
 
-  it("does not exchange a callback when prior endpoint removal fails", async () => {
+  it("does not remove an endpoint for an invalid callback", async () => {
     const calls: unknown[][] = [];
-    const removalFailure = new Error("endpoint cleanup failed");
     const removeRegistration = async (...args: string[]) => {
       calls.push(args);
-      throw removalFailure;
     };
+    let finishSuccessfulAccountSwitch:
+      ((nextUserId: string) => Promise<void>) | undefined;
     let failure: unknown;
     try {
-      await removePreviousPushBeforeCallback(previous, removeRegistration);
+      finishSuccessfulAccountSwitch = async (nextUserId) =>
+        removePreviousPushAfterSuccessfulAccountSwitch(
+          previous,
+          nextUserId,
+          removeRegistration,
+        );
+      throw new Error("callback exchange failed");
     } catch (error: unknown) {
       failure = error;
     }
-    expect(failure).toBe(removalFailure);
-    expect(calls.length).toBe(1);
+    expect(failure).toEqual(new Error("callback exchange failed"));
+    expect(finishSuccessfulAccountSwitch).toBeDefined();
+    expect(calls.length).toBe(0);
+  });
+
+  it("keeps the endpoint for a successful callback to the same account", async () => {
+    let calls = 0;
+    await removePreviousPushAfterSuccessfulAccountSwitch(
+      previous,
+      previous.userId,
+      async () => {
+        calls += 1;
+      },
+    );
+    expect(calls).toBe(0);
   });
 
   it("does nothing when there is no previous account session", async () => {
     let calls = 0;
-    await removePreviousPushBeforeCallback(null, async () => {
-      calls += 1;
-    });
+    await removePreviousPushAfterSuccessfulAccountSwitch(
+      null,
+      "next-user",
+      async () => {
+        calls += 1;
+      },
+    );
     expect(calls).toBe(0);
   });
 });

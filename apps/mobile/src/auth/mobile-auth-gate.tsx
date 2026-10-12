@@ -166,6 +166,7 @@ export function MobileAuthGate({
             // cleanup failed. Do not restore and accidentally accept the new
             // account while the previous account's push registration remains.
             await updateSession(recoverySnapshot(error), transition);
+            await clearFailedCallbackSession?.();
             return;
           }
           let restored: AuthSessionSnapshot;

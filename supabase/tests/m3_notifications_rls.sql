@@ -3,6 +3,7 @@
 begin;
 
 create extension if not exists pgtap with schema extensions;
+create extension if not exists dblink with schema extensions;
 
 create or replace function pg_temp.sqlerrm_of(command text)
 returns text
@@ -601,10 +602,20 @@ select is(
   0,
   'a concurrent receipt collector cannot claim an in-flight receipt'
 );
+select is(
+  public.apply_notification_provider_receipt(
+    'expo-receipt-dispatch-test',
+    'ERROR',
+    'DeviceNotRegistered'
+  ),
+  'STALE',
+  'the legacy receipt RPC cannot apply an unfenced provider result'
+);
 select throws_ok(
   $sql$
     select public.apply_notification_provider_receipt(
       'expo-receipt-dispatch-test',
+      (select claim_id from claimed_provider_receipt),
       null,
       null
     )
@@ -613,15 +624,212 @@ select throws_ok(
   'VALIDATION_FAILED',
   'a NULL receipt status is rejected'
 );
+update public.notification_provider_receipts
+set claimed_at = now() - interval '11 minutes'
+where provider_receipt_id = 'expo-receipt-dispatch-test';
+
+create temporary table reclaimed_provider_receipt on commit drop as
+select *
+from public.claim_notification_provider_receipts(100)
+where provider_receipt_id = 'expo-receipt-dispatch-test';
+
+select is(
+  (select count(*)::integer from reclaimed_provider_receipt),
+  1,
+  'an expired provider receipt lease can be reclaimed'
+);
+select isnt(
+  (select claim_id from reclaimed_provider_receipt),
+  (select claim_id from claimed_provider_receipt),
+  'reclaiming a receipt issues a new fencing claim'
+);
 select is(
   public.apply_notification_provider_receipt(
     'expo-receipt-dispatch-test',
+    (select claim_id from claimed_provider_receipt),
+    'ERROR',
+    'DeviceNotRegistered'
+  ),
+  'STALE',
+  'a stale collector cannot apply a result after lease takeover'
+);
+select is(
+  public.apply_notification_provider_receipt(
+    'expo-receipt-dispatch-test',
+    (select claim_id from reclaimed_provider_receipt),
     'ERROR',
     'DeviceNotRegistered'
   ),
   'ERROR',
-  'receipt errors are recorded with a sanitized provider code'
+  'the current receipt claim can apply a sanitized provider error'
 );
+
+create or replace function pg_temp.notification_race_db_link()
+returns text
+language sql
+as $$
+  select format(
+    'host=%s port=5432 dbname=postgres user=postgres password=postgres',
+    host(inet_server_addr())
+  );
+$$;
+
+select extensions.dblink_connect(
+  'receipt_fixture_setup',
+  pg_temp.notification_race_db_link()
+);
+select extensions.dblink_exec(
+  'receipt_fixture_setup',
+  $setup$
+    do $body$
+    begin
+      delete from public.notification_provider_receipts
+      where provider_receipt_id = 'expo-receipt-parallel-claim-test';
+      delete from public.notification_deliveries
+      where event_key = 'receipt-parallel-claim-test';
+      delete from public.notification_requests
+      where id = '9f9f9f9f-9f9f-49f9-89f9-9f9f9f9f9f03';
+      delete from public.device_endpoints
+      where id = '9f9f9f9f-9f9f-49f9-89f9-9f9f9f9f9f02';
+      delete from public.profiles
+      where user_id = '9f9f9f9f-9f9f-49f9-89f9-9f9f9f9f9f01';
+      delete from auth.users
+      where id = '9f9f9f9f-9f9f-49f9-89f9-9f9f9f9f9f01';
+
+      insert into auth.users (
+        instance_id, id, aud, role, email, encrypted_password,
+        email_confirmed_at, raw_app_meta_data, raw_user_meta_data,
+        created_at, updated_at, confirmation_token, email_change,
+        email_change_token_new, recovery_token
+      ) values (
+        '00000000-0000-0000-0000-000000000000',
+        '9f9f9f9f-9f9f-49f9-89f9-9f9f9f9f9f01',
+        'authenticated', 'authenticated', 'receipt-race@local.stable.test', '',
+        now(), '{"provider":"email","providers":["email"]}', '{}',
+        now(), now(), '', '', '', ''
+      );
+      insert into public.profiles (user_id, display_name, first_name, last_name)
+      values (
+        '9f9f9f9f-9f9f-49f9-89f9-9f9f9f9f9f01',
+        'Receipt Race', 'Receipt', 'Race'
+      );
+      insert into public.device_endpoints (id, user_id, platform, expo_push_token)
+      values (
+        '9f9f9f9f-9f9f-49f9-89f9-9f9f9f9f9f02',
+        '9f9f9f9f-9f9f-49f9-89f9-9f9f9f9f9f01',
+        'IOS', 'ExponentPushToken[receipt-parallel-claim-test]'
+      );
+      insert into public.notification_requests (
+        id, club_id, team_id, notification_type, source_id,
+        recipient_user_id, payload, status
+      ) values (
+        '9f9f9f9f-9f9f-49f9-89f9-9f9f9f9f9f03',
+        '11111111-1111-4111-8111-111111111111',
+        '99999999-9999-4999-8999-999999999999',
+        'GAME_REMINDER', '9f9f9f9f-9f9f-49f9-89f9-9f9f9f9f9f04',
+        '9f9f9f9f-9f9f-49f9-89f9-9f9f9f9f9f01', '{}', 'SENT'
+      );
+      insert into public.notification_deliveries (
+        request_id, user_id, event_key, notification_type, status,
+        provider_message_id, sent_at
+      ) values (
+        '9f9f9f9f-9f9f-49f9-89f9-9f9f9f9f9f03',
+        '9f9f9f9f-9f9f-49f9-89f9-9f9f9f9f9f01',
+        'receipt-parallel-claim-test', 'GAME_REMINDER', 'SENT',
+        'expo-ticket-parallel-claim-test', now()
+      );
+      insert into public.notification_provider_receipts (
+        delivery_id, endpoint_id, provider_receipt_id
+      ) values (
+        (
+          select delivery.id from public.notification_deliveries as delivery
+          where delivery.event_key = 'receipt-parallel-claim-test'
+        ),
+        '9f9f9f9f-9f9f-49f9-89f9-9f9f9f9f9f02',
+        'expo-receipt-parallel-claim-test'
+      );
+    end
+    $body$;
+  $setup$
+);
+
+select extensions.dblink_connect(
+  'receipt_race_a',
+  pg_temp.notification_race_db_link()
+);
+select extensions.dblink_connect(
+  'receipt_race_b',
+  pg_temp.notification_race_db_link()
+);
+select extensions.dblink_send_query(
+  'receipt_race_a',
+  $race$
+    select count(*)::integer, min(claim_id::text)
+    from public.claim_notification_provider_receipts(10)
+    where provider_receipt_id = 'expo-receipt-parallel-claim-test'
+  $race$
+);
+select extensions.dblink_send_query(
+  'receipt_race_b',
+  $race$
+    select count(*)::integer, min(claim_id::text)
+    from public.claim_notification_provider_receipts(10)
+    where provider_receipt_id = 'expo-receipt-parallel-claim-test'
+  $race$
+);
+
+create temporary table parallel_receipt_claims (
+  collector text primary key,
+  claimed_count integer not null,
+  claim_id text
+);
+insert into parallel_receipt_claims (collector, claimed_count, claim_id)
+select 'a', result.claimed_count, result.claim_id
+from extensions.dblink_get_result('receipt_race_a') as result(
+  claimed_count integer,
+  claim_id text
+);
+insert into parallel_receipt_claims (collector, claimed_count, claim_id)
+select 'b', result.claimed_count, result.claim_id
+from extensions.dblink_get_result('receipt_race_b') as result(
+  claimed_count integer,
+  claim_id text
+);
+select is(
+  (select sum(claimed_count)::integer from parallel_receipt_claims),
+  1,
+  'two concurrent receipt collectors claim a receipt at most once'
+);
+select is(
+  (select count(*)::integer from parallel_receipt_claims where claim_id is not null),
+  1,
+  'exactly one concurrent receipt collector receives the active claim id'
+);
+
+select extensions.dblink_exec(
+  'receipt_fixture_setup',
+  $cleanup$
+    do $body$
+    begin
+      delete from public.notification_provider_receipts
+      where provider_receipt_id = 'expo-receipt-parallel-claim-test';
+      delete from public.notification_deliveries
+      where event_key = 'receipt-parallel-claim-test';
+      delete from public.notification_requests
+      where id = '9f9f9f9f-9f9f-49f9-89f9-9f9f9f9f9f03';
+      delete from public.device_endpoints
+      where id = '9f9f9f9f-9f9f-49f9-89f9-9f9f9f9f9f02';
+      delete from public.profiles
+      where user_id = '9f9f9f9f-9f9f-49f9-89f9-9f9f9f9f9f01';
+      delete from auth.users
+      where id = '9f9f9f9f-9f9f-49f9-89f9-9f9f9f9f9f01';
+    end
+    $body$;
+  $cleanup$
+);
+select extensions.dblink_disconnect('receipt_race_a');
+select extensions.dblink_disconnect('receipt_race_b');
+select extensions.dblink_disconnect('receipt_fixture_setup');
 select is(
   (
     select active

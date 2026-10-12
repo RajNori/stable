@@ -74,12 +74,14 @@ export function createTrustedDispatchStore(
       return rows.map((row): NotificationReceiptClaim => ({
         providerReceiptId: requiredString(row, "provider_receipt_id"),
         endpointId: requiredString(row, "endpoint_id"),
+        claimId: requiredString(row, "claim_id"),
       }));
     },
     async applyReceipt(input) {
       return requiredResult(
         await rpc("apply_notification_provider_receipt", {
           p_provider_receipt_id: input.receipt.providerReceiptId,
+          p_claim_id: input.receipt.claimId,
           p_status: input.status,
           p_error_code: input.errorCode ?? null,
         }),
@@ -136,7 +138,8 @@ function requiredResult(value: unknown): string {
     value !== "SKIPPED" &&
     value !== "FAILED" &&
     value !== "OK" &&
-    value !== "ERROR"
+    value !== "ERROR" &&
+    value !== "STALE"
   ) {
     throw new Error("Dispatch response was invalid.");
   }

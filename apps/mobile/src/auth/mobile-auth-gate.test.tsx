@@ -109,7 +109,9 @@ describe("mobile auth gate", () => {
           },
         })}
         beforeCompleteCallback={async () => {
-          accountTransition.push("push-cleanup");
+          return async () => {
+            accountTransition.push("push-cleanup");
+          };
         }}
         clearPrivateCache={clearPrivateCache}
         linking={{
@@ -136,7 +138,7 @@ describe("mobile auth gate", () => {
     expect(
       await screen.findByText(`Signed in as ${secondUserId}`),
     ).toBeTruthy();
-    expect(accountTransition).toEqual(["push-cleanup", "callback"]);
+    expect(accountTransition).toEqual(["callback", "push-cleanup"]);
     expect(queryClient.getQueryCache().getAll()).toEqual([]);
 
     queryClient.setQueryData(["current-club-context"], {
@@ -281,10 +283,11 @@ describe("mobile auth gate", () => {
     expect(screen.queryByText(`Signed in as ${secondUserId}`)).toBeNull();
   });
 
-  it("does not exchange accounts when prior push cleanup fails", async () => {
+  it("fails closed when post-exchange prior-account push cleanup fails", async () => {
     let receive: ((url: string) => void) | undefined;
     let restoreCalls = 0;
     const completeCallback = jest.fn(async () => secondAuthenticated);
+    const clearFailedCallbackSession = jest.fn(async () => undefined);
     await render(
       <MobileAuthGate
         restore={async () => {
@@ -293,9 +296,10 @@ describe("mobile auth gate", () => {
         }}
         signOut={async () => ({ state: "unauthenticated" })}
         actions={idleActions({ completeCallback })}
-        beforeCompleteCallback={async () => {
+        beforeCompleteCallback={async () => async () => {
           throw new Error("push cleanup failed");
         }}
+        clearFailedCallbackSession={clearFailedCallbackSession}
         linking={{
           async getInitialUrl() {
             return null;
@@ -314,10 +318,11 @@ describe("mobile auth gate", () => {
     expect(await screen.findByText(`Signed in as ${userId}`)).toBeTruthy();
     receive?.("stable://auth/callback?code=account-switch");
 
-    expect(await screen.findByText(`Signed in as ${userId}`)).toBeTruthy();
+    expect(await screen.findByText(AUTH_ERROR_MESSAGES.INTERNAL)).toBeTruthy();
     expect(screen.queryByText(`Signed in as ${secondUserId}`)).toBeNull();
-    expect(completeCallback.mock.calls.length).toBe(0);
-    expect(restoreCalls).toBe(2);
+    expect(completeCallback.mock.calls.length).toBe(1);
+    expect(restoreCalls).toBe(1);
+    expect(clearFailedCallbackSession.mock.calls.length).toBe(1);
   });
 
   it("clears the exchanged account if prior-account private-cache cleanup fails", async () => {

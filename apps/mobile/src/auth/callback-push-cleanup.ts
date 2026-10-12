@@ -4,15 +4,16 @@ export type PreviousPushSession = {
   refreshToken: string;
 };
 
-export async function removePreviousPushBeforeCallback(
+export async function removePreviousPushAfterSuccessfulAccountSwitch(
   previous: PreviousPushSession | null,
+  nextUserId: string,
   removeRegistration: (
     userId: string,
     accessToken: string,
     refreshToken: string,
   ) => Promise<void>,
 ): Promise<void> {
-  if (previous === null) return;
+  if (previous === null || previous.userId === nextUserId) return;
   await removeRegistration(
     previous.userId,
     previous.accessToken,

@@ -232,10 +232,12 @@ describe("trusted notification dispatch", () => {
     const pending: NotificationReceiptClaim = {
       providerReceiptId: "receipt-pending",
       endpointId: "endpoint-opaque",
+      claimId: "claim-pending",
     };
     const invalid: NotificationReceiptClaim = {
       providerReceiptId: "receipt-invalid",
       endpointId: "endpoint-opaque",
+      claimId: "claim-invalid",
     };
     const store = dispatchStore({
       claimReceipts: vi.fn(async () => [pending, invalid]),
@@ -271,6 +273,7 @@ describe("trusted notification dispatch", () => {
     const ready: NotificationReceiptClaim = {
       providerReceiptId: "receipt-ready",
       endpointId: "endpoint-opaque",
+      claimId: "claim-ready",
     };
     const store = dispatchStore({
       claimReceipts: vi.fn(async () => [ready]),
@@ -291,6 +294,7 @@ describe("trusted notification dispatch", () => {
     const receipt: NotificationReceiptClaim = {
       providerReceiptId: "receipt-error",
       endpointId: "endpoint-opaque",
+      claimId: "claim-error",
     };
     const store = dispatchStore({
       claimReceipts: vi.fn(async () => [receipt]),
