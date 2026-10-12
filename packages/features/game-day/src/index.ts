@@ -20,6 +20,11 @@ export {
   commitDutyAllocation,
   createOpenGameDuty,
   previewDutyAllocation,
+  readTeamManagerGameDayOperations,
+} from "./application/duty-commands.js";
+export type {
+  TeamManagerGameDayOperations,
+  TeamManagerGameDayOperationsReader,
 } from "./application/duty-commands.js";
 export {
   acceptDutySwap,

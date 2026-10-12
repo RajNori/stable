@@ -3258,6 +3258,19 @@ export type Database = {
           player_id: string;
         }[];
       };
+      read_team_manager_game_day_operations: {
+        Args: { p_event_id: string };
+        Returns: {
+          acknowledged_duty_count: number;
+          assigned_duty_count: number;
+          confirmed_fill_in_count: number;
+          open_duty_swap_count: number;
+          open_fill_in_request_count: number;
+          open_fill_in_response_count: number;
+          pending_duty_acknowledgement_count: number;
+          unassigned_duty_count: number;
+        }[];
+      };
       read_post_game_review: {
         Args: { p_event_id: string };
         Returns: {

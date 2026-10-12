@@ -7,7 +7,12 @@ import {
 import type { ClubContextReadResult } from "@stable/contracts";
 import { getCurrentClubContext } from "@stable/current-club-context";
 import { createSupabaseFixtureGateway } from "@stable/fixtures";
-import { createSupabaseGameDayGateway, readGameDay } from "@stable/game-day";
+import {
+  createSupabaseGameDayGateway,
+  readGameDay,
+  readTeamManagerGameDayOperations,
+  type TeamManagerGameDayOperations,
+} from "@stable/game-day";
 import {
   createSupabaseClubStructureGateway,
   type ClubStructureGateway,
@@ -155,6 +160,8 @@ export default async function HomePage({ searchParams }: HomePageProps) {
     let nextGame: ScheduleEntry | null = null;
     let nextTraining: ScheduleEntry | null = null;
     let gameDay: Awaited<ReturnType<typeof readGameDay>> | null = null;
+    let managerOperations: TeamManagerGameDayOperations | null = null;
+    let managerOperationsError: string | undefined;
     let latestAnnouncement: AnnouncementRecord | null = null;
     let homeError: string | undefined;
 
@@ -223,6 +230,20 @@ export default async function HomePage({ searchParams }: HomePageProps) {
             } catch {
               // A schedule remains useful if a separate Game Day projection is unavailable.
             }
+            if (role === "Team Manager") {
+              try {
+                managerOperations = await readTeamManagerGameDayOperations({
+                  ...access,
+                  clubId: context.club.id,
+                  teamId: team.id,
+                  eventId: nextGame.eventId,
+                  reader: createSupabaseGameDayGateway(client),
+                });
+              } catch {
+                managerOperationsError =
+                  "Game Day operations status could not be loaded.";
+              }
+            }
           }
         }
       } catch {
@@ -255,6 +276,10 @@ export default async function HomePage({ searchParams }: HomePageProps) {
           nextGame={nextGame}
           nextTraining={nextTraining}
           gameDay={gameDay}
+          managerOperations={managerOperations}
+          {...(managerOperationsError === undefined
+            ? {}
+            : { managerOperationsError })}
           latestAnnouncement={latestAnnouncement}
           timezone={context.club.timezone}
           themeKey={context.club.themeKey}

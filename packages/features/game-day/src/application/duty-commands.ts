@@ -43,6 +43,23 @@ export type DutyAllocationWriter = {
   acknowledgeOwnDuty(eventId: string): Promise<number>;
 };
 
+export type TeamManagerGameDayOperations = {
+  unassignedDutyCount: number;
+  assignedDutyCount: number;
+  acknowledgedDutyCount: number;
+  pendingDutyAcknowledgementCount: number;
+  openDutySwapCount: number;
+  openFillInRequestCount: number;
+  openFillInResponseCount: number;
+  confirmedFillInCount: number;
+};
+
+export type TeamManagerGameDayOperationsReader = {
+  readTeamManagerGameDayOperations(
+    eventId: string,
+  ): Promise<TeamManagerGameDayOperations>;
+};
+
 function validationFailed(): never {
   throw new ApplicationError(
     "VALIDATION_FAILED",
@@ -173,4 +190,22 @@ export async function acknowledgeGameDuty(
   }
   assertCapability(input, clubId.data, teamId.data, "duty.respond");
   return input.writer.acknowledgeOwnDuty(eventId.data);
+}
+
+export async function readTeamManagerGameDayOperations(
+  input: GameDayAccess & {
+    clubId: string;
+    teamId: string;
+    eventId: string;
+    reader: TeamManagerGameDayOperationsReader;
+  },
+): Promise<TeamManagerGameDayOperations> {
+  const clubId = idSchema.safeParse(input.clubId);
+  const teamId = idSchema.safeParse(input.teamId);
+  const eventId = idSchema.safeParse(input.eventId);
+  if (!clubId.success || !teamId.success || !eventId.success) {
+    validationFailed();
+  }
+  assertCapability(input, clubId.data, teamId.data, "duty.manage");
+  return input.reader.readTeamManagerGameDayOperations(eventId.data);
 }

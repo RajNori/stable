@@ -121,6 +121,9 @@ describe("role home panel", () => {
     expect(screen.getByText("Court changed")).toBeTruthy();
     expect(screen.getByText("Response requested")).toBeTruthy();
     expect(
+      screen.queryByRole("heading", { name: "Game Day operations" }),
+    ).toBeNull();
+    expect(
       screen.getByRole("link", { name: "Open training" }).getAttribute("href"),
     ).toBe("/teams/team-a/training");
     expect(
@@ -214,5 +217,52 @@ describe("role home panel", () => {
     expect(
       screen.getByRole("link", { name: "Guardian" }).getAttribute("href"),
     ).toBe("/?team=team-a&view=guardian");
+  });
+
+  it("shows Team Managers count-only duty, swap and fill-in status", () => {
+    render(
+      <RoleHomePanel
+        role="Team Manager"
+        availableRoles={["Team Manager"]}
+        teams={[{ id: "team-a", name: "U14 Boys" }]}
+        selectedTeam={{ id: "team-a", name: "U14 Boys" }}
+        nextGame={{
+          eventId: "11111111-1111-4111-8111-111111111111",
+          clubId: "22222222-2222-4222-8222-222222222222",
+          teamId: "33333333-3333-4333-8333-333333333333",
+          eventType: "GAME",
+          startsAt: "2026-10-17T00:30:00.000Z",
+          endsAt: null,
+          courtLabel: null,
+          eventStatus: "SCHEDULED",
+          opponentName: "Visitors",
+          roundLabel: null,
+        }}
+        nextTraining={null}
+        gameDay={null}
+        managerOperations={{
+          unassignedDutyCount: 1,
+          assignedDutyCount: 2,
+          acknowledgedDutyCount: 1,
+          pendingDutyAcknowledgementCount: 1,
+          openDutySwapCount: 1,
+          openFillInRequestCount: 1,
+          openFillInResponseCount: 2,
+          confirmedFillInCount: 0,
+        }}
+        latestAnnouncement={null}
+        timezone="Australia/Melbourne"
+        themeKey="mustangs"
+      />,
+    );
+
+    expect(screen.getByText("Duties: 2 assigned, 1 unassigned")).toBeTruthy();
+    expect(
+      screen.getByText("Duty acknowledgements: 1 of 2 complete; 1 pending"),
+    ).toBeTruthy();
+    expect(screen.getByText("Open duty swaps: 1")).toBeTruthy();
+    expect(
+      screen.getByText("Fill-in needs: 1 open; 2 responses; 0 confirmed"),
+    ).toBeTruthy();
   });
 });

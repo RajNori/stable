@@ -1,4 +1,5 @@
 import type { GameDayProjection } from "@stable/game-day";
+import type { TeamManagerGameDayOperations } from "@stable/game-day";
 import type { AnnouncementRecord } from "@stable/announcements";
 import { themeFor } from "@stable/design-tokens";
 import { formatScheduleDateTime, type ScheduleEntry } from "@stable/schedule";
@@ -28,6 +29,8 @@ type RoleHomePanelProps = {
   nextGame: ScheduleEntry | null;
   nextTraining: ScheduleEntry | null;
   gameDay: GameDayProjection | null;
+  managerOperations?: TeamManagerGameDayOperations | null;
+  managerOperationsError?: string;
   latestAnnouncement: AnnouncementRecord | null;
   timezone: string;
   themeKey: string;
@@ -42,6 +45,8 @@ export function RoleHomePanel({
   nextGame,
   nextTraining,
   gameDay,
+  managerOperations = null,
+  managerOperationsError,
   latestAnnouncement,
   timezone,
   themeKey,
@@ -171,6 +176,37 @@ export function RoleHomePanel({
           <p>No upcoming game is scheduled.</p>
         )}
       </article>
+
+      {role === "Team Manager" ? (
+        <article aria-label="Game Day operations" style={card}>
+          <h2>Game Day operations</h2>
+          {managerOperationsError ? (
+            <p role="status">{managerOperationsError}</p>
+          ) : managerOperations ? (
+            <ul>
+              <li>
+                Duties: {managerOperations.assignedDutyCount} assigned,{" "}
+                {managerOperations.unassignedDutyCount} unassigned
+              </li>
+              <li>
+                Duty acknowledgements: {managerOperations.acknowledgedDutyCount}{" "}
+                of {managerOperations.assignedDutyCount} complete;{" "}
+                {managerOperations.pendingDutyAcknowledgementCount} pending
+              </li>
+              <li>Open duty swaps: {managerOperations.openDutySwapCount}</li>
+              <li>
+                Fill-in needs: {managerOperations.openFillInRequestCount} open;{" "}
+                {managerOperations.openFillInResponseCount} responses;{" "}
+                {managerOperations.confirmedFillInCount} confirmed
+              </li>
+            </ul>
+          ) : nextGame ? (
+            <p>Game Day operations status is unavailable.</p>
+          ) : (
+            <p>No upcoming game needs operational follow-up.</p>
+          )}
+        </article>
+      ) : null}
 
       {latestAnnouncement ? (
         <article style={card}>
