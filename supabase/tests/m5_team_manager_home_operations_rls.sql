@@ -105,8 +105,8 @@ values
 insert into public.fill_in_responses (request_id, player_id, guardian_user_id)
 values ('e1e1e1e1-e1e1-41e1-81e1-e1e1e1e10901', 'e1e1e1e1-e1e1-41e1-81e1-e1e1e1e10801', 'e1e1e1e1-e1e1-41e1-81e1-e1e1e1e10005');
 
-insert into public.fill_in_confirmations (request_id, player_id, confirmed_by)
-values ('e1e1e1e1-e1e1-41e1-81e1-e1e1e1e10902', 'e1e1e1e1-e1e1-41e1-81e1-e1e1e1e10802', 'e1e1e1e1-e1e1-41e1-81e1-e1e1e1e10002');
+insert into public.fill_in_confirmations (request_id, event_id, player_id, confirmed_by)
+values ('e1e1e1e1-e1e1-41e1-81e1-e1e1e1e10902', 'e1e1e1e1-e1e1-41e1-81e1-e1e1e1e10401', 'e1e1e1e1-e1e1-41e1-81e1-e1e1e1e10802', 'e1e1e1e1-e1e1-41e1-81e1-e1e1e1e10002');
 
 select no_plan();
 
