@@ -28,12 +28,53 @@ test("guardian accepts a player invitation and records a Game Day RSVP", async (
   await expect(player).toContainText(`${playerName} Synthetic`);
   await player.getByRole("button", { name: "Register team" }).click();
   await player.getByLabel("Invitation email").fill(GUARDIAN_EMAIL);
+  const invitationRequestFailures: string[] = [];
+  const invitationPageErrors: string[] = [];
+  admin.on("requestfailed", (request) => {
+    if (request.method() === "POST") {
+      invitationRequestFailures.push(
+        `${new URL(request.url()).pathname}: ${request.failure()?.errorText ?? "failed"}`,
+      );
+    }
+  });
+  admin.on("response", (response) => {
+    if (response.request().method() === "POST" && response.status() >= 400) {
+      invitationRequestFailures.push(
+        `${new URL(response.url()).pathname}: HTTP ${response.status()}`,
+      );
+    }
+  });
+  admin.on("pageerror", (error) => {
+    invitationPageErrors.push(`${error.name}: ${error.message.slice(0, 160)}`);
+  });
   await player.getByRole("button", { name: "Create invitation" }).click();
   const invitationLinkField = player.getByLabel("Invitation link");
   const invitationActionError = player.getByRole("alert");
-  await expect(invitationLinkField.or(invitationActionError)).toBeVisible({
-    timeout: 15_000,
-  });
+  try {
+    await expect(invitationLinkField.or(invitationActionError)).toBeVisible({
+      timeout: 15_000,
+    });
+  } catch (error: unknown) {
+    const playerRow = admin.getByRole("listitem").filter({
+      hasText: playerName,
+    });
+    throw new Error(
+      `Invitation action produced no visible result: ${JSON.stringify({
+        path: new URL(admin.url()).pathname,
+        playerRowCount: await playerRow.count(),
+        playerRowsOnPage: await admin
+          .getByRole("listitem")
+          .filter({ hasText: playerName })
+          .count(),
+        alertText: (await admin.getByRole("alert").allTextContents()).map(
+          (text) => text.slice(0, 160),
+        ),
+        requestFailures: invitationRequestFailures,
+        pageErrors: invitationPageErrors,
+      })}`,
+      { cause: error },
+    );
+  }
   if (await invitationActionError.isVisible()) {
     throw new Error(
       `Invitation creation failed: ${await invitationActionError.innerText()}`,
