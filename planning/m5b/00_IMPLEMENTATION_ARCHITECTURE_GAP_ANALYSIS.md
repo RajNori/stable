@@ -141,7 +141,7 @@ announcements, attendance, club-structure, coaching-review, current-club-context
 | Fixtures | Strong | Strong manual | Read | Local | PARTIAL |
 | PlayHQ | Seam | No live sync | No live sync | No | NOT IMPLEMENTED |
 | Schedule | Strong | Read | Read | Local | PARTIAL |
-| Guardian RSVP | Strong | Implemented | Missing native write | Local web E2E | PARTIAL |
+| Guardian RSVP | Strong | Implemented | Native managed-player write implemented (`b311840`) | Local unit/domain/RLS; native hosted/device acceptance pending | PARTIAL |
 | Training | Strong | Create/series/check-in | Schedule only | Local | PARTIAL |
 | Announcements | Strong | Publish/read/ack | Read/ack | Local | PARTIAL |
 | Push | DB/domain | prefs/token forms | manual token | No real provider | PARTIAL |

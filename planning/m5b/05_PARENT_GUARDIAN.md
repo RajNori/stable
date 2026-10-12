@@ -210,9 +210,16 @@ Mobile supports:
 - offline snapshot;
 - stale/reconnect safeguards.
 
-## Critical gap: mobile RSVP write
+## RSVP implementation status
 
-The existing Guardian RSVP E2E is browser/web. Native mobile does not expose RSVP mutation.
+The native managed-player RSVP action is implemented locally in the Game Day
+screen (`b311840`). It lists only the authenticated Guardian's eligible,
+registered managed players and submits through the existing
+`recordAttendance` command and caller-authenticated gateway. The action is
+online-only, waits for the current Game Day refresh, does not queue offline
+writes, and sends no Guardian absence note/category. Mobile screen, domain,
+gateway and pgTAP coverage exists. Native hosted and physical iPhone acceptance
+are still required; local implementation does not close the P0 story.
 
 ## PG-RSVP-01
 
