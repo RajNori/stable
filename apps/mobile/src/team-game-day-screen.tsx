@@ -24,6 +24,7 @@ import {
   persistOfflineGameDay,
   readOfflineGameDay,
   removeObsoleteOfflineGameDay,
+  removeOfflineGameDayForTeam,
 } from "./offline-context";
 import { OfflineGameDayView } from "./offline-game-day-view";
 
@@ -99,6 +100,7 @@ export function TeamGameDayScreen({
   canReadCoachGameDay,
   snapshotStore,
   localUserId,
+  selectedTeamId,
   online = true,
   now = Date.now(),
   loadRsvpChoices,
@@ -115,6 +117,7 @@ export function TeamGameDayScreen({
   canReadCoachGameDay?: ((teamId: string) => Promise<boolean>) | undefined;
   snapshotStore?: GameDaySnapshotStore | undefined;
   localUserId?: string | undefined;
+  selectedTeamId?: string | null | undefined;
   online?: boolean | null | undefined;
   now?: number | undefined;
   loadRsvpChoices?:
@@ -158,12 +161,12 @@ export function TeamGameDayScreen({
   const offlineEnabled =
     snapshotStore !== undefined && localUserId !== undefined;
   const offline = useQuery({
-    queryKey: ["offline-game-day", localUserId],
+    queryKey: ["offline-game-day", localUserId, selectedTeamId],
     queryFn: () => {
       if (snapshotStore === undefined || localUserId === undefined) {
         return Promise.resolve(null);
       }
-      return readOfflineGameDay(snapshotStore, localUserId);
+      return readOfflineGameDay(snapshotStore, localUserId, selectedTeamId);
     },
     enabled: offlineEnabled,
     retry: false,
@@ -191,6 +194,14 @@ export function TeamGameDayScreen({
       }
       const team = currentContext.activeTeam;
       const projection = await loadGameDay(teamId);
+      if (
+        projection === null &&
+        snapshotStore !== undefined &&
+        userId !== undefined &&
+        (localUserId === undefined || localUserId === userId)
+      ) {
+        await removeOfflineGameDayForTeam(snapshotStore, userId, teamId);
+      }
       if (
         projection !== null &&
         snapshotStore !== undefined &&
@@ -390,6 +401,10 @@ export function TeamGameDayScreen({
       void clearStoredOfflineGameDay(snapshotStore, localUserId);
       return;
     }
+    if (gameDay.isError && isOfflineAuthorizationFailure(gameDay.error)) {
+      void clearStoredOfflineGameDay(snapshotStore, localUserId);
+      return;
+    }
     if (context.data !== undefined && context.data.userId === localUserId) {
       void removeObsoleteOfflineGameDay(
         snapshotStore,
@@ -401,6 +416,8 @@ export function TeamGameDayScreen({
     context.data,
     context.error,
     context.isError,
+    gameDay.error,
+    gameDay.isError,
     localUserId,
     online,
     snapshotStore,
@@ -480,6 +497,15 @@ export function TeamGameDayScreen({
   }
 
   if (!refreshLanded || gameDay.isError || gameDay.data === undefined) {
+    if (gameDay.isError && isOfflineAuthorizationFailure(gameDay.error)) {
+      return (
+        <View style={styles.screen}>
+          <Text accessibilityRole="header" style={styles.title}>
+            {gameDayMessages.forbidden}
+          </Text>
+        </View>
+      );
+    }
     if (snapshot !== null && snapshot.teamId === context.data.activeTeam.id) {
       return <OfflineGameDayView snapshot={snapshot} now={now} />;
     }

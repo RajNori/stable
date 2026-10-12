@@ -51,7 +51,10 @@ import {
 import { ProfileScreen } from "../src/profile-screen";
 import { expoNetworkMonitor } from "../src/expo-network-monitor";
 import { secureGameDaySnapshotStore } from "../src/game-day-snapshot";
-import { clearStoredOfflineGameDay } from "../src/offline-context";
+import {
+  clearStoredOfflineGameDay,
+  saveOfflineContextPointer,
+} from "../src/offline-context";
 import { useMobileOnline } from "../src/mobile-connectivity";
 import { TeamAnnouncementsScreen } from "../src/team-announcements-screen";
 import { TeamGameDayScreen } from "../src/team-game-day-screen";
@@ -127,6 +130,13 @@ export default function CurrentClubContextRoute() {
             <MobilePushRegistrationLifecycle userId={userId} />
             <MobileDestinations
               loadContext={loadContext}
+              onTeamSelected={(teamId) =>
+                saveOfflineContextPointer(snapshotStore, {
+                  version: 1,
+                  userId,
+                  teamId,
+                })
+              }
               home={(navigate, scopedLoadContext) => (
                 <GuardianHomeScreen
                   loadContext={scopedLoadContext}
@@ -138,10 +148,11 @@ export default function CurrentClubContextRoute() {
                   onOpenUpdates={() => navigate("Updates")}
                 />
               )}
-              schedule={(scopedLoadContext) => (
+              schedule={(scopedLoadContext, selectedTeamId) => (
                 <>
                   <TeamGameDayScreen
                     loadContext={scopedLoadContext}
+                    selectedTeamId={selectedTeamId}
                     loadGameDay={loadMobileGameDay}
                     canReadCoachGameDay={canReadMobileCoachGameDay}
                     loadRsvpChoices={loadMobileRsvpChoices}

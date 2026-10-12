@@ -115,10 +115,14 @@ describe("mobile destinations", () => {
         </>
       );
     }
+    const selectedTeams: string[] = [];
     await render(
       <QueryClientProvider client={testQueryClient()}>
         <MobileDestinations
           loadContext={() => Promise.resolve(context)}
+          onTeamSelected={async (selectedTeamId) => {
+            selectedTeams.push(selectedTeamId);
+          }}
           home={(_navigate, loadContext) => (
             <ContextHome loadContext={loadContext} />
           )}
@@ -138,5 +142,6 @@ describe("mobile destinations", () => {
       screen.getByRole("radio", { name: "U14" }).props.accessibilityState,
     ).toMatchObject({ checked: true });
     expect(screen.queryByRole("radio", { name: teamB })).toBeNull();
+    expect(selectedTeams).toEqual([teamB]);
   });
 });

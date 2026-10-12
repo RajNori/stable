@@ -301,6 +301,36 @@ describe("team game day screen", () => {
     expect(await screen.findByText("No game day yet.")).toBeTruthy();
   });
 
+  it("clears a previous offline snapshot after an authoritative empty refresh", async () => {
+    const store = memoryGameDaySnapshotStore();
+    await persistOfflineGameDay(
+      store,
+      gameDaySnapshotFromProjection({
+        userId: context.userId,
+        teamName: "U14 Boys",
+        projection,
+        savedAt: "2026-10-07T01:00:00.000Z",
+      }),
+    );
+
+    await renderScreen({
+      store,
+      localUserId: context.userId,
+      online: true,
+      loadContext: () => Promise.resolve(context),
+      loadGameDay: () => Promise.resolve(null),
+    });
+
+    expect(await screen.findByText("No game day yet.")).toBeTruthy();
+    await waitFor(async () => {
+      expect(
+        await readGameDaySnapshot(store, context.userId, teamId),
+      ).toBeNull();
+      expect(await readOfflineContextPointer(store, context.userId)).toBeNull();
+    });
+    expect(screen.queryByText(/Visitors/)).toBeNull();
+  });
+
   it("saves the online read and shows that snapshot when offline", async () => {
     const store = memoryGameDaySnapshotStore();
     const queryClient = new QueryClient({
@@ -417,6 +447,50 @@ describe("team game day screen", () => {
     });
     expect(contextCalls).toBe(0);
     expect(writes).toEqual([]);
+  });
+
+  it("shows only the explicitly selected team's offline snapshot", async () => {
+    const store = memoryGameDaySnapshotStore();
+    await persistOfflineGameDay(
+      store,
+      gameDaySnapshotFromProjection({
+        userId: context.userId,
+        teamName: "U14 Boys",
+        projection,
+        savedAt: "2026-10-07T01:00:00.000Z",
+      }),
+    );
+    const otherTeamProjection = {
+      ...projection,
+      eventId: "66666666-6666-4666-8666-666666666666",
+      teamId: otherTeamId,
+      opponentName: "Other Visitors",
+    };
+    await persistOfflineGameDay(
+      store,
+      gameDaySnapshotFromProjection({
+        userId: context.userId,
+        teamName: "U16 Boys",
+        timezone: "Australia/Melbourne",
+        projection: otherTeamProjection,
+        savedAt: "2026-10-07T01:00:00.000Z",
+      }),
+    );
+
+    await renderScreen({
+      store,
+      localUserId: context.userId,
+      selectedTeamId: otherTeamId,
+      online: false,
+    });
+
+    expect(
+      await screen.findByText(
+        "Offline · Last updated Wednesday 7 October at 12:00 pm",
+      ),
+    ).toBeTruthy();
+    expect(screen.getByText("U16 Boys: Other Visitors")).toBeTruthy();
+    expect(screen.queryByText("U14 Boys: Visitors")).toBeNull();
   });
 
   it("keeps the stale snapshot read-only until reconnect refresh succeeds", async () => {
@@ -914,6 +988,40 @@ describe("team game day screen", () => {
       expect(await readOfflineContextPointer(store, context.userId)).toBeNull();
     });
   });
+
+  it("does not fall back to cached data when the Game Day read is forbidden", async () => {
+    const store = memoryGameDaySnapshotStore();
+    await persistOfflineGameDay(
+      store,
+      gameDaySnapshotFromProjection({
+        userId: context.userId,
+        teamName: "U14 Boys",
+        projection,
+        savedAt: "2026-10-07T01:00:00.000Z",
+      }),
+    );
+    await renderScreen({
+      store,
+      localUserId: context.userId,
+      online: true,
+      loadContext: () => Promise.resolve(context),
+      loadGameDay: () =>
+        Promise.reject(
+          new ApplicationError("FORBIDDEN", "This game day is not available."),
+        ),
+    });
+
+    expect(
+      await screen.findByText("This game day is not available."),
+    ).toBeTruthy();
+    expect(screen.queryByText(/Visitors/)).toBeNull();
+    await waitFor(async () => {
+      expect(
+        await readGameDaySnapshot(store, context.userId, teamId),
+      ).toBeNull();
+      expect(await readOfflineContextPointer(store, context.userId)).toBeNull();
+    });
+  });
 });
 
 const otherUserId = "28282828-2828-4828-8828-282828282828";
@@ -948,6 +1056,7 @@ function screenTree({
   now,
   loadContext,
   loadGameDay,
+  selectedTeamId,
   canReadCoachGameDay,
   loadRsvpChoices,
   saveRsvp,
@@ -986,6 +1095,7 @@ function screenTree({
         {...(acceptDutySwap === undefined ? {} : { acceptDutySwap })}
         {...(store === undefined ? {} : { snapshotStore: store })}
         {...(localUserId === undefined ? {} : { localUserId })}
+        {...(selectedTeamId === undefined ? {} : { selectedTeamId })}
         {...(online === undefined ? {} : { online })}
         now={now ?? Date.parse("2026-10-07T01:30:00.000Z")}
       />
@@ -997,6 +1107,7 @@ type ScreenInput = {
   client?: QueryClient;
   store?: GameDaySnapshotStore;
   localUserId?: string;
+  selectedTeamId?: string | null;
   online?: boolean | null;
   now?: number;
   loadContext?: () => Promise<CurrentClubContext>;

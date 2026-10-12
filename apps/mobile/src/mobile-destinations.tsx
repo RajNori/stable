@@ -64,6 +64,7 @@ export function MobileDestinations({
   team,
   updates,
   profile,
+  onTeamSelected,
 }: {
   loadContext?: (() => Promise<CurrentClubContext>) | undefined;
   home:
@@ -74,7 +75,10 @@ export function MobileDestinations({
       ) => React.ReactNode);
   schedule:
     | React.ReactNode
-    | ((loadContext: () => Promise<CurrentClubContext>) => React.ReactNode);
+    | ((
+        loadContext: () => Promise<CurrentClubContext>,
+        selectedTeamId: string | null | undefined,
+      ) => React.ReactNode);
   team:
     | React.ReactNode
     | ((loadContext: () => Promise<CurrentClubContext>) => React.ReactNode);
@@ -86,6 +90,7 @@ export function MobileDestinations({
     | React.ReactNode
     | ((loadContext: () => Promise<CurrentClubContext>) => React.ReactNode)
     | undefined;
+  onTeamSelected?: ((teamId: string) => Promise<void>) | undefined;
 }) {
   const queryClient = useQueryClient();
   const [selected, setSelected] = useState<MobileDestination>("Home");
@@ -128,7 +133,11 @@ export function MobileDestinations({
       queryKey: ["mobile-destination-context"],
     });
     setSelectedTeamId(teamId);
-    setSwitchingTeam(false);
+    try {
+      await onTeamSelected?.(teamId);
+    } finally {
+      setSwitchingTeam(false);
+    }
   }
 
   return (
@@ -192,7 +201,10 @@ export function MobileDestinations({
           ? switchingTeam
             ? null
             : typeof schedule === "function"
-              ? schedule(scopedLoadContext)
+              ? schedule(
+                  scopedLoadContext,
+                  baseContext === undefined ? undefined : activeTeamId,
+                )
               : schedule
           : null}
         {selected === "Team"

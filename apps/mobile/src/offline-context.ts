@@ -3,6 +3,7 @@ import type { CurrentClubContext } from "@stable/contracts";
 
 import {
   clearUserGameDaySnapshots,
+  removeGameDaySnapshot,
   readGameDaySnapshot,
   saveGameDaySnapshot,
   type GameDaySnapshot,
@@ -101,7 +102,21 @@ export async function persistOfflineGameDay(
 export async function readOfflineGameDay(
   store: GameDaySnapshotStore,
   userId: string,
+  selectedTeamId?: string | null,
 ): Promise<GameDaySnapshot | null> {
+  if (selectedTeamId === null) {
+    return null;
+  }
+  if (selectedTeamId !== undefined) {
+    const selectedSnapshot = await readGameDaySnapshot(
+      store,
+      userId,
+      selectedTeamId,
+    );
+    return selectedSnapshot?.teamId === selectedTeamId
+      ? selectedSnapshot
+      : null;
+  }
   const pointer = await readOfflineContextPointer(store, userId);
   if (pointer === null) {
     return null;
@@ -115,6 +130,18 @@ export async function readOfflineGameDay(
     return null;
   }
   return snapshot;
+}
+
+export async function removeOfflineGameDayForTeam(
+  store: GameDaySnapshotStore,
+  userId: string,
+  teamId: string,
+): Promise<void> {
+  await removeGameDaySnapshot(store, userId, teamId);
+  const pointer = await readOfflineContextPointer(store, userId);
+  if (pointer?.teamId === teamId) {
+    await clearOfflineContextPointer(store, userId);
+  }
 }
 
 export async function clearStoredOfflineGameDay(

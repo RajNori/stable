@@ -346,6 +346,51 @@ describe("mobile auth gate", () => {
     });
   });
 
+  it("validates a callback before removing the current push registration", async () => {
+    let receive: ((url: string) => void) | undefined;
+    const beforeCompleteCallback = jest.fn(async () => undefined);
+    const completeCallback = jest.fn(async () => authenticated);
+    const validateCallback = jest.fn(() => {
+      throw new ApplicationError(
+        "VALIDATION_FAILED",
+        AUTH_ERROR_MESSAGES.VALIDATION_FAILED,
+      );
+    });
+    await render(
+      <MobileAuthGate
+        restore={async () => authenticated}
+        signOut={async () => ({ state: "unauthenticated" })}
+        actions={idleActions({
+          validateCallback,
+          completeCallback,
+        })}
+        beforeCompleteCallback={beforeCompleteCallback}
+        linking={{
+          async getInitialUrl() {
+            return null;
+          },
+          subscribe(listener) {
+            receive = listener;
+            return () => {
+              receive = undefined;
+            };
+          },
+        }}
+        authenticated={() => <Text>Club home</Text>}
+      />,
+    );
+
+    expect(await screen.findByText("Club home")).toBeTruthy();
+    await act(async () => {
+      receive?.("https://attacker.example/auth/callback?code=bad");
+      await new Promise<void>((resolve) => setTimeout(() => resolve(), 0));
+    });
+    expect(validateCallback.mock.calls.length).toBe(1);
+    expect(beforeCompleteCallback.mock.calls.length).toBe(0);
+    expect(completeCallback.mock.calls.length).toBe(0);
+    expect(await screen.findByText("Club home")).toBeTruthy();
+  });
+
   it("uses a successful initial auth callback to open the app", async () => {
     const complete = jest.fn(async () => authenticated);
     await render(
@@ -729,6 +774,9 @@ function idleActions(overrides: Record<string, unknown> = {}) {
       return authenticated;
     },
     async requestEmail() {
+      return undefined;
+    },
+    validateCallback() {
       return undefined;
     },
     async completeCallback(): Promise<AuthSessionSnapshot> {

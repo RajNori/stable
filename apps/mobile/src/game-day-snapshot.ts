@@ -191,6 +191,21 @@ export async function saveGameDaySnapshot(
   );
 }
 
+export async function removeGameDaySnapshot(
+  store: GameDaySnapshotStore,
+  userId: string,
+  teamId: string,
+): Promise<void> {
+  await store.removeItem(snapshotKey(userId, teamId));
+  const teams = await readIndex(store, userId);
+  const remaining = teams.filter((candidate) => candidate !== teamId);
+  if (remaining.length === 0) {
+    await store.removeItem(indexKey(userId));
+  } else if (remaining.length !== teams.length) {
+    await store.setItem(indexKey(userId), JSON.stringify({ teams: remaining }));
+  }
+}
+
 export async function readGameDaySnapshot(
   store: GameDaySnapshotStore,
   userId: string,
