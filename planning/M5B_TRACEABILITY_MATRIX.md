@@ -203,4 +203,10 @@ These gates are tracked separately so the `63` source-story count remains audita
 
 ## Ledger maintenance
 
+### 2026-10-13 docs-head verification (no application changes)
+
+Repository head `4b0a8bd083d540067ea2c5af4cc9d813c7993530` is documentation-only and is ahead of application behavior SHA `9289b6a442d1a5c5ed26516611fe24e233b4db3a`. GitHub Actions run `38263786916` completed successfully with all eight required jobs on exact docs head `4b0a8bd`. The Git-connected Vercel deployment `dpl_14ZR7Ykz4cbktV2gHT4p6qjHLTJm` is READY and reports source branch `milestone/5b-pilot-journey-completion` and exact SHA `4b0a8bd`; this confirms a successful branch Preview build but does not transfer hosted application-behavior evidence from `9289b6a` to the docs-only head. PR #4 remains open and Draft. The PR description still cites the older `486da858` head; an attempted update through the connected GitHub integration was rejected with HTTP 403 (`Resource not accessible by integration`), so no PR metadata change was made.
+
+The staging safety boundary remains unchanged: no privileged hosted operation was performed. The exact previously exposed staging credential still requires owner rotation/revocation and verification, and the owner must approve a backup/recovery plan before the four pending committed migrations are applied.
+
 Update the affected rows in the same bounded story commits that change implementation. Before calling a story `IMPLEMENTED_LOCAL`, record exact UI, operation, capability, database invariant, automated tests and candidate SHA. `HOSTED_VERIFIED` requires an actual staging run/date/SHA. `PILOT_VERIFIED` additionally requires the physical client/provider journey where applicable. A dependency-only blockage uses `BLOCKED_EXTERNAL` with named owner, reason, risk, workaround and review date; P0 external blockage remains a Pilot NO-GO.
