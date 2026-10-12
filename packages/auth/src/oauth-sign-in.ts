@@ -53,6 +53,7 @@ export async function requestOAuthSignIn(
     redirectTo: string;
     appEnv: AppEnv;
     authOrigin: string;
+    webOrigin?: string;
   },
 ): Promise<OAuthSignInNavigation> {
   return startOAuthBrowserSignIn(gateway, {
@@ -72,12 +73,14 @@ export async function startOAuthBrowserSignIn(
     redirectTo: string;
     appEnv: AppEnv;
     authOrigin: string;
+    webOrigin?: string;
     settings: OAuthProviderSettings;
   },
 ): Promise<OAuthSignInNavigation> {
   const redirectTo = assertAllowedSignInRedirect(
     input.redirectTo,
     input.appEnv,
+    input.webOrigin,
   );
   const authOrigin = assertExpectedAuthOrigin(input.authOrigin);
   assertProviderReady(input.settings);

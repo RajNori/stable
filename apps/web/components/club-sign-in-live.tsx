@@ -84,6 +84,7 @@ export function ClubSignInLive({
           redirectTo: `${webOrigin}/auth/callback`,
           appEnv,
           authOrigin: new URL(supabaseUrl).origin,
+          webOrigin,
           settings: providerSettings[provider],
         });
         window.location.assign(navigation.authorizationUrl);

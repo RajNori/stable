@@ -113,6 +113,46 @@ describe("oauth sign-in", () => {
     expect(google.links).toBe(0);
   });
 
+  it("accepts the exact configured hosted web callback origin", async () => {
+    const gateway = fakeGateway({ authorizationUrl: hostedAuthorizeUrl });
+    const webOrigin = "https://staging.stable.example";
+    const hostedRedirect = `${webOrigin}/auth/callback`;
+
+    await expect(
+      startOAuthBrowserSignIn(gateway.gateway, {
+        provider: "google",
+        redirectTo: hostedRedirect,
+        appEnv: "staging",
+        authOrigin: hostedOrigin,
+        webOrigin,
+        settings: ready,
+      }),
+    ).resolves.toMatchObject({
+      status: "redirect_required",
+      provider: "google",
+      authorizationUrl: hostedAuthorizeUrl,
+    });
+    expect(gateway.browser).toEqual([
+      { provider: "google", redirectTo: hostedRedirect },
+    ]);
+  });
+
+  it("rejects a hosted callback that does not match the configured origin", async () => {
+    const gateway = fakeGateway({ authorizationUrl: hostedAuthorizeUrl });
+
+    await expect(
+      startOAuthBrowserSignIn(gateway.gateway, {
+        provider: "google",
+        redirectTo: "https://evil.example/auth/callback",
+        appEnv: "staging",
+        authOrigin: hostedOrigin,
+        webOrigin: "https://staging.stable.example",
+        settings: ready,
+      }),
+    ).rejects.toMatchObject({ code: "VALIDATION_FAILED" });
+    expect(gateway.browser).toEqual([]);
+  });
+
   it("fails a disabled provider and an unsafe redirect before the provider call", async () => {
     const gateway = fakeGateway();
 
