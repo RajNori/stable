@@ -59,6 +59,11 @@ export function ClubAdminHomePanel({
           <p>Club setup status could not be loaded.</p>
         ) : summary.activeTeamCount === 0 ? (
           <p>No active teams yet. Start in club structure.</p>
+        ) : summary.activeSeasonCount === 0 ? (
+          <p>
+            No active season.{" "}
+            <a href="/club-structure">Set up an active season</a>.
+          </p>
         ) : summary.teamsNeedingLeadership.length > 0 ? (
           <ul>
             {summary.teamsNeedingLeadership.map((team) => (

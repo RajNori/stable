@@ -51,4 +51,24 @@ describe("club admin home panel", () => {
       screen.getByText("Every active team has a Head Coach and Team Manager."),
     ).toBeTruthy();
   });
+
+  it("directs the Club Admin to create an active season", () => {
+    render(
+      <ClubAdminHomePanel
+        themeKey="mustangs"
+        summary={{
+          activeTeamCount: 2,
+          activeSeasonCount: 0,
+          teamsNeedingLeadership: [],
+        }}
+      />,
+    );
+
+    expect(screen.getByText(/No active season/)).toBeTruthy();
+    expect(
+      screen
+        .getByRole("link", { name: "Set up an active season" })
+        .getAttribute("href"),
+    ).toBe("/club-structure");
+  });
 });
