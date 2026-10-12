@@ -498,6 +498,7 @@ describe("mobile auth gate", () => {
     let receive: ((url: string) => void) | undefined;
     const finalize = jest.fn(async () => undefined);
     const beforeCompleteCallback = jest.fn(async () => finalize);
+    const afterCallbackRestore = jest.fn(async () => undefined);
     const completeCallback = jest.fn(async () => {
       throw new Error("expired or invalid code");
     });
@@ -507,6 +508,7 @@ describe("mobile auth gate", () => {
         signOut={async () => ({ state: "unauthenticated" })}
         actions={idleActions({ completeCallback })}
         beforeCompleteCallback={beforeCompleteCallback}
+        afterCallbackRestore={afterCallbackRestore}
         linking={{
           async getInitialUrl() {
             return null;
@@ -530,6 +532,7 @@ describe("mobile auth gate", () => {
     await waitFor(() => expect(completeCallback.mock.calls.length).toBe(1));
     expect(beforeCompleteCallback.mock.calls.length).toBe(1);
     expect(finalize.mock.calls.length).toBe(0);
+    expect(afterCallbackRestore.mock.calls).toEqual([[authenticated]]);
     expect(await screen.findByText("Club home")).toBeTruthy();
   });
 

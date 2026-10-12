@@ -42,6 +42,8 @@ type MobileAuthGateProps = {
       >)
     | undefined;
   readonly clearFailedCallbackSession?: (() => Promise<void>) | undefined;
+  readonly afterCallbackRestore?:
+    ((restored: AuthSessionSnapshot) => Promise<void>) | undefined;
   readonly beforeAcceptAuthenticated?:
     ((next: AuthSessionSnapshot) => Promise<void>) | undefined;
   readonly linking?: MobileLinking;
@@ -57,6 +59,7 @@ export function MobileAuthGate({
   actions,
   beforeCompleteCallback,
   clearFailedCallbackSession,
+  afterCallbackRestore,
   beforeAcceptAuthenticated,
   linking,
   clearPrivateCache = noopClearPrivateCache,
@@ -187,6 +190,7 @@ export function MobileAuthGate({
           if (restored.state !== "authenticated") {
             restored = recoverySnapshot(error);
           }
+          await afterCallbackRestore?.(restored);
           await updateSession(restored, transition);
         } finally {
           if (active && transition === sessionTransition.current) {
@@ -221,6 +225,7 @@ export function MobileAuthGate({
     beforeAcceptAuthenticated,
     beginSessionTransition,
     clearFailedCallbackSession,
+    afterCallbackRestore,
     enqueueSessionOperation,
     linking,
     updateSession,

@@ -178,6 +178,10 @@ export function ProfileScreen({
                 setPushStatus(
                   "Notification permission is off. You can change it in device settings.",
                 );
+              } else if (result.status === "cleanup-pending") {
+                setPushStatus(
+                  "Push setup is paused while this device finishes account cleanup. Sign in again or retry shortly.",
+                );
               } else {
                 setPushStatus(
                   "Push notifications are not configured for this app build yet.",

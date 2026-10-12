@@ -3,7 +3,7 @@ import { themeFor } from "@stable/design-tokens";
 import { useQueryClient } from "@tanstack/react-query";
 import * as Linking from "expo-linking";
 import * as SecureStore from "expo-secure-store";
-import React, { useCallback, useMemo } from "react";
+import React, { useCallback, useMemo, useRef } from "react";
 import { SafeAreaView } from "react-native-safe-area-context";
 
 import {
@@ -13,6 +13,9 @@ import {
 import { MobileAuthGate } from "../src/auth/mobile-auth-gate";
 import {
   enforcePendingPushCleanup,
+  readPendingPushCleanupUsers,
+  resumePushRegistration,
+  suspendPushRegistration,
   tryRemovePushRegistrationOrRetainFence,
 } from "../src/auth/pending-push-cleanup";
 import type { PendingPushCleanupStore } from "../src/auth/pending-push-cleanup";
@@ -113,6 +116,7 @@ export default function CurrentClubContextRoute() {
   );
   const monitor = useMemo(() => expoNetworkMonitor(), []);
   const online = useMobileOnline(monitor);
+  const callbackSuspendedUserId = useRef<string | null>(null);
   const restoreWithPushCleanupFence = useCallback(async () => {
     const restored = await restoreLiveMobileAuthSession();
     if (restored.state !== "authenticated") {
@@ -165,6 +169,7 @@ export default function CurrentClubContextRoute() {
     [],
   );
   const clearPushRegistration = useCallback(async (userId: string) => {
+    suspendPushRegistration(userId);
     // Mark before remote revocation so another session admission cannot race
     // an unresolved sign-out cleanup.
     await tryRemovePushRegistrationOrRetainFence({
@@ -191,6 +196,8 @@ export default function CurrentClubContextRoute() {
       accessToken: previousSession.access_token,
       refreshToken: previousSession.refresh_token,
     };
+    callbackSuspendedUserId.current = previous.userId;
+    suspendPushRegistration(previous.userId);
     const cleanedPendingRegistration =
       await cleanPendingCallbackPushRegistration({
         store: pendingPushCleanupStore,
@@ -203,7 +210,15 @@ export default function CurrentClubContextRoute() {
     // link must never delete the prior account's endpoint. Use the captured
     // previous session only if the successful callback switches accounts.
     return async (next: AuthSessionSnapshot) => {
-      if (next.state !== "authenticated") return;
+      if (next.state !== "authenticated") {
+        callbackSuspendedUserId.current = null;
+        return;
+      }
+      if (next.principal.userId === previous.userId) {
+        resumePushRegistration(previous.userId);
+        callbackSuspendedUserId.current = null;
+        return;
+      }
       const removed = await removePreviousPushAfterSuccessfulAccountSwitch(
         pendingPushCleanupStore,
         previous,
@@ -211,11 +226,26 @@ export default function CurrentClubContextRoute() {
         removeLivePushRegistrationForSession,
         cleanedPendingRegistration,
       );
+      callbackSuspendedUserId.current = null;
       if (!removed) {
         throw new Error("The previous account push endpoint is unresolved.");
       }
     };
   }, []);
+  const afterCallbackRestore = useCallback(
+    async (restored: AuthSessionSnapshot) => {
+      const suspendedUserId = callbackSuspendedUserId.current;
+      callbackSuspendedUserId.current = null;
+      if (
+        suspendedUserId !== null &&
+        restored.state === "authenticated" &&
+        restored.principal.userId === suspendedUserId
+      ) {
+        resumePushRegistration(suspendedUserId);
+      }
+    },
+    [],
+  );
 
   const beforeAcceptAuthenticated = useCallback(
     async (next: AuthSessionSnapshot) => {
@@ -242,16 +272,37 @@ export default function CurrentClubContextRoute() {
     >
       <MobileAuthGate
         restore={restoreWithPushCleanupFence}
-        signOut={() => signOutLiveMobileAuthSession(clearPushRegistration)}
+        signOut={async (userId) => {
+          const next = await signOutLiveMobileAuthSession(
+            clearPushRegistration,
+          );
+          if (next.state === "recovery") {
+            try {
+              if (
+                (await readPendingPushCleanupUsers(pendingPushCleanupStore))
+                  .length === 0
+              ) {
+                resumePushRegistration(userId);
+              }
+            } catch {
+              // Keep push registration suspended when the cleanup state is unknown.
+            }
+          }
+          return next;
+        }}
         actions={actions}
         beforeCompleteCallback={beforeCompleteCallback}
+        afterCallbackRestore={afterCallbackRestore}
         beforeAcceptAuthenticated={beforeAcceptAuthenticated}
         clearFailedCallbackSession={clearFailedCallbackSession}
         linking={linking}
         clearPrivateCache={clearPrivateCache}
         authenticated={(userId) => (
           <>
-            <MobilePushRegistrationLifecycle userId={userId} />
+            <MobilePushRegistrationLifecycle
+              userId={userId}
+              store={pendingPushCleanupStore}
+            />
             <MobileDestinations
               loadContext={loadContext}
               onTeamSelected={(teamId) =>
@@ -318,7 +369,9 @@ export default function CurrentClubContextRoute() {
                   loadContext={scopedLoadContext}
                   loadPreferences={loadMobileNotificationPreferences}
                   savePreference={saveMobileNotificationPreference}
-                  requestPush={() => requestLivePushRegistration(userId)}
+                  requestPush={() =>
+                    requestLivePushRegistration(userId, pendingPushCleanupStore)
+                  }
                 />
               )}
             />

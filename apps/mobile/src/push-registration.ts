@@ -17,6 +17,7 @@ export type PushTokenStorage = {
 export type PushRegistrationResult =
   | { status: "registered" }
   | { status: "permission-denied" }
+  | { status: "cleanup-pending" }
   | { status: "configuration-required" };
 
 export type MobilePushPlatform = "IOS" | "ANDROID";
@@ -36,6 +37,7 @@ async function registerGrantedPushPermission(input: {
     platform: MobilePushPlatform,
   ) => Promise<void>;
   removeDevice: (token: string) => Promise<void>;
+  canContinue?: () => boolean;
 }): Promise<PushRegistrationResult> {
   if (input.projectId === null || input.projectId.length === 0) {
     return { status: "configuration-required" };
@@ -49,11 +51,27 @@ async function registerGrantedPushPermission(input: {
   const tokenKey = pushTokenStorageKey(input.userId);
   const previousToken = await input.storage.getItem(tokenKey);
 
+  // Sign-out or callback account switching may begin while Expo is resolving
+  // the token. Do not start a new server registration after that transition
+  // has suspended this account; its queued cleanup will resolve the fence.
+  if (input.canContinue?.() === false) {
+    return { status: "cleanup-pending" };
+  }
+
   if (previousToken !== null && previousToken !== token) {
     await input.removeDevice(previousToken);
   }
-  await input.registerDevice(token, input.platform);
+  if (input.canContinue?.() === false) {
+    return { status: "cleanup-pending" };
+  }
+  // Persist the recovery token before the endpoint write. If the response is
+  // ambiguous or storage fails afterward, the pending fence can still revoke
+  // the token that may have become active on the server.
   await input.storage.setItem(tokenKey, token);
+  if (input.canContinue?.() === false) {
+    return { status: "cleanup-pending" };
+  }
+  await input.registerDevice(token, input.platform);
   return { status: "registered" };
 }
 
@@ -68,13 +86,15 @@ export async function refreshPushRegistration(input: {
     platform: MobilePushPlatform,
   ) => Promise<void>;
   removeDevice: (token: string) => Promise<void>;
+  canContinue?: () => boolean;
 }): Promise<PushRegistrationResult> {
   if (input.projectId === null || input.projectId.length === 0) {
     return { status: "configuration-required" };
   }
   const permissions = await input.api.getPermissionsAsync();
   if (permissions.status !== "granted") {
-    await removePushRegistration(input);
+    const removed = await removePushRegistration(input);
+    if (!removed) return { status: "cleanup-pending" };
     return { status: "permission-denied" };
   }
   return registerGrantedPushPermission(input);
@@ -91,6 +111,7 @@ export async function requestPushRegistration(input: {
     platform: MobilePushPlatform,
   ) => Promise<void>;
   removeDevice: (token: string) => Promise<void>;
+  canContinue?: () => boolean;
 }): Promise<PushRegistrationResult> {
   if (input.projectId === null || input.projectId.length === 0) {
     return { status: "configuration-required" };
@@ -101,7 +122,8 @@ export async function requestPushRegistration(input: {
       ? permissions
       : await input.api.requestPermissionsAsync();
   if (finalPermissions.status !== "granted") {
-    await removePushRegistration(input);
+    const removed = await removePushRegistration(input);
+    if (!removed) return { status: "cleanup-pending" };
     return { status: "permission-denied" };
   }
   return registerGrantedPushPermission(input);

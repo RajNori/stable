@@ -1,5 +1,18 @@
 const pendingPushCleanupKey = "stable-pending-push-cleanup-v1";
 let pendingMutationQueue: Promise<void> = Promise.resolve();
+const suspendedPushRegistrationUsers = new Set<string>();
+
+export function suspendPushRegistration(userId: string): void {
+  if (userId.length > 0) suspendedPushRegistrationUsers.add(userId);
+}
+
+export function resumePushRegistration(userId: string): void {
+  suspendedPushRegistrationUsers.delete(userId);
+}
+
+export function isPushRegistrationSuspended(userId: string): boolean {
+  return suspendedPushRegistrationUsers.has(userId);
+}
 
 export type PendingPushCleanupTransaction = {
   readUsers: () => Promise<string[]>;
@@ -25,6 +38,41 @@ export type PendingPushCleanupStore = {
   setItem(key: string, value: string): Promise<void>;
   removeItem(key: string): Promise<void>;
 };
+
+export async function withPushRegistrationAdmission<T>(input: {
+  readonly store: PendingPushCleanupStore;
+  readonly userId: string;
+  readonly operation: (canContinue: () => boolean) => Promise<T>;
+  readonly shouldClearFence?: (value: T) => boolean;
+}): Promise<
+  { readonly admitted: false } | { readonly admitted: true; readonly value: T }
+> {
+  return withPendingPushCleanupTransaction(input.store, async (transaction) => {
+    if (isPushRegistrationSuspended(input.userId)) {
+      return { admitted: false } as const;
+    }
+    if ((await transaction.readUsers()).length > 0) {
+      return { admitted: false } as const;
+    }
+    if (isPushRegistrationSuspended(input.userId)) {
+      return { admitted: false } as const;
+    }
+
+    // Fence the account before token registration. If the app is interrupted
+    // or the result is ambiguous, the next admission must resolve cleanup.
+    await transaction.mark(input.userId);
+    const value = await input.operation(
+      () => !isPushRegistrationSuspended(input.userId),
+    );
+    if (
+      !isPushRegistrationSuspended(input.userId) &&
+      (input.shouldClearFence?.(value) ?? true)
+    ) {
+      await transaction.clear(input.userId);
+    }
+    return { admitted: true, value } as const;
+  });
+}
 
 async function readPendingUsers(
   store: PendingPushCleanupStore,

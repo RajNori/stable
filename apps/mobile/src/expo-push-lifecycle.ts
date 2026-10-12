@@ -5,6 +5,11 @@ import { AppState, Platform } from "react-native";
 import { useEffect } from "react";
 
 import {
+  resumePushRegistration,
+  withPushRegistrationAdmission,
+  type PendingPushCleanupStore,
+} from "./auth/pending-push-cleanup";
+import {
   registerMobileDevice,
   removeMobileDevice,
   removeMobileDeviceForSession,
@@ -61,18 +66,34 @@ function environment(userId: string) {
 
 export async function requestLivePushRegistration(
   userId: string,
+  store: PendingPushCleanupStore,
 ): Promise<PushRegistrationResult> {
   const input = environment(userId);
   if (input === null) return { status: "configuration-required" };
-  return requestPushRegistration(input);
+  const result = await withPushRegistrationAdmission({
+    store,
+    userId,
+    operation: (canContinue) =>
+      requestPushRegistration({ ...input, canContinue }),
+    shouldClearFence: (value) => value.status !== "cleanup-pending",
+  });
+  return result.admitted ? result.value : { status: "cleanup-pending" };
 }
 
 export async function refreshLivePushRegistration(
   userId: string,
+  store: PendingPushCleanupStore,
 ): Promise<PushRegistrationResult> {
   const input = environment(userId);
   if (input === null) return { status: "configuration-required" };
-  return refreshPushRegistration(input);
+  const result = await withPushRegistrationAdmission({
+    store,
+    userId,
+    operation: (canContinue) =>
+      refreshPushRegistration({ ...input, canContinue }),
+    shouldClearFence: (value) => value.status !== "cleanup-pending",
+  });
+  return result.admitted ? result.value : { status: "cleanup-pending" };
 }
 
 export async function removeLivePushRegistration(
@@ -102,13 +123,16 @@ export async function removeLivePushRegistrationForSession(
 
 export function MobilePushRegistrationLifecycle({
   userId,
+  store,
 }: {
   userId: string;
+  store: PendingPushCleanupStore;
 }) {
   useEffect(() => {
     let active = true;
+    resumePushRegistration(userId);
     const refresh = (): void => {
-      void refreshLivePushRegistration(userId).catch(() => undefined);
+      void refreshLivePushRegistration(userId, store).catch(() => undefined);
     };
     refresh();
     const tokenSubscription = Notifications.addPushTokenListener(refresh);
@@ -123,6 +147,6 @@ export function MobilePushRegistrationLifecycle({
       tokenSubscription.remove();
       appStateSubscription.remove();
     };
-  }, [userId]);
+  }, [store, userId]);
   return null;
 }

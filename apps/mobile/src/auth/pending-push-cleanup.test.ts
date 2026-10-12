@@ -4,7 +4,10 @@ import {
   markPendingPushCleanup,
   readPendingPushCleanup,
   readPendingPushCleanupUsers,
+  resumePushRegistration,
+  suspendPushRegistration,
   tryRemovePushRegistrationOrRetainFence,
+  withPushRegistrationAdmission,
   type PendingPushCleanupStore,
 } from "./pending-push-cleanup";
 
@@ -249,6 +252,100 @@ describe("pending push cleanup fence", () => {
       "first-user",
       "second-user",
     ]);
+  });
+
+  it("serializes an in-flight token refresh with sign-out and skips late registration", async () => {
+    const values = new Map<string, string>();
+    const store: PendingPushCleanupStore = {
+      getItem: async (key) => values.get(key) ?? null,
+      setItem: async (key, value) => void values.set(key, value),
+      removeItem: async (key) => void values.delete(key),
+    };
+    const userId = "push-refresh-user";
+    resumePushRegistration(userId);
+
+    let releaseToken: (() => void) | undefined;
+    let tokenLookupStarted: (() => void) | undefined;
+    const tokenStarted = new Promise<void>((resolve) => {
+      tokenLookupStarted = resolve;
+    });
+    let registrationCalls = 0;
+    const registration = withPushRegistrationAdmission({
+      store,
+      userId,
+      operation: async (canContinue) => {
+        tokenLookupStarted?.();
+        await new Promise<void>((resolve) => {
+          releaseToken = resolve;
+        });
+        if (!canContinue()) return "cleanup-pending" as const;
+        registrationCalls += 1;
+        return "registered" as const;
+      },
+      shouldClearFence: (status) => status !== "cleanup-pending",
+    });
+    await tokenStarted;
+
+    suspendPushRegistration(userId);
+    const signOutCleanup = tryRemovePushRegistrationOrRetainFence({
+      store,
+      userId,
+      removeRegistration: async () => true,
+    });
+    releaseToken?.();
+
+    expect(await registration).toEqual({
+      admitted: true,
+      value: "cleanup-pending",
+    });
+    expect(await signOutCleanup).toBe(true);
+    expect(registrationCalls).toBe(0);
+    expect(await readPendingPushCleanupUsers(store)).toEqual([]);
+    resumePushRegistration(userId);
+  });
+
+  it("revokes an endpoint after registration that was already in flight before sign-out", async () => {
+    const values = new Map<string, string>();
+    const store: PendingPushCleanupStore = {
+      getItem: async (key) => values.get(key) ?? null,
+      setItem: async (key, value) => void values.set(key, value),
+      removeItem: async (key) => void values.delete(key),
+    };
+    const userId = "completed-refresh-user";
+    resumePushRegistration(userId);
+    let finishRegistration: (() => void) | undefined;
+    const endpointRegistered = new Promise<void>((resolve) => {
+      finishRegistration = resolve;
+    });
+    let endpointActive = false;
+    const registration = withPushRegistrationAdmission({
+      store,
+      userId,
+      operation: async () => {
+        endpointActive = true;
+        finishRegistration?.();
+        return "registered";
+      },
+    });
+    await endpointRegistered;
+
+    suspendPushRegistration(userId);
+    const signOutCleanup = tryRemovePushRegistrationOrRetainFence({
+      store,
+      userId,
+      removeRegistration: async () => {
+        endpointActive = false;
+        return true;
+      },
+    });
+    expect(await registration).toEqual({
+      admitted: true,
+      value: "registered",
+    });
+    expect(await signOutCleanup).toBe(true);
+    expect(endpointActive).toBe(false);
+    expect(await readPendingPushCleanupUsers(store)).toEqual([]);
+    resumePushRegistration(userId);
   });
 
   it("lets any pending account clean its own endpoint but denies entry until all are clear", async () => {

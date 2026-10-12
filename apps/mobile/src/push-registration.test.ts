@@ -128,6 +128,71 @@ describe("mobile push registration", () => {
     expect(values.get(key)).toBe("ExpoPushToken[rotated]");
   });
 
+  it("does not register an Expo token when sign-out suspends during token lookup", async () => {
+    const calls: string[] = [];
+    const api: PushRegistrationApi = {
+      async getPermissionsAsync() {
+        calls.push("get-permissions");
+        return { status: "granted" };
+      },
+      async requestPermissionsAsync() {
+        calls.push("request-permissions");
+        return { status: "granted" };
+      },
+      async getExpoPushTokenAsync({ projectId }) {
+        calls.push(`get-token:${projectId}`);
+        return { data: "ExpoPushToken[late]" };
+      },
+    };
+    const { storage } = testStorage();
+    const ports = registrationPorts(calls);
+
+    const result = await refreshPushRegistration({
+      api,
+      storage,
+      userId: "adult-1",
+      projectId: "project-uuid",
+      platform: "IOS",
+      ...ports,
+      canContinue: () => false,
+    });
+
+    expect(result).toEqual({ status: "cleanup-pending" });
+    expect(calls).toEqual(["get-permissions", "get-token:project-uuid"]);
+  });
+
+  it("rechecks the account transition after rotating the previous endpoint", async () => {
+    let canContinue = true;
+    const { api, calls } = pushApi({ token: "ExpoPushToken[new]" });
+    const key = pushTokenStorageKey("adult-1");
+    const { storage, values } = testStorage({
+      [key]: "ExpoPushToken[old]",
+    });
+    const ports = registrationPorts(calls);
+
+    const result = await refreshPushRegistration({
+      api,
+      storage,
+      userId: "adult-1",
+      projectId: "project-uuid",
+      platform: "IOS",
+      ...ports,
+      canContinue: () => canContinue,
+      removeDevice: async (token) => {
+        calls.push(`remove:${token}`);
+        canContinue = false;
+      },
+    });
+
+    expect(result).toEqual({ status: "cleanup-pending" });
+    expect(calls).toEqual([
+      "get-permissions",
+      "get-token:project-uuid",
+      "remove:ExpoPushToken[old]",
+    ]);
+    expect(values.get(key)).toBe("ExpoPushToken[old]");
+  });
+
   it("revokes a stored endpoint when permission is no longer granted", async () => {
     const { api, calls } = pushApi({ status: "denied" });
     const key = pushTokenStorageKey("adult-1");
@@ -147,6 +212,46 @@ describe("mobile push registration", () => {
     expect(result).toEqual({ status: "permission-denied" });
     expect(calls).toEqual(["get-permissions", "remove:ExpoPushToken[old]"]);
     expect(values.has(key)).toBe(false);
+  });
+
+  it("keeps cleanup pending when permission is denied but local token state is missing", async () => {
+    const { api, calls } = pushApi({ status: "denied" });
+    const { storage } = testStorage();
+    const ports = registrationPorts(calls);
+
+    const result = await refreshPushRegistration({
+      api,
+      storage,
+      userId: "adult-1",
+      projectId: "project-uuid",
+      platform: "IOS",
+      ...ports,
+    });
+
+    expect(result).toEqual({ status: "cleanup-pending" });
+    expect(calls).toEqual(["get-permissions"]);
+  });
+
+  it("persists the current token before an ambiguous endpoint registration error", async () => {
+    const { api } = pushApi({ token: "ExpoPushToken[maybe-active]" });
+    const key = pushTokenStorageKey("adult-1");
+    const { storage, values } = testStorage();
+
+    await expect(
+      refreshPushRegistration({
+        api,
+        storage,
+        userId: "adult-1",
+        projectId: "project-uuid",
+        platform: "IOS",
+        registerDevice: async () => {
+          throw new Error("ambiguous network result");
+        },
+        removeDevice: async () => undefined,
+      }),
+    ).rejects.toThrow("ambiguous network result");
+
+    expect(values.get(key)).toBe("ExpoPushToken[maybe-active]");
   });
 
   it("keeps the secure token if server-side endpoint removal fails", async () => {
