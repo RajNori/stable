@@ -1,8 +1,9 @@
 import type { CurrentClubContext } from "@stable/contracts";
+import type { AnnouncementRecord } from "@stable/announcements";
 import type { GameDayProjection } from "@stable/game-day";
 import type { ScheduleEntry } from "@stable/schedule";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { fireEvent, render, screen } from "@testing-library/react-native";
+import { fireEvent, render } from "@testing-library/react-native";
 import React from "react";
 
 import { GuardianHomeScreen } from "./guardian-home-screen";
@@ -44,8 +45,8 @@ const day: GameDayProjection = {
   opponentName: "Southside",
   roundLabel: "Round 2",
   officialStartAt: upcoming.startsAt,
-  arrivalAt: null,
-  venueText: null,
+  arrivalAt: "2026-10-11T04:00:00.000Z",
+  venueText: "Mentone Stadium",
   courtLabel: "Court 2",
   uniformNote: null,
   coachFocus: null,
@@ -58,22 +59,45 @@ const day: GameDayProjection = {
   unsureCount: null,
   unansweredCount: null,
 };
+const announcement: AnnouncementRecord = {
+  id: "77777777-7777-4777-8777-777777777777",
+  clubId,
+  teamId,
+  authorUserId: "19191919-1919-4919-8919-191919191919",
+  category: "GENERAL",
+  importance: "NORMAL",
+  title: "Bring the blue singlet",
+  body: "Use the away uniform this weekend.",
+  acknowledgementRequired: true,
+  publishedAt: "2026-10-09T01:00:00.000Z",
+  archivedAt: null,
+  acknowledgedAt: null,
+  readAt: null,
+};
 
 async function renderHome(input?: {
   entries?: ScheduleEntry[];
   gameDay?: GameDayProjection | null;
   onOpenSchedule?: () => void;
+  onOpenGameDay?: () => void;
+  onOpenUpdates?: () => void;
+  announcements?: AnnouncementRecord[];
 }) {
   const client = new QueryClient({
-    defaultOptions: { queries: { retry: false, gcTime: 0 } },
+    defaultOptions: {
+      queries: { retry: false, gcTime: 0 },
+    },
   });
-  return await render(
+  return render(
     <QueryClientProvider client={client}>
       <GuardianHomeScreen
         loadContext={() => Promise.resolve(context)}
         loadSchedule={() => Promise.resolve(input?.entries ?? [upcoming])}
         loadGameDay={() => Promise.resolve(input?.gameDay ?? day)}
+        loadAnnouncements={() => Promise.resolve(input?.announcements ?? [])}
         onOpenSchedule={input?.onOpenSchedule ?? (() => undefined)}
+        onOpenGameDay={input?.onOpenGameDay ?? (() => undefined)}
+        onOpenUpdates={input?.onOpenUpdates ?? (() => undefined)}
         now={Date.parse("2026-10-10T00:00:00.000Z")}
       />
     </QueryClientProvider>,
@@ -83,31 +107,62 @@ async function renderHome(input?: {
 describe("Guardian home", () => {
   it("shows the next event and current RSVP/duty, with a Schedule action", async () => {
     let openedSchedule = false;
-    await renderHome({ onOpenSchedule: openSchedule });
+    let openedGameDay = false;
+    const view = await renderHome({
+      onOpenSchedule: () => {
+        openedSchedule = true;
+      },
+      onOpenGameDay: () => {
+        openedGameDay = true;
+      },
+    });
 
-    expect(await screen.findByRole("header", { name: "Hi Alex" })).toBeTruthy();
-    expect(screen.getByText("Round 2: Southside")).toBeTruthy();
-    expect(screen.getByText("Court 2")).toBeTruthy();
-    expect(await screen.findByText("Your RSVP: UNANSWERED")).toBeTruthy();
-    expect(await screen.findByText("Your duty: Scorebook")).toBeTruthy();
-    fireEvent.press(screen.getByRole("button", { name: "Open schedule" }));
+    expect(await view.findByRole("header", { name: "Hi Alex" })).toBeTruthy();
+    expect(view.getByText("Round 2: Southside")).toBeTruthy();
+    expect(view.getByText("Court 2")).toBeTruthy();
+    expect(await view.findByText("Your RSVP: UNANSWERED")).toBeTruthy();
+    expect(await view.findByText("Your duty: Scorebook")).toBeTruthy();
+    expect(view.getByText(/Arrive/)).toBeTruthy();
+    expect(view.getByText("Mentone Stadium")).toBeTruthy();
+    expect(await view.findByText("No recent team updates.")).toBeTruthy();
+    await fireEvent.press(
+      view.getByRole("button", { name: "Respond to game" }),
+    );
+    expect(openedGameDay).toBe(true);
+    await fireEvent.press(view.getByRole("button", { name: "Open schedule" }));
     expect(openedSchedule).toBe(true);
+  });
 
-    function openSchedule() {
-      openedSchedule = true;
-    }
+  it("shows the latest team update and links to acknowledgements", async () => {
+    let openedUpdates = false;
+    const view = await renderHome({
+      announcements: [announcement],
+      onOpenUpdates: () => {
+        openedUpdates = true;
+      },
+    });
+    expect(await view.findByText(announcement.title)).toBeTruthy();
+    expect(await view.findByText("Your RSVP: UNANSWERED")).toBeTruthy();
+    expect(view.getByText(announcement.body)).toBeTruthy();
+    expect(view.getByText("Response requested")).toBeTruthy();
+    await fireEvent.press(
+      view.getByRole("button", { name: "Open team updates" }),
+    );
+    expect(openedUpdates).toBe(true);
   });
 
   it("shows a helpful empty state when no upcoming events exist", async () => {
-    await renderHome({ entries: [] });
-    expect(await screen.findByText("Nothing scheduled yet.")).toBeTruthy();
+    const view = await renderHome({ entries: [] });
+    expect(await view.findByText("Nothing scheduled yet.")).toBeTruthy();
+    expect(await view.findByText("No recent team updates.")).toBeTruthy();
   });
 
   it("does not show game actions for a different game projection", async () => {
-    await renderHome({
+    const view = await renderHome({
       gameDay: { ...day, eventId: "77777777-7777-4777-8777-777777777777" },
     });
-    expect(await screen.findByText("Round 2: Southside")).toBeTruthy();
-    expect(screen.queryByText(/Your RSVP/)).toBeNull();
+    expect(await view.findByText("Round 2: Southside")).toBeTruthy();
+    expect(await view.findByText("No recent team updates.")).toBeTruthy();
+    expect(view.queryByText(/Your RSVP/)).toBeNull();
   });
 });

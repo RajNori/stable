@@ -110,7 +110,10 @@ export default function CurrentClubContextRoute() {
                 loadContext={scopedLoadContext}
                 loadSchedule={loadMobileTeamSchedule}
                 loadGameDay={loadMobileGameDay}
+                loadAnnouncements={loadMobileAnnouncements}
                 onOpenSchedule={() => navigate("Schedule")}
+                onOpenGameDay={() => navigate("Schedule")}
+                onOpenUpdates={() => navigate("Updates")}
               />
             )}
             schedule={(scopedLoadContext) => (

@@ -1,5 +1,6 @@
 import { ApplicationError } from "@stable/contracts";
 import type { CurrentClubContext } from "@stable/contracts";
+import type { AnnouncementRecord } from "@stable/announcements";
 import { themeFor } from "@stable/design-tokens";
 import type { GameDayProjection } from "@stable/game-day";
 import type { ScheduleEntry } from "@stable/schedule";
@@ -63,13 +64,19 @@ export function GuardianHomeScreen({
   loadContext,
   loadSchedule,
   loadGameDay,
+  loadAnnouncements,
   onOpenSchedule,
+  onOpenGameDay,
+  onOpenUpdates,
   now = Date.now(),
 }: {
   loadContext: () => Promise<CurrentClubContext>;
   loadSchedule: (teamId: string) => Promise<ScheduleEntry[]>;
   loadGameDay: (teamId: string) => Promise<GameDayProjection | null>;
+  loadAnnouncements: (teamId: string) => Promise<AnnouncementRecord[]>;
   onOpenSchedule: () => void;
+  onOpenGameDay: () => void;
+  onOpenUpdates: () => void;
   now?: number;
 }) {
   const context = useQuery({
@@ -78,16 +85,20 @@ export function GuardianHomeScreen({
     retry: false,
   });
   const teamId = context.data?.activeTeam?.id ?? null;
-  const schedule = useQuery({
-    queryKey: ["guardian-home-schedule", teamId],
-    queryFn: () => {
+  const home = useQuery({
+    queryKey: ["guardian-home", teamId],
+    queryFn: async () => {
       if (teamId === null) throw new Error("No active team");
-      return loadSchedule(teamId);
+      const [schedule, announcements] = await Promise.all([
+        loadSchedule(teamId),
+        loadAnnouncements(teamId).catch(() => null),
+      ]);
+      return { schedule, announcements };
     },
     enabled: teamId !== null,
     retry: false,
   });
-  const nextEvent = schedule.data
+  const nextEvent = home.data?.schedule
     ?.filter(
       (event) =>
         event.eventStatus === "SCHEDULED" && Date.parse(event.startsAt) >= now,
@@ -102,6 +113,16 @@ export function GuardianHomeScreen({
     enabled: teamId !== null && nextEvent?.eventType === "GAME",
     retry: false,
   });
+  const latestAnnouncement = home.data?.announcements
+    ?.filter((item) => item.archivedAt === null)
+    .reduce<AnnouncementRecord | null>(
+      (latest, item) =>
+        latest === null ||
+        Date.parse(item.publishedAt) > Date.parse(latest.publishedAt)
+          ? item
+          : latest,
+      null,
+    );
 
   if (context.isPending) {
     return (
@@ -139,7 +160,7 @@ export function GuardianHomeScreen({
       </View>
     );
   }
-  if (schedule.isPending) {
+  if (home.isPending) {
     return (
       <View style={styles.screen}>
         <Text style={styles.body} accessibilityRole="progressbar">
@@ -148,11 +169,11 @@ export function GuardianHomeScreen({
       </View>
     );
   }
-  if (schedule.isError || schedule.data === undefined) {
+  if (home.isError || home.data === undefined) {
     return (
       <View style={styles.screen}>
         <Text accessibilityRole="header" style={styles.title}>
-          {errorMessage(schedule.error)}
+          {errorMessage(home.error)}
         </Text>
         <Pressable
           accessibilityRole="button"
@@ -188,6 +209,18 @@ export function GuardianHomeScreen({
             {nextEvent.eventType === "GAME" &&
             gameDay.data?.eventId === nextEvent.eventId ? (
               <>
+                {gameDay.data.arrivalAt === null ? null : (
+                  <Text style={styles.body}>
+                    Arrive{" "}
+                    {eventTime(
+                      { ...nextEvent, startsAt: gameDay.data.arrivalAt },
+                      context.data.club.timezone,
+                    )}
+                  </Text>
+                )}
+                {gameDay.data.venueText === null ? null : (
+                  <Text style={styles.body}>{gameDay.data.venueText}</Text>
+                )}
                 <Text style={styles.body}>
                   Your RSVP: {gameDay.data.ownRsvp}
                 </Text>
@@ -201,6 +234,16 @@ export function GuardianHomeScreen({
                 Game actions are temporarily unavailable.
               </Text>
             ) : null}
+            {nextEvent.eventType === "GAME" ? (
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel="Respond to game"
+                onPress={onOpenGameDay}
+                style={styles.action}
+              >
+                <Text style={styles.body}>Open Game Day</Text>
+              </Pressable>
+            ) : null}
           </>
         )}
         <Pressable
@@ -212,6 +255,33 @@ export function GuardianHomeScreen({
           <Text style={styles.body}>Open schedule</Text>
         </Pressable>
       </View>
+      {latestAnnouncement ? (
+        <View style={styles.card}>
+          <Text style={styles.title}>Latest team update</Text>
+          <Text style={styles.body}>{latestAnnouncement.title}</Text>
+          <Text style={styles.body}>{latestAnnouncement.body}</Text>
+          {latestAnnouncement.acknowledgementRequired &&
+          latestAnnouncement.acknowledgedAt === null ? (
+            <Text style={styles.body}>Response requested</Text>
+          ) : null}
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="Open team updates"
+            onPress={onOpenUpdates}
+            style={styles.action}
+          >
+            <Text style={styles.body}>Open team updates</Text>
+          </Pressable>
+        </View>
+      ) : null}
+      {home.data.announcements !== null && latestAnnouncement === null ? (
+        <Text style={styles.body}>No recent team updates.</Text>
+      ) : null}
+      {home.data.announcements === null ? (
+        <Text style={styles.body} accessibilityRole="alert">
+          Team updates are temporarily unavailable.
+        </Text>
+      ) : null}
     </View>
   );
 }
