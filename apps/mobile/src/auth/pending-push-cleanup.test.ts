@@ -37,6 +37,33 @@ describe("pending push cleanup fence", () => {
     );
   });
 
+  it("serializes concurrent marker read-modify-write operations", async () => {
+    const values = new Map<string, string>();
+    const store: PendingPushCleanupStore = {
+      getItem: async (key) => values.get(key) ?? null,
+      setItem: async (key, value) => void values.set(key, value),
+      removeItem: async (key) => void values.delete(key),
+    };
+
+    await Promise.all([
+      markPendingPushCleanup(store, "first-user"),
+      markPendingPushCleanup(store, "second-user"),
+    ]);
+    expect(await readPendingPushCleanupUsers(store)).toEqual([
+      "first-user",
+      "second-user",
+    ]);
+
+    await Promise.all([
+      clearPendingPushCleanup(store, "first-user"),
+      markPendingPushCleanup(store, "third-user"),
+    ]);
+    expect(await readPendingPushCleanupUsers(store)).toEqual([
+      "second-user",
+      "third-user",
+    ]);
+  });
+
   it("cleans the previous endpoint before accepting that same account", async () => {
     const values = new Map<string, string>();
     const store: PendingPushCleanupStore = {

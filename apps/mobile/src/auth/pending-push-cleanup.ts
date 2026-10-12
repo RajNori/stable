@@ -1,4 +1,14 @@
 const pendingPushCleanupKey = "stable-pending-push-cleanup-v1";
+let pendingMutationQueue: Promise<void> = Promise.resolve();
+
+function serializePendingMutation<T>(operation: () => Promise<T>): Promise<T> {
+  const result = pendingMutationQueue.then(operation, operation);
+  pendingMutationQueue = result.then(
+    () => undefined,
+    () => undefined,
+  );
+  return result;
+}
 
 export type PendingPushCleanupStore = {
   getItem(key: string): Promise<string | null>;
@@ -38,11 +48,13 @@ export async function markPendingPushCleanup(
   userId: string,
 ): Promise<void> {
   if (userId.length === 0) throw new Error("A user id is required.");
-  const pending = await readPendingPushCleanupUsers(store);
-  if (!pending.includes(userId)) {
-    pending.push(userId);
-    await store.setItem(pendingPushCleanupKey, JSON.stringify(pending));
-  }
+  await serializePendingMutation(async () => {
+    const pending = await readPendingPushCleanupUsers(store);
+    if (!pending.includes(userId)) {
+      pending.push(userId);
+      await store.setItem(pendingPushCleanupKey, JSON.stringify(pending));
+    }
+  });
 }
 
 export async function clearPendingPushCleanup(
@@ -50,17 +62,21 @@ export async function clearPendingPushCleanup(
   userId?: string,
 ): Promise<void> {
   if (userId === undefined) {
-    await store.removeItem(pendingPushCleanupKey);
+    await serializePendingMutation(() =>
+      store.removeItem(pendingPushCleanupKey),
+    );
     return;
   }
-  const remaining = (await readPendingPushCleanupUsers(store)).filter(
-    (pendingUserId) => pendingUserId !== userId,
-  );
-  if (remaining.length === 0) {
-    await store.removeItem(pendingPushCleanupKey);
-  } else {
-    await store.setItem(pendingPushCleanupKey, JSON.stringify(remaining));
-  }
+  await serializePendingMutation(async () => {
+    const remaining = (await readPendingPushCleanupUsers(store)).filter(
+      (pendingUserId) => pendingUserId !== userId,
+    );
+    if (remaining.length === 0) {
+      await store.removeItem(pendingPushCleanupKey);
+    } else {
+      await store.setItem(pendingPushCleanupKey, JSON.stringify(remaining));
+    }
+  });
 }
 
 export async function tryRemovePushRegistrationOrRetainFence(input: {
