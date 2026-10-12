@@ -36,7 +36,18 @@ export function createSupabaseNotificationGateway(
       ),
     }),
     deactivateDevice: async (token) => {
-      await call(db, "deactivate_device_endpoint", { p_token: token });
+      try {
+        await call(db, "deactivate_device_endpoint", { p_token: token });
+      } catch (error) {
+        // Deactivation is an idempotent cleanup command. NOT_FOUND means this
+        // caller no longer owns an active endpoint for the presented token;
+        // the RPC remains scoped to auth.uid() and does not reveal another
+        // account's endpoint state.
+        if (error instanceof ApplicationError && error.code === "NOT_FOUND") {
+          return;
+        }
+        throw error;
+      }
     },
     setPreference: async (input) => {
       await call(db, "set_notification_preference", {

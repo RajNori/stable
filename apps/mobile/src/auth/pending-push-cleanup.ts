@@ -158,8 +158,11 @@ async function markPendingUser(
   const pending = await readPendingUsers(store);
   if (!pending.includes(userId)) {
     pending.push(userId);
-    await store.setItem(pendingPushCleanupKey, JSON.stringify(pending));
   }
+  // Always persist the merged set. Mirrored stores may have diverged after a
+  // partial write; an idempotent retry must repair the missing copy instead
+  // of treating the marker in one backend as proof that both copies exist.
+  await store.setItem(pendingPushCleanupKey, JSON.stringify(pending));
 }
 
 async function clearPendingUser(

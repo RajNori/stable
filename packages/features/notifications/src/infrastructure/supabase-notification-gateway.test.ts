@@ -65,7 +65,10 @@ describe("notification gateway", () => {
         client({ data: null, error: { message } }),
       );
       await expect(
-        gateway.deactivateDevice("ExponentPushToken[phone]"),
+        gateway.setPreference({
+          category: "ANNOUNCEMENT_PUBLISHED",
+          pushEnabled: true,
+        }),
       ).rejects.toMatchObject({
         code: message.endsWith("FORBIDDEN")
           ? "FORBIDDEN"
@@ -90,5 +93,15 @@ describe("notification gateway", () => {
         platform: "IOS",
       }),
     ).rejects.toMatchObject({ code: "INTERNAL" });
+  });
+
+  it("treats an already absent caller-owned endpoint as deactivated", async () => {
+    const gateway = createSupabaseNotificationGateway(
+      client({ data: null, error: { message: "NOT_FOUND" } }),
+    );
+
+    await expect(
+      gateway.deactivateDevice("ExponentPushToken[already-removed]"),
+    ).resolves.toBeUndefined();
   });
 });

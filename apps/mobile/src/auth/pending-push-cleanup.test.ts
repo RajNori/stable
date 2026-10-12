@@ -81,6 +81,32 @@ describe("pending push cleanup fence", () => {
     ]);
   });
 
+  it("repairs a partial mirror when an existing fence is marked again", async () => {
+    const key = "stable-pending-push-cleanup-v1";
+    const primaryValues = new Map([[key, JSON.stringify(["prior-user"])]]);
+    const fallbackValues = new Map([[key, JSON.stringify(["other-user"])]]);
+    const store = createMirroredPendingPushCleanupStore(
+      {
+        getItem: async (itemKey) => primaryValues.get(itemKey) ?? null,
+        setItem: async (itemKey, value) =>
+          void primaryValues.set(itemKey, value),
+        removeItem: async (itemKey) => void primaryValues.delete(itemKey),
+      },
+      {
+        getItem: async (itemKey) => fallbackValues.get(itemKey) ?? null,
+        setItem: async (itemKey, value) =>
+          void fallbackValues.set(itemKey, value),
+        removeItem: async (itemKey) => void fallbackValues.delete(itemKey),
+      },
+    );
+
+    await markPendingPushCleanup(store, "prior-user");
+
+    const expected = JSON.stringify(["prior-user", "other-user"]);
+    expect(primaryValues.get(key)).toBe(expected);
+    expect(fallbackValues.get(key)).toBe(expected);
+  });
+
   it("persists only the prior account id and clears it after cleanup", async () => {
     const values = new Map<string, string>();
     const store: PendingPushCleanupStore = {
