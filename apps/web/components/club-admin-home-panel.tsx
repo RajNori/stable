@@ -10,6 +10,7 @@ export type ClubAdminHomeSummary = {
     missingRoles: readonly ("Head Coach" | "Team Manager")[];
   }[];
   invitations: ClubAdminInvitationSummary | null;
+  playersMissingGuardianCount: number | null;
 };
 
 type ClubAdminHomePanelProps = {
@@ -95,12 +96,26 @@ export function ClubAdminHomePanel({
                 <a href="/players">Review invitations</a>
               </li>
             ) : null}
+            {summary.playersMissingGuardianCount === null ? (
+              <li role="status">
+                Player guardian coverage could not be loaded.
+              </li>
+            ) : summary.playersMissingGuardianCount > 0 ? (
+              <li>
+                {summary.playersMissingGuardianCount} active player
+                {summary.playersMissingGuardianCount === 1 ? "" : "s"} need
+                {summary.playersMissingGuardianCount === 1 ? "s" : ""} an active
+                guardian. <a href="/players">Review player relationships</a>
+              </li>
+            ) : null}
             {summary.activeTeamCount > 0 &&
             summary.activeSeasonCount > 0 &&
             summary.teamsNeedingLeadership.length === 0 &&
-            summary.invitations?.pendingCount === 0 ? (
+            summary.invitations?.pendingCount === 0 &&
+            summary.playersMissingGuardianCount === 0 ? (
               <li>
-                No outstanding setup, leadership, or invitation issues found.
+                No outstanding setup, leadership, invitation, or guardian-link
+                issues found.
               </li>
             ) : null}
           </ul>

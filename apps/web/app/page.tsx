@@ -19,6 +19,7 @@ import {
 } from "@stable/club-structure";
 import { createSupabaseMembershipGateway } from "@stable/membership";
 import { createSupabaseInvitationGateway } from "@stable/invitations";
+import { createSupabasePlayerGateway } from "@stable/players";
 import type { ScheduleEntry } from "@stable/schedule";
 import {
   createSupabaseScheduleGateway,
@@ -49,6 +50,7 @@ import { principalFromSupabase } from "../lib/principal";
 import { createClubContextReader } from "../lib/reader";
 import { webAuthSessionGatewayFromSupabase } from "../lib/auth-session";
 import { summarizeClubInvitations } from "../lib/club-admin-invitation-summary";
+import { countActivePlayersMissingGuardian } from "../lib/club-admin-player-coverage";
 import { createSupabaseServerClient } from "../lib/supabase/server";
 
 export const dynamic = "force-dynamic";
@@ -114,7 +116,11 @@ export default async function HomePage({ searchParams }: HomePageProps) {
     let adminHomeError: string | undefined;
     if (presentation.capabilities.includes("club.manage")) {
       try {
-        adminHomeSummary = await readClubAdminHome(client, context.club.id);
+        adminHomeSummary = await readClubAdminHome(
+          client,
+          context.club.id,
+          presentation.capabilities.includes("people.manage"),
+        );
       } catch {
         adminHomeError = "Club setup status could not be loaded.";
       }
@@ -301,6 +307,7 @@ export default async function HomePage({ searchParams }: HomePageProps) {
 async function readClubAdminHome(
   client: unknown,
   clubId: string,
+  canReadPeople: boolean,
 ): Promise<ClubAdminHomeSummary> {
   const structure: ClubStructureGateway =
     createSupabaseClubStructureGateway(client);
@@ -336,12 +343,36 @@ async function readClubAdminHome(
     // Keep invitation contacts and operational errors out of the Home payload.
     // The panel reports that this count is unavailable rather than implying zero.
   }
+  let playersMissingGuardianCount: number | null = null;
+  if (canReadPeople) {
+    try {
+      const playersGateway = createSupabasePlayerGateway(client);
+      const players = await playersGateway.listPlayers(clubId);
+      const activePlayers = players.filter((player) => player.active);
+      const guardianLinks = await Promise.all(
+        activePlayers.map((player) => playersGateway.listGuardians(player.id)),
+      );
+      const activeGuardianPlayerIds = new Set(
+        guardianLinks
+          .flat()
+          .filter((link) => link.active)
+          .map((link) => link.playerId),
+      );
+      playersMissingGuardianCount = countActivePlayersMissingGuardian(
+        activePlayers,
+        activeGuardianPlayerIds,
+      );
+    } catch {
+      // Do not expose child details or turn a failed read into a zero count.
+    }
+  }
   return {
     activeTeamCount: activeTeams.length,
     activeSeasonCount: snapshot.seasons.filter((season) => season.active)
       .length,
     teamsNeedingLeadership,
     invitations,
+    playersMissingGuardianCount,
   };
 }
 
