@@ -394,6 +394,19 @@ select public.enqueue_announcement_published(
 
 reset role;
 
+-- Other earlier notification checks may have registered active endpoints for
+-- this user. Make the intended dispatch test endpoint unambiguously newest so
+-- the claim exercises the endpoint set asserted below, regardless of random
+-- UUID ordering or transaction timestamp ties.
+update public.device_endpoints
+set last_seen_at = now() + interval '1 second'
+where id = (
+  select endpoint_id
+  from dispatch_test_endpoints
+  order by endpoint_id
+  limit 1
+);
+
 set local role service_role;
 insert into dispatch_claim (request_id, claim_id)
 select request_id, claim_id
@@ -434,6 +447,10 @@ from public.begin_notification_dispatch(
 select ok(
   (select endpoint_id is not null and push_token is not null from dispatch_claim),
   'the send phase rechecks eligibility before returning an endpoint token'
+);
+select ok(
+  (select endpoint_id in (select endpoint_id from dispatch_test_endpoints) from dispatch_claim),
+  'dispatch selects one of the endpoints created for this test'
 );
 insert into invalid_dispatch_endpoint (endpoint_id)
 select endpoint_id from dispatch_claim;
