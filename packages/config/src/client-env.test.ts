@@ -111,9 +111,14 @@ describe("web client environment", () => {
       ]) {
         expectValidationFailure(
           () => parseWebClientEnv(webEnv(url, appEnv)),
-          /loopback|private/i,
+          /HTTPS|loopback|private/i,
         );
       }
+
+      expectValidationFailure(
+        () => parseWebClientEnv(webEnv("http://staging.invalid", appEnv)),
+        /HTTPS/i,
+      );
 
       expect(
         parseWebClientEnv(webEnv("https://staging.invalid", appEnv)),
@@ -329,9 +334,14 @@ describe("mobile client environment", () => {
       ]) {
         expectValidationFailure(
           () => parseMobileClientEnv(mobileEnv(url, appEnv)),
-          /loopback|private/i,
+          /HTTPS|loopback|private/i,
         );
       }
+
+      expectValidationFailure(
+        () => parseMobileClientEnv(mobileEnv("http://staging.invalid", appEnv)),
+        /HTTPS/i,
+      );
 
       expect(
         parseMobileClientEnv(mobileEnv("https://staging.invalid", appEnv))
@@ -401,6 +411,53 @@ describe("mobile client environment", () => {
 });
 
 describe("boot environment", () => {
+  it("rejects a legacy service-role JWT in a public web or mobile key", () => {
+    const serviceRoleJwt = "header.eyJyb2xlIjoic2VydmljZV9yb2xlIn0.signature";
+
+    expectValidationFailure(
+      () =>
+        readWebBootEnv({
+          ...webEnv("https://staging-project.supabase.co", "staging"),
+          [ENV.nextSupabasePublishableKey]: serviceRoleJwt,
+        }),
+      /publishable key/i,
+    );
+    expectValidationFailure(
+      () =>
+        readMobileBootEnv({
+          ...mobileEnv("https://staging-project.supabase.co", "staging"),
+          [ENV.expoSupabasePublishableKey]: serviceRoleJwt,
+        }),
+      /publishable key/i,
+    );
+    expectValidationFailure(
+      () =>
+        parseWebClientEnv({
+          ...webEnv("https://staging-project.supabase.co", "staging"),
+          [ENV.nextSupabasePublishableKey]: serviceRoleJwt,
+        }),
+      /publishable key/i,
+    );
+    expectValidationFailure(
+      () =>
+        parseMobileClientEnv({
+          ...mobileEnv("https://staging-project.supabase.co", "staging"),
+          [ENV.expoSupabasePublishableKey]: serviceRoleJwt,
+        }),
+      /publishable key/i,
+    );
+  });
+
+  it("continues to accept a legacy anon JWT public key", () => {
+    const anonJwt = "header.eyJyb2xlIjoiYW5vbiJ9.signature";
+    expect(
+      readWebBootEnv({
+        ...webEnv("https://staging-project.supabase.co", "staging"),
+        [ENV.nextSupabasePublishableKey]: anonJwt,
+      }).supabasePublishableKey,
+    ).toBe(anonJwt);
+  });
+
   it("accepts a valid local web config and omits a server secret", () => {
     const parsed = readWebBootEnv({
       ...webEnv("http://127.0.0.1:54321"),
@@ -452,7 +509,7 @@ describe("boot environment", () => {
   it("keeps staging and production host rules at boot", () => {
     expectValidationFailure(
       () => readWebBootEnv(webEnv("http://192.168.1.20:54321", "staging")),
-      /loopback|private/i,
+      /HTTPS|loopback|private/i,
     );
     expectValidationFailure(
       () => readMobileBootEnv(mobileEnv("https://abcd.supabase.co")),

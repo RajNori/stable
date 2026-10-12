@@ -1,6 +1,6 @@
 import {
   clearSessionAfterCallbackTransitionFailure,
-  cleanupPushAfterSuccessfulCallback,
+  removePreviousPushBeforeCallback,
 } from "./callback-push-cleanup";
 
 const previous = {
@@ -8,18 +8,6 @@ const previous = {
   accessToken: "old-access-token",
   refreshToken: "old-refresh-token",
 };
-const sameUser = {
-  state: "authenticated" as const,
-  principal: { userId: previous.userId, displayName: "Member" },
-};
-const otherUser = {
-  state: "authenticated" as const,
-  principal: {
-    userId: "28282828-2828-4828-8828-282828282828",
-    displayName: "Other member",
-  },
-};
-
 describe("callback push cleanup", () => {
   it("clears persisted auth when local sign-out resolves with an error", async () => {
     let clearCalls = 0;
@@ -62,41 +50,39 @@ describe("callback push cleanup", () => {
     expect(clearCalls).toBe(1);
   });
 
-  it("does not remove registration when callback returns to the same account", async () => {
+  it("removes the previous endpoint before callback exchange", async () => {
     const calls: unknown[][] = [];
     const removeRegistration = async (...args: string[]) => {
       calls.push(args);
     };
-    await cleanupPushAfterSuccessfulCallback(
-      previous,
-      removeRegistration,
-    )(sameUser);
-    expect(calls.length).toBe(0);
-  });
-
-  it("removes the previous account registration only after a successful account switch", async () => {
-    const calls: unknown[][] = [];
-    const removeRegistration = async (...args: string[]) => {
-      calls.push(args);
-    };
-    await cleanupPushAfterSuccessfulCallback(
-      previous,
-      removeRegistration,
-    )(otherUser);
+    await removePreviousPushBeforeCallback(previous, removeRegistration);
     expect(calls).toEqual([
       [previous.userId, previous.accessToken, previous.refreshToken],
     ]);
   });
 
-  it("does not remove registration when callback does not authenticate", async () => {
+  it("does not exchange a callback when prior endpoint removal fails", async () => {
     const calls: unknown[][] = [];
+    const removalFailure = new Error("endpoint cleanup failed");
     const removeRegistration = async (...args: string[]) => {
       calls.push(args);
+      throw removalFailure;
     };
-    await cleanupPushAfterSuccessfulCallback(
-      previous,
-      removeRegistration,
-    )({ state: "unauthenticated" });
-    expect(calls.length).toBe(0);
+    let failure: unknown;
+    try {
+      await removePreviousPushBeforeCallback(previous, removeRegistration);
+    } catch (error: unknown) {
+      failure = error;
+    }
+    expect(failure).toBe(removalFailure);
+    expect(calls.length).toBe(1);
+  });
+
+  it("does nothing when there is no previous account session", async () => {
+    let calls = 0;
+    await removePreviousPushBeforeCallback(null, async () => {
+      calls += 1;
+    });
+    expect(calls).toBe(0);
   });
 });

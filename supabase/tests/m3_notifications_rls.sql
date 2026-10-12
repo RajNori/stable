@@ -508,6 +508,46 @@ select isnt(
   'retry selects the remaining active device, not the invalid endpoint'
 );
 
+select throws_ok(
+  $sql$
+    select public.apply_expo_notification_result(
+      (select request_id from dispatch_claim),
+      (select claim_id from dispatch_claim),
+      (select endpoint_id from dispatch_claim),
+      null,
+      'null-result-must-not-send',
+      null
+    )
+  $sql$,
+  '23514',
+  'VALIDATION_FAILED',
+  'a NULL provider result is rejected'
+);
+select throws_ok(
+  $sql$
+    select public.apply_expo_notification_result(
+      (select request_id from dispatch_claim),
+      (select claim_id from dispatch_claim),
+      (select endpoint_id from dispatch_claim),
+      'OK',
+      '   ',
+      null
+    )
+  $sql$,
+  '23514',
+  'VALIDATION_FAILED',
+  'an empty provider receipt is rejected'
+);
+select is(
+  (
+    select status
+    from public.notification_requests
+    where id = (select request_id from dispatch_claim)
+  ),
+  'PENDING',
+  'invalid provider results leave the notification pending'
+);
+
 select is(
   public.apply_expo_notification_result(
     (select request_id from dispatch_claim),
@@ -542,14 +582,36 @@ select is(
   'a repeated worker completion cannot create another delivery'
 );
 
+create temporary table claimed_provider_receipt on commit drop as
+select *
+from public.claim_notification_provider_receipts(100)
+where provider_receipt_id = 'expo-receipt-dispatch-test';
+
+select is(
+  (select count(*)::integer from claimed_provider_receipt),
+  1,
+  'a successful ticket is claimed for provider receipt polling'
+);
 select is(
   (
     select count(*)::integer
     from public.claim_notification_provider_receipts(100) as receipt
     where receipt.provider_receipt_id = 'expo-receipt-dispatch-test'
   ),
-  1,
-  'a successful ticket is queued for provider receipt polling'
+  0,
+  'a concurrent receipt collector cannot claim an in-flight receipt'
+);
+select throws_ok(
+  $sql$
+    select public.apply_notification_provider_receipt(
+      'expo-receipt-dispatch-test',
+      null,
+      null
+    )
+  $sql$,
+  '23514',
+  'VALIDATION_FAILED',
+  'a NULL receipt status is rejected'
 );
 select is(
   public.apply_notification_provider_receipt(

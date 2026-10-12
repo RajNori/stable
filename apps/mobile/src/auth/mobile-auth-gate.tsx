@@ -64,8 +64,18 @@ export function MobileAuthGate({
   const [session, setSession] = useState<AuthSessionSnapshot>({
     state: "loading",
   });
+  const callbackQueued = React.useRef(false);
   const sessionUserId = React.useRef<string | null>(null);
   const sessionTransition = React.useRef(0);
+  const sessionOperations = React.useRef<Promise<void>>(Promise.resolve());
+  const enqueueSessionOperation = React.useCallback(
+    (operation: () => Promise<void>) => {
+      const queued = sessionOperations.current.then(operation, operation);
+      sessionOperations.current = queued.catch(() => undefined);
+      return queued;
+    },
+    [],
+  );
   const beginSessionTransition = React.useCallback(() => {
     sessionTransition.current += 1;
     return sessionTransition.current;
@@ -132,9 +142,13 @@ export function MobileAuthGate({
       if (!url.includes("auth/callback")) {
         return;
       }
-      const transition = beginSessionTransition();
+      if (callbackQueued.current) {
+        return;
+      }
+      callbackQueued.current = true;
       setCallbackPending(true);
-      void (async () => {
+      void enqueueSessionOperation(async () => {
+        const transition = beginSessionTransition();
         let callbackExchangeSucceeded = false;
         try {
           actions.validateCallback(url);
@@ -166,10 +180,11 @@ export function MobileAuthGate({
           await updateSession(restored, transition);
         } finally {
           if (active && transition === sessionTransition.current) {
+            callbackQueued.current = false;
             setCallbackPending(false);
           }
         }
-      })();
+      }).catch(() => undefined);
     };
     const transitionAtLinkStart = sessionTransition.current;
     linking
@@ -195,18 +210,20 @@ export function MobileAuthGate({
     beforeCompleteCallback,
     beginSessionTransition,
     clearFailedCallbackSession,
+    enqueueSessionOperation,
     linking,
     updateSession,
   ]);
 
+  if (callbackPending) {
+    return (
+      <View style={styles.app}>
+        <Text accessibilityRole="text">Completing sign-in…</Text>
+      </View>
+    );
+  }
+
   if (session.state === "authenticated") {
-    if (callbackPending) {
-      return (
-        <View style={styles.app}>
-          <Text accessibilityRole="text">Completing sign-in…</Text>
-        </View>
-      );
-    }
     return (
       <View style={styles.app}>
         <Pressable
@@ -215,14 +232,17 @@ export function MobileAuthGate({
           onPress={() => {
             setSignOutFailed(false);
             setCallbackPending(false);
-            const transition = beginSessionTransition();
-            void signOut(session.principal.userId)
-              .then((next) => updateSession(next, transition))
-              .catch(() => {
+            void enqueueSessionOperation(async () => {
+              const transition = beginSessionTransition();
+              try {
+                const next = await signOut(session.principal.userId);
+                await updateSession(next, transition);
+              } catch {
                 if (transition === sessionTransition.current) {
                   setSignOutFailed(true);
                 }
-              });
+              }
+            });
           }}
           style={styles.signOut}
         >
@@ -245,18 +265,20 @@ export function MobileAuthGate({
         actions={{
           requestPhone: actions.requestPhone,
           verifyPhone: async (phone, token) => {
-            setCallbackPending(false);
-            const transition = beginSessionTransition();
-            await updateSession(
-              await actions.verifyPhone(phone, token),
-              transition,
-            );
+            await enqueueSessionOperation(async () => {
+              const transition = beginSessionTransition();
+              await updateSession(
+                await actions.verifyPhone(phone, token),
+                transition,
+              );
+            });
           },
           requestEmail: actions.requestEmail,
           retry: async () => {
-            setCallbackPending(false);
-            const transition = beginSessionTransition();
-            await updateSession(await restore(), transition);
+            await enqueueSessionOperation(async () => {
+              const transition = beginSessionTransition();
+              await updateSession(await restore(), transition);
+            });
           },
         }}
       />

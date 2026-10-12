@@ -11,7 +11,7 @@ import {
 import { MobileAuthGate } from "../src/auth/mobile-auth-gate";
 import {
   clearSessionAfterCallbackTransitionFailure,
-  cleanupPushAfterSuccessfulCallback,
+  removePreviousPushBeforeCallback,
 } from "../src/auth/callback-push-cleanup";
 import {
   clearLiveMobileAuthSessionStorage,
@@ -126,25 +126,19 @@ export default function CurrentClubContextRoute() {
     if (error !== null) throw new Error("The session could not be read.");
     const previousSession = data.session;
     if (previousSession === null) return undefined;
-    return cleanupPushAfterSuccessfulCallback(
+    // Remove the prior account's endpoint before exchanging the callback.
+    // If removal fails, the shared Supabase client still holds the prior
+    // session and the callback cannot switch to a new account with an orphaned
+    // endpoint left behind.
+    await removePreviousPushBeforeCallback(
       {
         userId: previousSession.user.id,
         accessToken: previousSession.access_token,
         refreshToken: previousSession.refresh_token,
       },
-      async (userId, accessToken, refreshToken) => {
-        try {
-          await removeLivePushRegistrationForSession(
-            userId,
-            accessToken,
-            refreshToken,
-          );
-        } catch {
-          await clearFailedCallbackSession();
-          throw new Error("The account switch could not be completed safely.");
-        }
-      },
+      removeLivePushRegistrationForSession,
     );
+    return undefined;
   }, []);
 
   return (

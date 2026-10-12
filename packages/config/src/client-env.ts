@@ -111,6 +111,7 @@ function clientConfig(
   target: ClientTarget,
 ): ClientEnvConfig {
   assertSupabaseUrl(supabaseUrl, appEnv, target);
+  assertPublishableIsNotSecret(supabasePublishableKey);
 
   const config: ClientEnvConfig = {
     appEnv,
@@ -242,11 +243,48 @@ function parseWebOrigin(value: string | undefined, appEnv: AppEnv): string {
 }
 
 function assertPublishableIsNotSecret(publishableKey: string): void {
-  if (publishableKey.startsWith("sb_secret_")) {
+  if (
+    publishableKey.startsWith("sb_secret_") ||
+    hasServiceRoleJwtClaim(publishableKey)
+  ) {
     throw new ApplicationError(
       "VALIDATION_FAILED",
       "The publishable key must not be a secret key.",
     );
+  }
+}
+
+/**
+ * Supabase's legacy JWT-form service-role keys still bypass RLS. Their public
+ * environment variable name does not make them safe to bundle. The payload is
+ * inspected only to reject the privileged role; signatures are not trusted.
+ */
+function hasServiceRoleJwtClaim(value: string): boolean {
+  const segments = value.split(".");
+  const payload = segments[1];
+  if (segments.length !== 3 || payload === undefined) {
+    return false;
+  }
+
+  try {
+    const base64 = payload.replace(/-/gu, "+").replace(/_/gu, "/");
+    const padded = base64.padEnd(Math.ceil(base64.length / 4) * 4, "=");
+    const decodeBase64 = (
+      globalThis as unknown as { atob?: (input: string) => string }
+    ).atob;
+    if (decodeBase64 === undefined) {
+      return false;
+    }
+    const decoded = decodeBase64(padded);
+    const claims: unknown = JSON.parse(decoded);
+    return (
+      typeof claims === "object" &&
+      claims !== null &&
+      "role" in claims &&
+      claims.role === "service_role"
+    );
+  } catch {
+    return false;
   }
 }
 

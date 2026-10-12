@@ -1295,6 +1295,8 @@ export type Database = {
       notification_provider_receipts: {
         Row: {
           checked_at: string | null;
+          claim_id: string | null;
+          claimed_at: string | null;
           created_at: string;
           delivery_id: string;
           endpoint_id: string;
@@ -1305,6 +1307,8 @@ export type Database = {
         };
         Insert: {
           checked_at?: string | null;
+          claim_id?: string | null;
+          claimed_at?: string | null;
           created_at?: string;
           delivery_id: string;
           endpoint_id: string;
@@ -1315,6 +1319,8 @@ export type Database = {
         };
         Update: {
           checked_at?: string | null;
+          claim_id?: string | null;
+          claimed_at?: string | null;
           created_at?: string;
           delivery_id?: string;
           endpoint_id?: string;

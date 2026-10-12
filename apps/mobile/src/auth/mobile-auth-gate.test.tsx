@@ -281,9 +281,10 @@ describe("mobile auth gate", () => {
     expect(screen.queryByText(`Signed in as ${secondUserId}`)).toBeNull();
   });
 
-  it("does not restore an exchanged account when callback transition cleanup fails", async () => {
+  it("does not exchange accounts when prior push cleanup fails", async () => {
     let receive: ((url: string) => void) | undefined;
     let restoreCalls = 0;
+    const completeCallback = jest.fn(async () => secondAuthenticated);
     await render(
       <MobileAuthGate
         restore={async () => {
@@ -291,12 +292,8 @@ describe("mobile auth gate", () => {
           return authenticated;
         }}
         signOut={async () => ({ state: "unauthenticated" })}
-        actions={idleActions({
-          async completeCallback() {
-            return secondAuthenticated;
-          },
-        })}
-        beforeCompleteCallback={async () => async () => {
+        actions={idleActions({ completeCallback })}
+        beforeCompleteCallback={async () => {
           throw new Error("push cleanup failed");
         }}
         linking={{
@@ -317,9 +314,10 @@ describe("mobile auth gate", () => {
     expect(await screen.findByText(`Signed in as ${userId}`)).toBeTruthy();
     receive?.("stable://auth/callback?code=account-switch");
 
-    expect(await screen.findByText(AUTH_ERROR_MESSAGES.INTERNAL)).toBeTruthy();
+    expect(await screen.findByText(`Signed in as ${userId}`)).toBeTruthy();
     expect(screen.queryByText(`Signed in as ${secondUserId}`)).toBeNull();
-    expect(restoreCalls).toBe(1);
+    expect(completeCallback.mock.calls.length).toBe(0);
+    expect(restoreCalls).toBe(2);
   });
 
   it("clears the exchanged account if prior-account private-cache cleanup fails", async () => {
@@ -636,12 +634,19 @@ describe("mobile auth gate", () => {
     announce.mockRestore();
   });
 
-  it("clears stale callback pending state when phone OTP completes first", async () => {
+  it("serializes an in-flight phone OTP before a queued auth callback", async () => {
     let receive: ((url: string) => void) | undefined;
     let callbackStarted: (() => void) | undefined;
+    let verifyStarted: (() => void) | undefined;
     let resolveCallback: ((snapshot: AuthSessionSnapshot) => void) | undefined;
+    let resolveOtp: ((snapshot: AuthSessionSnapshot) => void) | undefined;
+    let sharedSupabaseUserId: string | null = null;
+    const authOrder: string[] = [];
     const callback = new Promise<AuthSessionSnapshot>((resolve) => {
       resolveCallback = resolve;
+    });
+    const otp = new Promise<AuthSessionSnapshot>((resolve) => {
+      resolveOtp = resolve;
     });
     await render(
       <MobileAuthGate
@@ -649,11 +654,18 @@ describe("mobile auth gate", () => {
         signOut={async () => ({ state: "unauthenticated" })}
         actions={idleActions({
           completeCallback: () => {
+            authOrder.push("callback");
             callbackStarted?.();
+            sharedSupabaseUserId = secondUserId;
             return callback;
           },
-          async verifyPhone() {
-            return secondAuthenticated;
+          verifyPhone: () => {
+            verifyStarted?.();
+            return otp.then((snapshot) => {
+              authOrder.push("otp");
+              sharedSupabaseUserId = userId;
+              return snapshot;
+            });
           },
         })}
         linking={{
@@ -677,9 +689,9 @@ describe("mobile auth gate", () => {
     const callbackHasStarted = new Promise<void>((resolve) => {
       callbackStarted = resolve;
     });
-    receive?.("stable://auth/callback?code=pending");
-    await callbackHasStarted;
-
+    const phoneVerificationStarted = new Promise<void>((resolve) => {
+      verifyStarted = resolve;
+    });
     await userEvent.press(screen.getByLabelText("Continue with mobile"));
     fireEvent.changeText(screen.getByLabelText("Mobile number"), "0412345678");
     await userEvent.press(screen.getByLabelText("Continue"));
@@ -688,15 +700,25 @@ describe("mobile auth gate", () => {
       "123456",
     );
     await userEvent.press(screen.getByLabelText("Continue"));
+    await phoneVerificationStarted;
 
-    expect(
-      await screen.findByText(`Signed in as ${secondUserId}`),
-    ).toBeTruthy();
     await act(async () => {
-      resolveCallback?.(authenticated);
+      receive?.("stable://auth/callback?code=pending");
+      await Promise.resolve();
+    });
+    expect(await screen.findByText("Completing sign-in…")).toBeTruthy();
+    expect(screen.queryByLabelText("6-digit code")).toBeNull();
+
+    await act(async () => {
+      resolveOtp?.(authenticated);
+      await otp;
+      await callbackHasStarted;
+      expect(authOrder).toEqual(["otp", "callback"]);
+      resolveCallback?.(secondAuthenticated);
       await callback;
       await Promise.resolve();
     });
+    expect(sharedSupabaseUserId).toBe(secondUserId);
     expect(screen.getByText(`Signed in as ${secondUserId}`)).toBeTruthy();
     expect(screen.queryByText("Completing sign-in…")).toBeNull();
   });
