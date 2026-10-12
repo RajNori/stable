@@ -13,6 +13,7 @@ import {
   type GameDaySnapshot,
 } from "./game-day-snapshot";
 import { formatScheduleDateTime } from "@stable/schedule";
+import { ReadRetryControl } from "./read-retry-control";
 
 const theme = themeFor("mustangs");
 
@@ -36,9 +37,13 @@ const styles = StyleSheet.create({
 export function OfflineGameDayView({
   snapshot,
   now,
+  onRefresh,
+  refreshing = false,
 }: {
   snapshot: GameDaySnapshot | null;
   now: number;
+  onRefresh?: (() => void) | undefined;
+  refreshing?: boolean | undefined;
 }) {
   const freshness =
     snapshot === null ? null : gameDaySnapshotFreshness(snapshot.savedAt, now);
@@ -109,6 +114,9 @@ export function OfflineGameDayView({
       <Text style={styles.body}>
         Reconnect to update RSVP, attendance, fixtures, duties, or check-in.
       </Text>
+      {onRefresh === undefined ? null : (
+        <ReadRetryControl onPress={onRefresh} disabled={refreshing} />
+      )}
       <Text accessibilityState={{ disabled: true }} style={styles.body}>
         Save RSVP
       </Text>

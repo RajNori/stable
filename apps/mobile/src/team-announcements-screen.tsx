@@ -7,6 +7,8 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import React, { useState } from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
 
+import { ReadRetryControl } from "./read-retry-control";
+
 const theme = themeFor("mustangs");
 
 const styles = StyleSheet.create({
@@ -93,6 +95,12 @@ export function TeamAnnouncementsScreen({
             ? message(context.error)
             : announcementMessages.forbidden}
         </Text>
+        {context.isError ? (
+          <ReadRetryControl
+            disabled={context.isFetching}
+            onPress={() => void context.refetch()}
+          />
+        ) : null}
       </View>
     );
   }
@@ -103,6 +111,10 @@ export function TeamAnnouncementsScreen({
         <Text accessibilityRole="header" style={styles.title}>
           {message(announcements.error)}
         </Text>
+        <ReadRetryControl
+          disabled={announcements.isFetching}
+          onPress={() => void announcements.refetch()}
+        />
       </View>
     );
   }

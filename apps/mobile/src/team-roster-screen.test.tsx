@@ -1,6 +1,6 @@
 import React from "react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { render, screen } from "@testing-library/react-native";
+import { render, screen, userEvent } from "@testing-library/react-native";
 import { ApplicationError } from "@stable/contracts";
 import { rosterMessages } from "@stable/roster";
 import type { CurrentClubContext } from "@stable/contracts";
@@ -154,5 +154,28 @@ describe("team roster screen", () => {
 
     expect(await screen.findByText(rosterMessages.readFailed)).toBeTruthy();
     expect(screen.queryByText(/private data/)).toBeNull();
+  });
+
+  it("allows a failed roster read to be retried", async () => {
+    let attempts = 0;
+    await renderRoster(
+      () => Promise.resolve(context([{ id: teamId, name: "U14 Boys" }])),
+      () => {
+        attempts += 1;
+        return attempts === 1
+          ? Promise.reject(new Error("temporary transport failure"))
+          : Promise.resolve({
+              teamId,
+              visibility: "masked",
+              canManage: false,
+              entries: [{ playerId, teamId, name: "Alexander R." }],
+            });
+      },
+    );
+
+    expect(await screen.findByText(rosterMessages.readFailed)).toBeTruthy();
+    await userEvent.press(screen.getByRole("button", { name: "Try again" }));
+    expect(await screen.findByText("Alexander R.")).toBeTruthy();
+    expect(attempts).toBe(2);
   });
 });

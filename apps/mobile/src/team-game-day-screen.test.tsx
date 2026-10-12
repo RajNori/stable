@@ -7,6 +7,7 @@ import {
   fireEvent,
   render,
   screen,
+  userEvent,
   waitFor,
 } from "@testing-library/react-native";
 import React from "react";
@@ -727,6 +728,61 @@ describe("team game day screen", () => {
 
     expect(await screen.findByText("Game day could not be read.")).toBeTruthy();
     expect(screen.queryByText("database detail")).toBeNull();
+  });
+
+  it("allows a failed Game Day read to be retried", async () => {
+    let attempts = 0;
+    await renderScreen({
+      loadContext: () => Promise.resolve(context),
+      loadGameDay: () => {
+        attempts += 1;
+        return attempts === 1
+          ? Promise.reject(new Error("temporary transport failure"))
+          : Promise.resolve(projection);
+      },
+    });
+
+    expect(await screen.findByText("Game day could not be read.")).toBeTruthy();
+    await userEvent.press(screen.getByRole("button", { name: "Try again" }));
+    expect(
+      await screen.findByRole("header", { name: "Round 1: Visitors" }),
+    ).toBeTruthy();
+    expect(attempts).toBe(2);
+  });
+
+  it("offers a refresh when the online Game Day read falls back to a snapshot", async () => {
+    const store = memoryGameDaySnapshotStore();
+    await persistOfflineGameDay(
+      store,
+      gameDaySnapshotFromProjection({
+        userId: context.userId,
+        teamName: "U14 Boys",
+        timezone: "Australia/Melbourne",
+        projection,
+        savedAt: "2026-10-07T01:00:00.000Z",
+      }),
+    );
+    let attempts = 0;
+    await renderScreen({
+      store,
+      localUserId: context.userId,
+      selectedTeamId: teamId,
+      online: true,
+      loadContext: () => Promise.resolve(context),
+      loadGameDay: () => {
+        attempts += 1;
+        return attempts === 1
+          ? Promise.reject(new Error("temporary transport failure"))
+          : Promise.resolve(projection);
+      },
+    });
+
+    expect(await screen.findByText("U14 Boys: Visitors")).toBeTruthy();
+    await userEvent.press(screen.getByRole("button", { name: "Try again" }));
+    expect(
+      await screen.findByRole("header", { name: "Round 1: Visitors" }),
+    ).toBeTruthy();
+    expect(attempts).toBe(2);
   });
 
   it("does not open user A's game day for user B after sign-out cleanup", async () => {

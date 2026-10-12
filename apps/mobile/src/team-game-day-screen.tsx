@@ -27,6 +27,7 @@ import {
   removeOfflineGameDayForTeam,
 } from "./offline-context";
 import { OfflineGameDayView } from "./offline-game-day-view";
+import { ReadRetryControl } from "./read-retry-control";
 
 const theme = themeFor("mustangs");
 
@@ -469,13 +470,26 @@ export function TeamGameDayScreen({
       !isOfflineAuthorizationFailure(context.error) &&
       snapshot !== null
     ) {
-      return <OfflineGameDayView snapshot={snapshot} now={now} />;
+      return (
+        <OfflineGameDayView
+          snapshot={snapshot}
+          now={now}
+          refreshing={context.isFetching}
+          onRefresh={() => void context.refetch()}
+        />
+      );
     }
     return (
       <View style={styles.screen}>
         <Text accessibilityRole="header" style={styles.title}>
           {context.isError ? message(context.error) : gameDayMessages.forbidden}
         </Text>
+        {context.isError && !isOfflineAuthorizationFailure(context.error) ? (
+          <ReadRetryControl
+            disabled={context.isFetching}
+            onPress={() => void context.refetch()}
+          />
+        ) : null}
       </View>
     );
   }
@@ -507,7 +521,14 @@ export function TeamGameDayScreen({
       );
     }
     if (snapshot !== null && snapshot.teamId === context.data.activeTeam.id) {
-      return <OfflineGameDayView snapshot={snapshot} now={now} />;
+      return (
+        <OfflineGameDayView
+          snapshot={snapshot}
+          now={now}
+          refreshing={gameDay.isFetching}
+          onRefresh={() => void gameDay.refetch()}
+        />
+      );
     }
     if (gameDay.isError) {
       return (
@@ -515,6 +536,10 @@ export function TeamGameDayScreen({
           <Text accessibilityRole="header" style={styles.title}>
             {message(gameDay.error)}
           </Text>
+          <ReadRetryControl
+            disabled={gameDay.isFetching}
+            onPress={() => void gameDay.refetch()}
+          />
         </View>
       );
     }

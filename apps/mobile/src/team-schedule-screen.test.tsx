@@ -1,6 +1,11 @@
 import React from "react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { fireEvent, render, screen } from "@testing-library/react-native";
+import {
+  fireEvent,
+  render,
+  screen,
+  userEvent,
+} from "@testing-library/react-native";
 import { ApplicationError } from "@stable/contracts";
 import { scheduleMessages } from "@stable/schedule";
 import type { CurrentClubContext } from "@stable/contracts";
@@ -207,6 +212,31 @@ describe("team schedule screen", () => {
 
     expect(await screen.findByText(scheduleMessages.readFailed)).toBeTruthy();
     expect(screen.queryByText(/private data/)).toBeNull();
+  });
+
+  it("allows a failed schedule read to be retried", async () => {
+    let attempts = 0;
+    const queryClient = new QueryClient({
+      defaultOptions: { queries: { retry: false, gcTime: 0 } },
+    });
+    await render(
+      <QueryClientProvider client={queryClient}>
+        <TeamScheduleScreen
+          loadContext={() => Promise.resolve(context)}
+          loadSchedule={() => {
+            attempts += 1;
+            return attempts === 1
+              ? Promise.reject(new Error("temporary transport failure"))
+              : Promise.resolve([]);
+          }}
+        />
+      </QueryClientProvider>,
+    );
+
+    expect(await screen.findByText(scheduleMessages.readFailed)).toBeTruthy();
+    await userEvent.press(screen.getByRole("button", { name: "Try again" }));
+    expect(await screen.findByText("No events in this range.")).toBeTruthy();
+    expect(attempts).toBe(2);
   });
 
   it("requires one active team before loading its schedule", async () => {

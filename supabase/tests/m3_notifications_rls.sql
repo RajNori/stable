@@ -93,12 +93,17 @@ create temp table dispatch_claim (
 create temp table dispatch_announcement (announcement_id uuid);
 create temp table invalid_dispatch_endpoint (endpoint_id uuid);
 create temp table dispatch_test_endpoints (endpoint_id uuid);
+create temp table inactive_team_notification_claims (
+  request_id uuid,
+  claim_id uuid
+);
 grant all on table issued_announcement to authenticated;
 grant all on table issued_request to authenticated;
 grant all on table dispatch_claim to service_role;
 grant all on table dispatch_announcement to authenticated, service_role;
 grant all on table invalid_dispatch_endpoint to service_role;
 grant all on table dispatch_test_endpoints to authenticated, service_role;
+grant all on table inactive_team_notification_claims to service_role;
 
 do $$ begin perform pg_temp.assume_user('8f8f8f8f-8f8f-48f8-88f8-8f8f8f8f8f01'); end $$;
 set local role authenticated;
@@ -950,6 +955,69 @@ select is(
   'SKIPPED',
   'revoked work is explicitly marked skipped'
 );
+
+-- Active teams remain eligible for duty and coach check-in notices. Once the
+-- team is deactivated after claim, begin_notification_dispatch must suppress
+-- all four pending notices before returning any provider token.
+update public.team_memberships
+set active = true
+where user_id = '8f8f8f8f-8f8f-48f8-88f8-8f8f8f8f8f01';
+insert into public.notification_requests (
+  club_id, team_id, notification_type, source_id, recipient_user_id, payload
+)
+values
+  ('8a8a8a8a-8a8a-48a8-88a8-8a8a8a8a8a8a', '8d8d8d8d-8d8d-48d8-88d8-8d8d8d8d8d8d', 'DUTY_ASSIGNED', '9a9a9a9a-9a9a-49a9-89a9-9a9a9a9a9a01', '8f8f8f8f-8f8f-48f8-88f8-8f8f8f8f8f01', '{}'),
+  ('8a8a8a8a-8a8a-48a8-88a8-8a8a8a8a8a8a', '8d8d8d8d-8d8d-48d8-88d8-8d8d8d8d8d8d', 'DUTY_SWAP_REQUESTED', '9a9a9a9a-9a9a-49a9-89a9-9a9a9a9a9a02', '8f8f8f8f-8f8f-48f8-88f8-8f8f8f8f8f01', '{}'),
+  ('8a8a8a8a-8a8a-48a8-88a8-8a8a8a8a8a8a', '8d8d8d8d-8d8d-48d8-88d8-8d8d8d8d8d8d', 'DUTY_SWAP_ACCEPTED', '9a9a9a9a-9a9a-49a9-89a9-9a9a9a9a9a03', '8f8f8f8f-8f8f-48f8-88f8-8f8f8f8f8f01', '{}'),
+  ('8a8a8a8a-8a8a-48a8-88a8-8a8a8a8a8a8a', '8d8d8d8d-8d8d-48d8-88d8-8d8d8d8d8d8d', 'COACH_CHECKED_IN', '9a9a9a9a-9a9a-49a9-89a9-9a9a9a9a9a04', '8f8f8f8f-8f8f-48f8-88f8-8f8f8f8f8f03', '{}');
+
+set local role service_role;
+insert into inactive_team_notification_claims (request_id, claim_id)
+select request.id, claim.claim_id
+from public.claim_notification_dispatches(50) as claim
+join public.notification_requests as request
+  on request.id = claim.request_id
+where request.source_id in (
+  '9a9a9a9a-9a9a-49a9-89a9-9a9a9a9a9a01',
+  '9a9a9a9a-9a9a-49a9-89a9-9a9a9a9a9a02',
+  '9a9a9a9a-9a9a-49a9-89a9-9a9a9a9a9a03',
+  '9a9a9a9a-9a9a-49a9-89a9-9a9a9a9a9a04'
+);
+reset role;
+select is(
+  (select count(*)::integer from inactive_team_notification_claims),
+  4,
+  'active team accepts duty and coach check-in notices for dispatch'
+);
+
+update public.teams
+set active = false
+where id = '8d8d8d8d-8d8d-48d8-88d8-8d8d8d8d8d8d';
+set local role service_role;
+select is(
+  (
+    select count(*)::integer
+    from inactive_team_notification_claims as claim
+    cross join lateral public.begin_notification_dispatch(
+      claim.request_id,
+      claim.claim_id
+    )
+  ),
+  0,
+  'deactivated teams do not expose provider tokens for claimed duty or coach notices'
+);
+select is(
+  (
+    select count(*)::integer
+    from public.notification_requests as request
+    join inactive_team_notification_claims as claim
+      on claim.request_id = request.id
+    where request.status = 'SKIPPED'
+  ),
+  4,
+  'all duty and coach notices claimed before deactivation are skipped'
+);
+reset role;
 
 reset role;
 do $$ begin perform pg_temp.assume_user('8f8f8f8f-8f8f-48f8-88f8-8f8f8f8f8f03'); end $$;

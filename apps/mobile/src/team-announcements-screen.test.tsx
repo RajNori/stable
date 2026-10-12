@@ -168,6 +168,35 @@ describe("team announcements", () => {
     ).toBeTruthy();
   });
 
+  it("allows a failed announcements read to be retried", async () => {
+    let attempts = 0;
+    const queryClient = new QueryClient({
+      defaultOptions: { queries: { retry: false, gcTime: 0 } },
+    });
+    await render(
+      <QueryClientProvider client={queryClient}>
+        <TeamAnnouncementsScreen
+          loadContext={() => Promise.resolve(context)}
+          loadAnnouncements={() => {
+            attempts += 1;
+            return attempts === 1
+              ? Promise.reject(new Error("temporary transport failure"))
+              : Promise.resolve([]);
+          }}
+          acknowledge={() => Promise.resolve()}
+          markRead={() => Promise.resolve()}
+        />
+      </QueryClientProvider>,
+    );
+
+    expect(
+      await screen.findByText(announcementMessages.readFailed),
+    ).toBeTruthy();
+    await userEvent.press(screen.getByRole("button", { name: "Try again" }));
+    expect(await screen.findByText("No announcements.")).toBeTruthy();
+    expect(attempts).toBe(2);
+  });
+
   it("surfaces safe mark-read and acknowledgement failures", async () => {
     const queryClient = new QueryClient({
       defaultOptions: { queries: { retry: false, gcTime: 0 } },

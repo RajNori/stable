@@ -29,6 +29,7 @@ const styles = StyleSheet.create({
   tab: {
     minHeight: 44,
     minWidth: 44,
+    flexShrink: 0,
     alignItems: "center",
     justifyContent: "center",
   },
@@ -149,21 +150,29 @@ export function MobileDestinations({
 
   return (
     <View style={styles.screen}>
-      <View accessibilityRole="tablist" style={styles.tabs}>
-        {DESTINATIONS.map((destination) => (
-          <Pressable
-            key={destination}
-            accessibilityRole="tab"
-            accessibilityLabel={destination}
-            accessibilityState={{ selected: selected === destination }}
-            onPress={() => {
-              setSelected(destination);
-            }}
-            style={styles.tab}
-          >
-            <Text style={styles.label}>{destination}</Text>
-          </Pressable>
-        ))}
+      <View accessibilityRole="tablist">
+        <ScrollView
+          testID="mobile-destination-tabs"
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          keyboardShouldPersistTaps="handled"
+          contentContainerStyle={styles.tabs}
+        >
+          {DESTINATIONS.map((destination) => (
+            <Pressable
+              key={destination}
+              accessibilityRole="tab"
+              accessibilityLabel={destination}
+              accessibilityState={{ selected: selected === destination }}
+              onPress={() => {
+                setSelected(destination);
+              }}
+              style={styles.tab}
+            >
+              <Text style={styles.label}>{destination}</Text>
+            </Pressable>
+          ))}
+        </ScrollView>
       </View>
       {availableTeams.length > 1 ? (
         <View accessibilityRole="radiogroup" style={styles.contextPicker}>
