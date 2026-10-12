@@ -92,6 +92,54 @@ describe("team game day screen", () => {
     expect(screen.queryByText(/Attending/)).toBeNull();
   });
 
+  it("shows focus, uniform, and readiness after the exact-team coach check", async () => {
+    await renderScreen({
+      loadContext: () => Promise.resolve(context),
+      loadGameDay: () =>
+        Promise.resolve({
+          ...projection,
+          uniformNote: "White",
+          coachFocus: "Protect the paint",
+          attendingCount: 8,
+          unavailableCount: 1,
+          unsureCount: 2,
+          unansweredCount: 3,
+        }),
+      canReadCoachGameDay: (requestedTeamId) =>
+        Promise.resolve(requestedTeamId === teamId),
+    });
+
+    expect(
+      await screen.findByRole("header", { name: "Coach game context" }),
+    ).toBeTruthy();
+    expect(screen.getByText("Team focus Protect the paint")).toBeTruthy();
+    expect(screen.getByText("Uniform White")).toBeTruthy();
+    expect(
+      screen.getByText(
+        "Team readiness: attending 8, unavailable 1, unsure 2, unanswered 3",
+      ),
+    ).toBeTruthy();
+  });
+
+  it("hides the coach view when exact-team authorization is denied", async () => {
+    await renderScreen({
+      loadContext: () => Promise.resolve(context),
+      loadGameDay: () =>
+        Promise.resolve({
+          ...projection,
+          coachFocus: "Protect the paint",
+          attendingCount: 8,
+        }),
+      canReadCoachGameDay: () => Promise.resolve(false),
+    });
+
+    await screen.findByRole("header", { name: "Round 1: Visitors" });
+    expect(
+      screen.queryByRole("header", { name: "Coach game context" }),
+    ).toBeNull();
+    expect(screen.queryByText("Team focus Protect the paint")).toBeNull();
+  });
+
   it("submits the selected managed player's RSVP only after online reads land", async () => {
     const saved: Array<{
       teamId: string;
@@ -894,6 +942,7 @@ function screenTree({
   now,
   loadContext,
   loadGameDay,
+  canReadCoachGameDay,
   loadRsvpChoices,
   saveRsvp,
   loadFillInOptions,
@@ -920,6 +969,7 @@ function screenTree({
         loadGameDay={
           loadGameDay ?? (() => Promise.reject(new Error("offline")))
         }
+        {...(canReadCoachGameDay === undefined ? {} : { canReadCoachGameDay })}
         {...(loadRsvpChoices === undefined ? {} : { loadRsvpChoices })}
         {...(saveRsvp === undefined ? {} : { saveRsvp })}
         {...(loadFillInOptions === undefined ? {} : { loadFillInOptions })}
@@ -945,6 +995,7 @@ type ScreenInput = {
   now?: number;
   loadContext?: () => Promise<CurrentClubContext>;
   loadGameDay?: (teamId: string) => Promise<GameDayProjection | null>;
+  canReadCoachGameDay?: (teamId: string) => Promise<boolean>;
   loadRsvpChoices?: (
     teamId: string,
     eventId: string,

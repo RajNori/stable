@@ -21,7 +21,10 @@ import {
   loadMobileAnnouncements,
   markMobileAnnouncementRead,
 } from "../src/load-mobile-announcements";
-import { loadMobileGameDay } from "../src/load-mobile-game-day";
+import {
+  canReadMobileCoachGameDay,
+  loadMobileGameDay,
+} from "../src/load-mobile-game-day";
 import {
   loadMobileFillIn,
   respondMobileFillIn,
@@ -140,6 +143,7 @@ export default function CurrentClubContextRoute() {
                   <TeamGameDayScreen
                     loadContext={scopedLoadContext}
                     loadGameDay={loadMobileGameDay}
+                    canReadCoachGameDay={canReadMobileCoachGameDay}
                     loadRsvpChoices={loadMobileRsvpChoices}
                     saveRsvp={saveMobileRsvp}
                     loadFillInOptions={loadMobileFillIn}

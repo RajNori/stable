@@ -96,6 +96,7 @@ function message(error: unknown): string {
 export function TeamGameDayScreen({
   loadContext,
   loadGameDay,
+  canReadCoachGameDay,
   snapshotStore,
   localUserId,
   online = true,
@@ -111,6 +112,7 @@ export function TeamGameDayScreen({
 }: {
   loadContext: () => Promise<CurrentClubContext>;
   loadGameDay: (teamId: string) => Promise<GameDayProjection | null>;
+  canReadCoachGameDay?: ((teamId: string) => Promise<boolean>) | undefined;
   snapshotStore?: GameDaySnapshotStore | undefined;
   localUserId?: string | undefined;
   online?: boolean | null | undefined;
@@ -209,6 +211,18 @@ export function TeamGameDayScreen({
       return projection;
     },
     enabled: online === true && teamId !== null,
+    retry: false,
+  });
+  const coachView = useQuery({
+    queryKey: ["coach-game-day-view", teamId],
+    queryFn: () => {
+      if (teamId === null || canReadCoachGameDay === undefined) {
+        return Promise.resolve(false);
+      }
+      return canReadCoachGameDay(teamId);
+    },
+    enabled:
+      online === true && teamId !== null && canReadCoachGameDay !== undefined,
     retry: false,
   });
   const sawOnline = useRef(false);
@@ -514,6 +528,27 @@ export function TeamGameDayScreen({
       <Text style={styles.body}>
         Court {projection.courtLabel ?? "Not set"}
       </Text>
+      {coachView.isSuccess &&
+      !coachView.isFetching &&
+      coachView.data === true ? (
+        <View style={styles.dutyCard}>
+          <Text accessibilityRole="header" style={styles.body}>
+            Coach game context
+          </Text>
+          <Text style={styles.body}>
+            Team focus {projection.coachFocus ?? "Not set"}
+          </Text>
+          <Text style={styles.body}>
+            Uniform {projection.uniformNote ?? "Not set"}
+          </Text>
+          <Text style={styles.body}>
+            Team readiness: attending {projection.attendingCount ?? "—"},
+            unavailable {projection.unavailableCount ?? "—"}, unsure{" "}
+            {projection.unsureCount ?? "—"}, unanswered{" "}
+            {projection.unansweredCount ?? "—"}
+          </Text>
+        </View>
+      ) : null}
       {loadRsvpChoices === undefined ? (
         <Text style={styles.body}>RSVP {projection.ownRsvp}</Text>
       ) : null}
