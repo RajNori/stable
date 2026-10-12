@@ -42,6 +42,32 @@ test("a non-admin team manager maintains fixtures and team operations", async ({
   await expect(manager).toHaveURL(/\/invitations\/accept\?result=/);
   await manager.waitForLoadState("networkidle");
 
+  await manager.goto("/club-structure");
+  await expect(
+    manager.getByRole("button", { name: "Create season and team" }),
+  ).toHaveCount(0);
+  await expect(
+    manager.getByRole("button", { name: "Create competition" }),
+  ).toHaveCount(0);
+  await expect(
+    manager.getByRole("button", { name: "Create venue" }),
+  ).toHaveCount(0);
+  await expect(
+    manager.getByRole("button", { name: "Create team" }),
+  ).toHaveCount(0);
+  await expect(
+    manager.getByRole("button", { name: "Save season" }),
+  ).toHaveCount(0);
+  await expect(
+    manager.getByRole("button", { name: "Save competition" }),
+  ).toHaveCount(0);
+  await expect(manager.getByRole("button", { name: "Save venue" })).toHaveCount(
+    0,
+  );
+  await expect(manager.getByRole("button", { name: "Save team" })).toHaveCount(
+    0,
+  );
+
   // A manager may create and update manual fixture metadata, but receives no
   // Milestone 4 coaching projection or score/stat controls.
   await manager.goto(`/teams/${TEAM_ID}/fixtures`);
