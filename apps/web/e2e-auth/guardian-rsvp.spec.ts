@@ -30,6 +30,15 @@ test("guardian accepts a player invitation and records a Game Day RSVP", async (
   await player.getByLabel("Invitation email").fill(GUARDIAN_EMAIL);
   await player.getByRole("button", { name: "Create invitation" }).click();
   const invitationLinkField = player.getByLabel("Invitation link");
+  const invitationActionError = player.getByRole("alert");
+  await expect(invitationLinkField.or(invitationActionError)).toBeVisible({
+    timeout: 15_000,
+  });
+  if (await invitationActionError.isVisible()) {
+    throw new Error(
+      `Invitation creation failed: ${await invitationActionError.innerText()}`,
+    );
+  }
   const invitationLink = await invitationLinkField.evaluate((field) =>
     field instanceof HTMLInputElement ? field.value : "",
   );
