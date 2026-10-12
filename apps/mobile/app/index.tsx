@@ -34,12 +34,13 @@ import {
 } from "../src/load-mobile-duties";
 import { loadMobileRsvpChoices, saveMobileRsvp } from "../src/load-mobile-rsvp";
 import {
-  registerMobileDevice,
-  removeMobileDevice,
+  loadMobileNotificationPreferences,
+  saveMobileNotificationPreference,
 } from "../src/load-mobile-notifications";
 import { loadMobileTeamRoster } from "../src/load-mobile-team-roster";
 import { loadMobileTeamSchedule } from "../src/load-mobile-team-schedule";
 import { MobileDestinations } from "../src/mobile-destinations";
+import { ProfileScreen } from "../src/profile-screen";
 import { expoNetworkMonitor } from "../src/expo-network-monitor";
 import { secureGameDaySnapshotStore } from "../src/game-day-snapshot";
 import { clearStoredOfflineGameDay } from "../src/offline-context";
@@ -153,8 +154,13 @@ export default function CurrentClubContextRoute() {
                 loadAnnouncements={loadMobileAnnouncements}
                 acknowledge={acknowledgeMobileAnnouncement}
                 markRead={markMobileAnnouncementRead}
-                registerDevice={registerMobileDevice}
-                removeDevice={removeMobileDevice}
+              />
+            )}
+            profile={(scopedLoadContext) => (
+              <ProfileScreen
+                loadContext={scopedLoadContext}
+                loadPreferences={loadMobileNotificationPreferences}
+                savePreference={saveMobileNotificationPreference}
               />
             )}
           />

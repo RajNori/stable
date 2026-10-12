@@ -57,6 +57,7 @@ export function MobileDestinations({
   schedule,
   team,
   updates,
+  profile,
 }: {
   loadContext?: (() => Promise<CurrentClubContext>) | undefined;
   home:
@@ -72,6 +73,10 @@ export function MobileDestinations({
     | React.ReactNode
     | ((loadContext: () => Promise<CurrentClubContext>) => React.ReactNode);
   updates?:
+    | React.ReactNode
+    | ((loadContext: () => Promise<CurrentClubContext>) => React.ReactNode)
+    | undefined;
+  profile?:
     | React.ReactNode
     | ((loadContext: () => Promise<CurrentClubContext>) => React.ReactNode)
     | undefined;
@@ -195,11 +200,15 @@ export function MobileDestinations({
                 </Text>
               ))
         : null}
-      {selected === "Profile" ? (
-        <Text accessibilityRole="header" style={styles.placeholder}>
-          Profile is not available yet.
-        </Text>
-      ) : null}
+      {selected === "Profile"
+        ? typeof profile === "function"
+          ? profile(scopedLoadContext)
+          : (profile ?? (
+              <Text accessibilityRole="header" style={styles.placeholder}>
+                Profile is not available yet.
+              </Text>
+            ))
+        : null}
     </View>
   );
 }

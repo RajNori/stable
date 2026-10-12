@@ -3,6 +3,8 @@ import { ApplicationError } from "@stable/contracts";
 import {
   createSupabaseNotificationGateway,
   deactivateDevice,
+  setNotificationPreference,
+  type NotificationPreference,
   notificationMessages,
   registerDevice,
 } from "@stable/notifications";
@@ -75,6 +77,24 @@ export async function removeMobileDevice(token: string): Promise<void> {
   await deactivateDevice({
     principal: loaded.principal,
     token,
+    writer: loaded.writer,
+  });
+}
+
+export async function loadMobileNotificationPreferences(): Promise<
+  NotificationPreference[]
+> {
+  const loaded = await signedIn();
+  return loaded.writer.listPreferences();
+}
+
+export async function saveMobileNotificationPreference(
+  preference: NotificationPreference,
+): Promise<void> {
+  const loaded = await signedIn();
+  await setNotificationPreference({
+    principal: loaded.principal,
+    ...preference,
     writer: loaded.writer,
   });
 }

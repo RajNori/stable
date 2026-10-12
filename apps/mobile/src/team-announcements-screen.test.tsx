@@ -71,9 +71,7 @@ describe("team announcements", () => {
     expect(acknowledged).toEqual([announcement.id]);
   });
 
-  it("registers and removes the token in the device field", async () => {
-    const registered: string[] = [];
-    const removed: string[] = [];
+  it("does not expose raw push-token entry in the updates screen", async () => {
     const queryClient = new QueryClient({
       defaultOptions: { queries: { retry: false, gcTime: 0 } },
     });
@@ -84,27 +82,15 @@ describe("team announcements", () => {
           loadAnnouncements={() => Promise.resolve([])}
           acknowledge={() => Promise.resolve()}
           markRead={() => Promise.resolve()}
-          registerDevice={(token) => {
-            registered.push(token);
-            return Promise.resolve();
-          }}
-          removeDevice={(token) => {
-            removed.push(token);
-            return Promise.resolve();
-          }}
         />
       </QueryClientProvider>,
     );
-    const user = userEvent.setup();
     expect(await screen.findByText("No announcements.")).toBeTruthy();
-    await user.type(
-      screen.getByLabelText("Device token"),
-      "ExponentPushToken[phone]",
-    );
-    await user.press(screen.getByRole("button", { name: "Register device" }));
-    await user.press(screen.getByRole("button", { name: "Remove device" }));
-    expect(registered).toEqual(["ExponentPushToken[phone]"]);
-    expect(removed).toEqual(["ExponentPushToken[phone]"]);
+    expect(screen.queryByLabelText("Device token")).toBeNull();
+    expect(
+      screen.queryByRole("button", { name: "Register device" }),
+    ).toBeNull();
+    expect(screen.queryByRole("button", { name: "Remove device" })).toBeNull();
   });
 
   it("fails closed when team context cannot be loaded", async () => {
@@ -251,40 +237,5 @@ describe("team announcements", () => {
 
     expect(markedRead).toEqual([announcement.id]);
     expect(await screen.findByText("Bring water")).toBeTruthy();
-  });
-
-  it("surfaces safe device-registration and removal failures", async () => {
-    const queryClient = new QueryClient({
-      defaultOptions: { queries: { retry: false, gcTime: 0 } },
-    });
-    await render(
-      <QueryClientProvider client={queryClient}>
-        <TeamAnnouncementsScreen
-          loadContext={() => Promise.resolve(context)}
-          loadAnnouncements={() => Promise.resolve([])}
-          acknowledge={() => Promise.resolve()}
-          markRead={() => Promise.resolve()}
-          registerDevice={() =>
-            Promise.reject(new Error("raw device provider response"))
-          }
-          removeDevice={() =>
-            Promise.reject(
-              new ApplicationError("FORBIDDEN", "Device removal denied"),
-            )
-          }
-        />
-      </QueryClientProvider>,
-    );
-    const user = userEvent.setup();
-    const token = await screen.findByLabelText("Device token");
-    await user.type(token, "ExponentPushToken[synthetic]");
-    await user.press(screen.getByRole("button", { name: "Register device" }));
-    expect(
-      await screen.findByText(announcementMessages.readFailed),
-    ).toBeTruthy();
-
-    await user.press(screen.getByRole("button", { name: "Remove device" }));
-    expect(await screen.findByText("Device removal denied")).toBeTruthy();
-    expect(screen.queryByText("raw device provider response")).toBeNull();
   });
 });
