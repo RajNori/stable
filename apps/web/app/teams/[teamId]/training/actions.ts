@@ -7,6 +7,9 @@ import {
   createSupabaseTrainingGateway,
   createTrainingSeries,
   createTrainingSession,
+  editTrainingFollowing,
+  editTrainingOccurrence,
+  editTrainingSeries,
   trainingMessages,
 } from "@stable/training";
 import { redirect } from "next/navigation";
@@ -172,6 +175,99 @@ export async function createTrainingSeriesAction(
       leadCoachUserId: null,
       writer: createSupabaseTrainingGateway(loaded.supabase),
     });
+  } catch (caught: unknown) {
+    const message =
+      caught instanceof ApplicationError
+        ? caught.message
+        : trainingMessages.saveFailed;
+    redirect(withError(destination(teamId), message));
+  }
+  redirect(destination(teamId));
+}
+
+export async function editTrainingAction(formData: FormData): Promise<void> {
+  const clubId = text(formData, "clubId");
+  const teamId = text(formData, "teamId");
+  const eventId = text(formData, "eventId");
+  const scope = text(formData, "scope");
+  const seriesId = text(formData, "seriesId");
+  if (
+    clubId === null ||
+    teamId === null ||
+    eventId === null ||
+    scope === null ||
+    !UUID.test(clubId) ||
+    !UUID.test(teamId) ||
+    !UUID.test(eventId) ||
+    (seriesId !== null && !UUID.test(seriesId)) ||
+    !["occurrence", "following", "series"].includes(scope)
+  ) {
+    redirect(
+      teamId !== null && UUID.test(teamId)
+        ? withError(destination(teamId), trainingMessages.validationFailed)
+        : "/",
+    );
+  }
+
+  const loaded = await loadAccess(clubId, teamId);
+  if (loaded === null) {
+    redirect(withError(destination(teamId), trainingMessages.unauthenticated));
+  }
+
+  try {
+    const writer = createSupabaseTrainingGateway(loaded.supabase);
+    if (scope === "occurrence") {
+      const starts = text(formData, "startsAt");
+      const ends = text(formData, "endsAt");
+      const leadCoach = text(formData, "leadCoachUserId");
+      if (starts === null || (leadCoach !== null && !UUID.test(leadCoach))) {
+        throw new ApplicationError(
+          "VALIDATION_FAILED",
+          trainingMessages.validationFailed,
+        );
+      }
+      await editTrainingOccurrence({
+        ...loaded.access,
+        clubId,
+        teamId,
+        eventId,
+        startsAt: localDateTimeToUtcIso(starts, loaded.timezone),
+        endsAt:
+          ends === null ? null : localDateTimeToUtcIso(ends, loaded.timezone),
+        courtLabel: text(formData, "courtLabel"),
+        leadCoachUserId: leadCoach,
+        writer,
+      });
+    } else {
+      const weekday = Number(text(formData, "weekday"));
+      const localTime = text(formData, "localTime");
+      if (
+        seriesId === null ||
+        localTime === null ||
+        !Number.isInteger(weekday)
+      ) {
+        throw new ApplicationError(
+          "VALIDATION_FAILED",
+          trainingMessages.validationFailed,
+        );
+      }
+      const endsOn = text(formData, "endsOn");
+      const command = {
+        ...loaded.access,
+        clubId,
+        teamId,
+        weekday,
+        localTime,
+        timezone: loaded.timezone,
+        endsOn,
+        writer,
+      };
+      if (scope === "following") {
+        await editTrainingFollowing({ ...command, eventId });
+      } else {
+        await editTrainingSeries({ ...command, seriesId });
+      }
+    }
   } catch (caught: unknown) {
     const message =
       caught instanceof ApplicationError

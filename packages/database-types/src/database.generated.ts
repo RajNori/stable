@@ -3050,6 +3050,18 @@ export type Database = {
           team_id: string;
         }[];
       };
+      list_team_training_edit_metadata: {
+        Args: { p_event_ids: string[]; p_team_id: string };
+        Returns: {
+          ends_on: string;
+          event_id: string;
+          lead_coach_user_id: string;
+          local_time: string;
+          recurrence_series_id: string;
+          timezone: string;
+          weekday: number;
+        }[];
+      };
       lock_administered_player: {
         Args: { p_player_id: string };
         Returns: {

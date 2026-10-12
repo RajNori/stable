@@ -17,6 +17,59 @@ function client(data: unknown, error: { message: string } | null = null) {
 }
 
 describe("training gateway", () => {
+  it("maps authorized training edit metadata", async () => {
+    const gateway = createSupabaseTrainingGateway(
+      client([
+        {
+          event_id: eventId,
+          recurrence_series_id: seriesId,
+          weekday: 1,
+          local_time: "18:30:00",
+          timezone: "Australia/Melbourne",
+          ends_on: "2026-10-19",
+          lead_coach_user_id: null,
+        },
+      ]),
+    );
+    await expect(
+      gateway.listTrainingEditMetadata(teamId, [eventId]),
+    ).resolves.toEqual([
+      {
+        eventId,
+        recurrenceSeriesId: seriesId,
+        weekday: 1,
+        localTime: "18:30",
+        timezone: "Australia/Melbourne",
+        endsOn: "2026-10-19",
+        leadCoachUserId: null,
+      },
+    ]);
+  });
+
+  it("fails closed when edit metadata is incomplete or omits a requested event", async () => {
+    await expect(
+      createSupabaseTrainingGateway(client([])).listTrainingEditMetadata(
+        teamId,
+        [eventId],
+      ),
+    ).rejects.toMatchObject({ code: "INTERNAL" });
+    await expect(
+      createSupabaseTrainingGateway(
+        client([
+          {
+            event_id: eventId,
+            recurrence_series_id: seriesId,
+            weekday: null,
+            local_time: null,
+            timezone: null,
+            ends_on: null,
+            lead_coach_user_id: null,
+          },
+        ]),
+      ).listTrainingEditMetadata(teamId, [eventId]),
+    ).rejects.toMatchObject({ code: "INTERNAL" });
+  });
+
   it("writes sessions, series edits, and check-in", async () => {
     const gateway = createSupabaseTrainingGateway(client(eventId));
     await expect(

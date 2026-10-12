@@ -169,6 +169,23 @@ select 'once', public.create_training_session(
 );
 
 select is(
+  (select count(*) from public.list_team_training_edit_metadata(
+    '6d6d6d6d-6d6d-46d6-86d6-6d6d6d6d6d6d',
+    array[(select id from issued where kind = 'once')]
+  )),
+  1::bigint,
+  'a team manager may read the metadata needed to manage training'
+);
+select is(
+  (select recurrence_series_id from public.list_team_training_edit_metadata(
+    '6d6d6d6d-6d6d-46d6-86d6-6d6d6d6d6d6d',
+    array[(select id from issued where kind = 'once')]
+  )),
+  null::uuid,
+  'one-off training has no recurrence metadata'
+);
+
+select is(
   (
     select event_type
     from public.list_team_schedule(
@@ -226,6 +243,39 @@ select 'editable', public.create_training_series(
   '6a6a6a6a-6a6a-46a6-86a6-6a6a6a6a6a6a',
   '6d6d6d6d-6d6d-46d6-86d6-6d6d6d6d6d6d',
   1::smallint, '18:30'::time, 'Australia/Melbourne', '2026-09-28'::date, '2026-10-19'::date, null, null
+);
+
+select is(
+  (select recurrence_series_id from public.list_team_training_edit_metadata(
+    '6d6d6d6d-6d6d-46d6-86d6-6d6d6d6d6d6d',
+    array[pg_temp.series_event(
+      (select id from issued where kind = 'editable'),
+      '2026-10-12 18:30:00+11'
+    )]
+  )),
+  (select id from issued where kind = 'editable'),
+  'a team manager can read the series id for an authorized recurring session'
+);
+do $$ begin perform pg_temp.assume_user('6f6f6f6f-6f6f-46f6-86f6-6f6f6f6f6f1b'); end $$;
+select is(
+  pg_temp.sqlstate_of(format(
+    'select * from public.list_team_training_edit_metadata(%L, %L::uuid[])',
+    '6d6d6d6d-6d6d-46d6-86d6-6d6d6d6d6d6d',
+    array[(select id from issued where kind = 'once')]::text
+  )),
+  '42501',
+  'assistant coaches cannot read team-manager training management metadata'
+);
+do $$ begin perform pg_temp.assume_user('6f6f6f6f-6f6f-46f6-86f6-6f6f6f6f6f1c'); end $$;
+select is(
+  pg_temp.sqlstate_of($sql$
+    select * from public.list_team_training_edit_metadata(
+      '6d6d6d6d-6d6d-46d6-86d6-6d6d6d6d6d6d',
+      array['55555555-5555-4555-8555-555555555555'::uuid]
+    )
+  $sql$),
+  'P0002',
+  'metadata lookup does not reveal an event outside the requested team'
 );
 
 select lives_ok(
