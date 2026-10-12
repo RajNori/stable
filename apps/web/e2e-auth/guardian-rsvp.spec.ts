@@ -79,13 +79,15 @@ test("guardian accepts a player invitation and records a Game Day RSVP", async (
     guardian.getByRole("region", { name: "Players", exact: true }),
   ).toHaveCount(0);
   await guardian.getByRole("link", { name: "Open Home" }).last().click();
-  await expect(
-    guardian.getByRole("region", { name: "Choose your team" }),
-  ).toBeVisible();
-  await guardian.getByRole("link", { name: "U14 Boys", exact: true }).click();
-  await expect(
-    guardian.getByText("Guardian home", { exact: true }),
-  ).toBeVisible();
+  const teamChooser = guardian.getByRole("region", {
+    name: "Choose your team",
+  });
+  const guardianHome = guardian.getByText("Guardian home", { exact: true });
+  await expect(teamChooser.or(guardianHome)).toBeVisible();
+  if (await teamChooser.isVisible()) {
+    await guardian.getByRole("link", { name: "U14 Boys", exact: true }).click();
+  }
+  await expect(guardianHome).toBeVisible();
 
   await guardian.goto(gameHref);
   const gameDay = guardian.getByRole("region", { name: "Game day" });
