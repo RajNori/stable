@@ -23,7 +23,8 @@ returns table (
   attending_count integer,
   unavailable_count integer,
   unsure_count integer,
-  unanswered_count integer
+  unanswered_count integer,
+  fill_in_label text
 )
 language plpgsql
 security definer
@@ -145,7 +146,17 @@ begin
           where response.event_id = event_row.id
             and response.player_id = registration.player_id
         )
-    ) else null end
+    ) else null end,
+    (
+      select public.masked_player_name(confirmation.player_id)
+      from public.fill_in_confirmations as confirmation
+      join public.fill_in_requests as fill_request
+        on fill_request.id = confirmation.request_id
+      where fill_request.event_id = event_row.id
+        and fill_request.status = 'CONFIRMED'
+      order by confirmation.created_at
+      limit 1
+    )
   from public.games as game
   join public.game_team_overlay as overlay
     on overlay.game_event_id = game.event_id
