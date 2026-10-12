@@ -119,28 +119,56 @@ export default function CurrentClubContextRoute() {
   const online = useMobileOnline(monitor);
   const restoreWithPushCleanupFence = useCallback(async () => {
     const restored = await restoreLiveMobileAuthSession();
-    const pendingUserId = await readPendingPushCleanup(pendingPushCleanupStore);
-    if (pendingUserId === null || restored.state !== "authenticated") {
+    const pendingUserIds = await readPendingPushCleanupUsers(
+      pendingPushCleanupStore,
+    );
+    if (pendingUserIds.length === 0 || restored.state !== "authenticated") {
       return restored;
     }
-    if (restored.principal.userId === pendingUserId) return restored;
+    const restoredUserId = restored.principal.userId;
+    let restoredSessionRejected = false;
+    const rejectRestoredSession = async () => {
+      if (restoredSessionRejected) return;
+      restoredSessionRejected = true;
+      try {
+        await getMobileSupabaseClient().auth.signOut({ scope: "local" });
+      } finally {
+        try {
+          await clearLiveMobileAuthSessionStorage();
+        } finally {
+          await clearStoredOfflineGameDay(snapshotStore, restoredUserId);
+        }
+      }
+    };
 
-    const priorUserId = restored.principal.userId;
-    // A restored identity that conflicts with the persisted account-switch
-    // fence must not leave this device's endpoint active. Missing token state
-    // or server failure adds that identity to the ordered unresolved set.
-    await tryRemovePushRegistrationOrRetainFence({
-      store: pendingPushCleanupStore,
-      userId: priorUserId,
-      removeRegistration: removeLivePushRegistration,
-    });
-    try {
-      await getMobileSupabaseClient().auth.signOut({ scope: "local" });
-    } finally {
-      await clearLiveMobileAuthSessionStorage();
+    if (!pendingUserIds.includes(restoredUserId)) {
+      // A restored identity that conflicts with the persisted account-switch
+      // fence must not leave this device's endpoint active. Missing token
+      // state or server failure adds that identity to the unresolved set.
+      await tryRemovePushRegistrationOrRetainFence({
+        store: pendingPushCleanupStore,
+        userId: restoredUserId,
+        removeRegistration: removeLivePushRegistration,
+      });
+      await rejectRestoredSession();
+      return { state: "unauthenticated" } as const;
     }
-    await clearStoredOfflineGameDay(snapshotStore, priorUserId);
-    return { state: "unauthenticated" } as const;
+
+    try {
+      await enforcePendingPushCleanup({
+        store: pendingPushCleanupStore,
+        nextUserId: restoredUserId,
+        removeRegistration: removeLivePushRegistration,
+        rejectOtherAccount: rejectRestoredSession,
+      });
+      return restored;
+    } catch {
+      // Restoration does not pass through beforeAcceptAuthenticated. Apply
+      // the same multi-account fence here and clear private offline data when
+      // other unresolved endpoints prevent admission.
+      await rejectRestoredSession();
+      return { state: "unauthenticated" } as const;
+    }
   }, [snapshotStore]);
   const linking = useMemo(
     () => ({
@@ -190,13 +218,14 @@ export default function CurrentClubContextRoute() {
       accessToken: previousSession.access_token,
       refreshToken: previousSession.refresh_token,
     };
-    await cleanPendingCallbackPushRegistration({
-      store: pendingPushCleanupStore,
-      userId: previous.userId,
-      accessToken: previous.accessToken,
-      refreshToken: previous.refreshToken,
-      removeRegistration: removeLivePushRegistrationForSession,
-    });
+    const cleanedPendingRegistration =
+      await cleanPendingCallbackPushRegistration({
+        store: pendingPushCleanupStore,
+        userId: previous.userId,
+        accessToken: previous.accessToken,
+        refreshToken: previous.refreshToken,
+        removeRegistration: removeLivePushRegistrationForSession,
+      });
     // The callback must first be accepted by Supabase. An expired or forged
     // link must never delete the prior account's endpoint. Use the captured
     // previous session only if the successful callback switches accounts.
@@ -206,6 +235,7 @@ export default function CurrentClubContextRoute() {
         previous,
         next.principal.userId,
         removeLivePushRegistrationForSession,
+        cleanedPendingRegistration,
       );
       if (!removed) {
         await markPendingPushCleanup(pendingPushCleanupStore, previous.userId);

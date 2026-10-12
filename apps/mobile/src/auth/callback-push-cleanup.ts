@@ -44,8 +44,15 @@ export async function removePreviousPushAfterSuccessfulAccountSwitch(
     accessToken: string,
     refreshToken: string,
   ) => Promise<void | boolean>,
+  registrationAlreadyCleaned = false,
 ): Promise<boolean> {
-  if (previous === null || previous.userId === nextUserId) return true;
+  if (
+    previous === null ||
+    previous.userId === nextUserId ||
+    registrationAlreadyCleaned
+  ) {
+    return true;
+  }
   const removed = await removeRegistration(
     previous.userId,
     previous.accessToken,

@@ -98,6 +98,21 @@ describe("callback push cleanup", () => {
     ]);
   });
 
+  it("does not repeat a revocation confirmed during callback preflight", async () => {
+    let calls = 0;
+    const removed = await removePreviousPushAfterSuccessfulAccountSwitch(
+      previous,
+      "29292929-2929-4929-8929-292929292929",
+      async () => {
+        calls += 1;
+      },
+      true,
+    );
+
+    expect(removed).toBe(true);
+    expect(calls).toBe(0);
+  });
+
   it("does not remove an endpoint for an invalid callback", async () => {
     const calls: unknown[][] = [];
     const removeRegistration = async (...args: string[]) => {
