@@ -51,6 +51,8 @@ const projection: GameDayProjection = {
   teamId,
   opponentName: "Visitors",
   roundLabel: "Round 1",
+  fixtureSource: "MANUAL",
+  fixtureStatus: "SCHEDULED",
   officialStartAt: "2026-10-10T07:30:00.000Z",
   arrivalAt: null,
   venueText: null,
@@ -89,6 +91,7 @@ describe("team game day screen", () => {
     ).toBeTruthy();
     expect(screen.getByText("RSVP UNANSWERED")).toBeTruthy();
     expect(screen.getByText("Duty Scorebook")).toBeTruthy();
+    expect(screen.queryByText("Fixture Manual · scheduled")).toBeNull();
     expect(screen.queryByText(/Attending/)).toBeNull();
   });
 
@@ -100,6 +103,8 @@ describe("team game day screen", () => {
           ...projection,
           uniformNote: "White",
           coachFocus: "Protect the paint",
+          fixtureSource: "IMPORT",
+          fixtureStatus: "POSTPONED",
           attendingCount: 8,
           unavailableCount: 1,
           unsureCount: 2,
@@ -113,6 +118,7 @@ describe("team game day screen", () => {
       await screen.findByRole("header", { name: "Coach game context" }),
     ).toBeTruthy();
     expect(screen.getByText("Team focus Protect the paint")).toBeTruthy();
+    expect(screen.getByText("Fixture Imported · postponed")).toBeTruthy();
     expect(screen.getByText("Uniform White")).toBeTruthy();
     expect(
       screen.getByText(

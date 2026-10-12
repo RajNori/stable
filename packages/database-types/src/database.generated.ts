@@ -3235,6 +3235,8 @@ export type Database = {
           court_label: string;
           event_id: string;
           fill_in_label: string;
+          fixture_source: string;
+          fixture_status: string;
           official_start_at: string;
           opponent_name: string;
           own_duty_label: string;

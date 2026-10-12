@@ -16,6 +16,8 @@ function row() {
     team_id: teamId,
     opponent_name: "Visitors",
     round_label: "Round 1",
+    fixture_source: "MANUAL",
+    fixture_status: "SCHEDULED",
     official_start_at: "2026-10-10T07:30:00+00:00",
     arrival_at: null,
     venue_text: "Home",
@@ -86,6 +88,8 @@ describe("game day gateway", () => {
     const view = await createSupabaseGameDayGateway(read).readGameDay(eventId);
     expect(view.officialStartAt).toBe("2026-10-10T07:30:00.000Z");
     expect(view.ownRsvp).toBe("UNANSWERED");
+    expect(view.fixtureSource).toBe("MANUAL");
+    expect(view.fixtureStatus).toBe("SCHEDULED");
     expect(view.attendingCount).toBeNull();
     const assigned = client([dutyId]);
     await expect(
@@ -109,6 +113,22 @@ describe("game day gateway", () => {
     const direct =
       await createSupabaseGameDayGateway(single).readGameDay(eventId);
     expect(direct.opponentName).toBe("Visitors");
+  });
+
+  it("remains compatible with a staging database before the new migration", async () => {
+    const legacyRow = Object.fromEntries(
+      Object.entries(row()).filter(
+        ([key]) => key !== "fixture_source" && key !== "fixture_status",
+      ),
+    );
+    await expect(
+      createSupabaseGameDayGateway(client([legacyRow])).readGameDay(eventId),
+    ).resolves.toMatchObject({
+      eventId,
+      opponentName: "Visitors",
+      fixtureSource: undefined,
+      fixtureStatus: undefined,
+    });
   });
 
   it("maps database failures without driver text", async () => {

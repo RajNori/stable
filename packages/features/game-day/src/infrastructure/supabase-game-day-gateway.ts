@@ -35,6 +35,10 @@ const rowSchema = z
     team_id: z.string().uuid(),
     opponent_name: z.string(),
     round_label: z.string().nullable(),
+    fixture_source: z.enum(["MANUAL", "IMPORT"]).optional(),
+    fixture_status: z
+      .enum(["SCHEDULED", "POSTPONED", "CANCELLED", "COMPLETED"])
+      .optional(),
     official_start_at: z.string(),
     arrival_at: z.string().nullable(),
     venue_text: z.string().nullable(),
@@ -56,6 +60,8 @@ const rowSchema = z
     teamId: row.team_id,
     opponentName: row.opponent_name,
     roundLabel: row.round_label,
+    fixtureSource: row.fixture_source,
+    fixtureStatus: row.fixture_status,
     officialStartAt: asInstant(row.official_start_at),
     arrivalAt: asInstant(row.arrival_at),
     venueText: row.venue_text,

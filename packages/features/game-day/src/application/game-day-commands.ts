@@ -30,6 +30,10 @@ export const gameDayProjectionSchema = z.strictObject({
   teamId: idSchema,
   opponentName: z.string(),
   roundLabel: z.string().nullable(),
+  fixtureSource: z.enum(["MANUAL", "IMPORT"]).optional(),
+  fixtureStatus: z
+    .enum(["SCHEDULED", "POSTPONED", "CANCELLED", "COMPLETED"])
+    .optional(),
   officialStartAt: instantSchema,
   arrivalAt: instantSchema.nullable(),
   venueText: z.string().nullable(),

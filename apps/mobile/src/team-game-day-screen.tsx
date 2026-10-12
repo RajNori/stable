@@ -535,6 +535,14 @@ export function TeamGameDayScreen({
           <Text accessibilityRole="header" style={styles.body}>
             Coach game context
           </Text>
+          {projection.fixtureSource === undefined ||
+          projection.fixtureStatus === undefined ? null : (
+            <Text style={styles.body}>
+              Fixture{" "}
+              {projection.fixtureSource === "IMPORT" ? "Imported" : "Manual"} ·{" "}
+              {projection.fixtureStatus.toLowerCase()}
+            </Text>
+          )}
           <Text style={styles.body}>
             Team focus {projection.coachFocus ?? "Not set"}
           </Text>

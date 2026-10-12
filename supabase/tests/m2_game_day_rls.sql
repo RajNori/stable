@@ -110,6 +110,16 @@ select is(
   'a game day has no stored RSVP yet'
 );
 select is(
+  (select fixture_source from public.read_game_day((select event_id from issued_game))),
+  'MANUAL',
+  'fixture source is included as a safe Game Day fact'
+);
+select is(
+  (select fixture_status from public.read_game_day((select event_id from issued_game))),
+  'SCHEDULED',
+  'fixture status is included as a safe Game Day fact'
+);
+select is(
   (select unanswered_count from public.read_game_day((select event_id from issued_game))),
   1,
   'staff see the unanswered registration count'
