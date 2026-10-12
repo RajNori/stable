@@ -96,6 +96,8 @@ describe("game day", () => {
     expect(view.opponentName).toBe("Visitors");
     expect(view.attendingCount).toBeNull();
     expect(view.unansweredCount).toBeNull();
+    expect(view.uniformNote).toBe("White");
+    expect(view.coachFocus).toBeNull();
     expect(view).not.toHaveProperty("privateNote");
   });
 
@@ -109,6 +111,21 @@ describe("game day", () => {
     });
     expect(view.attendingCount).toBe(4);
     expect(view.unansweredCount).toBe(4);
+    expect(view.uniformNote).toBe("White");
+    expect(view.coachFocus).toBe("Press");
+  });
+
+  it("does not expose coach fields to a team manager", async () => {
+    const view = await readGameDay({
+      ...staff("TEAM_MANAGER"),
+      clubId,
+      teamId,
+      eventId,
+      reader: reader(projection(4)),
+    });
+    expect(view.uniformNote).toBe("White");
+    expect(view.coachFocus).toBeNull();
+    expect(view.attendingCount).toBe(4);
   });
 
   it("lets a manager assign a duty and denies a head coach", async () => {

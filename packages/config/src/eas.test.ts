@@ -15,7 +15,8 @@ function readEasFile(): unknown {
 
 function profileEnv(
   config: unknown,
-  name: "development" | "preview" | "production",
+  name:
+    "development" | "preview" | "production" | "testflight" | "play-internal",
 ): Record<string, unknown> {
   if (!isRecord(config) || !isRecord(config.build)) {
     throw new Error("eas.json is missing build profiles");
@@ -31,6 +32,8 @@ function easConfig(profiles: {
   development?: unknown;
   preview?: unknown;
   production?: unknown;
+  testflight?: unknown;
+  "play-internal"?: unknown;
   submit?: unknown;
 }): unknown {
   const config: Record<string, unknown> = {
@@ -46,6 +49,25 @@ function easConfig(profiles: {
       },
       production: profiles.production ?? {
         env: { [ENV.expoAppEnv]: "production" },
+      },
+      testflight: profiles.testflight ?? {
+        extends: "preview",
+        distribution: "store",
+        environment: "preview",
+        env: {
+          [ENV.expoAppEnv]: "staging",
+          [ENV.expoSupabaseUrl]: "https://rporaeagbsfmgbmhyett.supabase.co",
+        },
+      },
+      "play-internal": profiles["play-internal"] ?? {
+        extends: "preview",
+        distribution: "store",
+        environment: "preview",
+        env: {
+          [ENV.expoAppEnv]: "staging",
+          [ENV.expoSupabaseUrl]: "https://rporaeagbsfmgbmhyett.supabase.co",
+        },
+        android: { buildType: "app-bundle" },
       },
     },
   };
@@ -72,7 +94,7 @@ function expectEasFailure(config: unknown, pattern: RegExp): void {
 }
 
 describe("eas.json", () => {
-  it("parses the repo file and checks Milestone 0 profiles", () => {
+  it("parses the repo file and checks all mobile build profiles", () => {
     const config = readEasFile();
     expect(isRecord(config)).toBe(true);
     if (!isRecord(config)) {
@@ -94,6 +116,8 @@ describe("eas.json", () => {
     const development = profileEnv(config, "development");
     const preview = profileEnv(config, "preview");
     const production = profileEnv(config, "production");
+    const testflight = profileEnv(config, "testflight");
+    const playInternal = profileEnv(config, "play-internal");
 
     expect(development[ENV.expoAppEnv]).toBe("local");
     expect(development[ENV.expoSupabaseUrl]).toBeUndefined();
@@ -103,6 +127,12 @@ describe("eas.json", () => {
     );
     expect(production[ENV.expoAppEnv]).toBe("production");
     expect(production).not.toHaveProperty("submit");
+    for (const env of [testflight, playInternal]) {
+      expect(env[ENV.expoAppEnv]).toBe("staging");
+      expect(env[ENV.expoSupabaseUrl]).toBe(
+        "https://rporaeagbsfmgbmhyett.supabase.co",
+      );
+    }
 
     if (!isRecord(config.build) || !isRecord(config.build.preview)) {
       throw new Error("eas.json is missing the preview profile");
@@ -113,6 +143,23 @@ describe("eas.json", () => {
       throw new Error("eas.json is missing the production profile");
     }
     expect(config.build.production).not.toHaveProperty("submit");
+
+    for (const name of ["testflight", "play-internal"] as const) {
+      const profile = config.build[name];
+      if (!isRecord(profile)) {
+        throw new Error(`eas.json is missing the ${name} profile`);
+      }
+      expect(profile.environment).toBe("preview");
+      expect(profile.distribution).toBe("store");
+      expect(profile).not.toHaveProperty("submit");
+    }
+    if (!isRecord(config.build["play-internal"])) {
+      throw new Error("eas.json is missing the play-internal profile");
+    }
+    expect(config.build["play-internal"]).toHaveProperty(
+      "android.buildType",
+      "app-bundle",
+    );
 
     expect(() => assertEasConfig(config)).not.toThrow();
   });
@@ -257,6 +304,46 @@ describe("eas.json", () => {
     );
 
     expectEasFailure(easConfig({ submit: { production: {} } }), /submit/i);
+  });
+
+  it("resolves shipping profile inheritance and rejects production drift", () => {
+    expect(() => assertEasConfig(easConfig({}))).not.toThrow();
+
+    for (const profile of ["testflight", "play-internal"] as const) {
+      expectEasFailure(
+        easConfig({
+          [profile]: {
+            extends: "preview",
+            environment: "preview",
+            distribution: "store",
+            env: {
+              [ENV.expoAppEnv]: "production",
+              [ENV.expoSupabaseUrl]: "https://lohriezdxegtkbcbkonw.supabase.co",
+            },
+            ...(profile === "play-internal"
+              ? { android: { buildType: "app-bundle" } }
+              : {}),
+          },
+        }),
+        /staging/,
+      );
+    }
+
+    expectEasFailure(
+      easConfig({
+        "play-internal": {
+          extends: "preview",
+          environment: "preview",
+          distribution: "store",
+          env: {
+            [ENV.expoAppEnv]: "staging",
+            [ENV.expoSupabaseUrl]: "https://rporaeagbsfmgbmhyett.supabase.co",
+          },
+          android: { buildType: "apk" },
+        },
+      }),
+      /app bundle/i,
+    );
   });
 
   it("fails closed when the file or a profile is not usable", () => {

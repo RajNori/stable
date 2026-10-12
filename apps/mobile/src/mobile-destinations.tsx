@@ -2,7 +2,7 @@ import { themeFor } from "@stable/design-tokens";
 import type { CurrentClubContext } from "@stable/contracts";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import React, { useState } from "react";
-import { Pressable, StyleSheet, Text, View } from "react-native";
+import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 
 const DESTINATIONS = [
   "Home",
@@ -48,6 +48,12 @@ const styles = StyleSheet.create({
     flexWrap: "wrap",
     gap: theme.space[2],
     paddingHorizontal: theme.space[4],
+  },
+  destinationContent: {
+    flex: 1,
+  },
+  destinationContentBody: {
+    flexGrow: 1,
   },
 });
 
@@ -168,47 +174,55 @@ export function MobileDestinations({
           Switching team
         </Text>
       ) : null}
-      {selected === "Home"
-        ? switchingTeam
-          ? null
-          : typeof home === "function"
-            ? home(setSelected, scopedLoadContext)
-            : home
-        : null}
-      {selected === "Schedule"
-        ? switchingTeam
-          ? null
-          : typeof schedule === "function"
-            ? schedule(scopedLoadContext)
-            : schedule
-        : null}
-      {selected === "Team"
-        ? switchingTeam
-          ? null
-          : typeof team === "function"
-            ? team(scopedLoadContext)
-            : team
-        : null}
-      {selected === "Updates"
-        ? switchingTeam
-          ? null
-          : typeof updates === "function"
-            ? updates(scopedLoadContext)
-            : (updates ?? (
+      <ScrollView
+        testID="mobile-destination-content"
+        style={styles.destinationContent}
+        contentContainerStyle={styles.destinationContentBody}
+        scrollEnabled
+        keyboardShouldPersistTaps="handled"
+      >
+        {selected === "Home"
+          ? switchingTeam
+            ? null
+            : typeof home === "function"
+              ? home(setSelected, scopedLoadContext)
+              : home
+          : null}
+        {selected === "Schedule"
+          ? switchingTeam
+            ? null
+            : typeof schedule === "function"
+              ? schedule(scopedLoadContext)
+              : schedule
+          : null}
+        {selected === "Team"
+          ? switchingTeam
+            ? null
+            : typeof team === "function"
+              ? team(scopedLoadContext)
+              : team
+          : null}
+        {selected === "Updates"
+          ? switchingTeam
+            ? null
+            : typeof updates === "function"
+              ? updates(scopedLoadContext)
+              : (updates ?? (
+                  <Text accessibilityRole="header" style={styles.placeholder}>
+                    Updates is not available yet.
+                  </Text>
+                ))
+          : null}
+        {selected === "Profile"
+          ? typeof profile === "function"
+            ? profile(scopedLoadContext)
+            : (profile ?? (
                 <Text accessibilityRole="header" style={styles.placeholder}>
-                  Updates is not available yet.
+                  Profile is not available yet.
                 </Text>
               ))
-        : null}
-      {selected === "Profile"
-        ? typeof profile === "function"
-          ? profile(scopedLoadContext)
-          : (profile ?? (
-              <Text accessibilityRole="header" style={styles.placeholder}>
-                Profile is not available yet.
-              </Text>
-            ))
-        : null}
+          : null}
+      </ScrollView>
     </View>
   );
 }

@@ -78,6 +78,8 @@ describe("game day snapshot", () => {
       savedAt,
     });
     expect(Object.keys(snapshot).includes("privateNote")).toBe(false);
+    expect(snapshot.uniformNote).toBe("White");
+    expect(Object.keys(snapshot)).not.toContain("coachFocus");
     expect(gameDaySnapshotFreshness(savedAt, Date.parse(savedAt))).toBe(
       "fresh",
     );
@@ -138,6 +140,31 @@ describe("game day snapshot", () => {
 
     await store.setItem(key, JSON.stringify({ ...snapshot, teamName: "" }));
     expect(await readGameDaySnapshot(store, userId, teamId)).toBeNull();
+  });
+
+  it("scrubs legacy coach-only focus while preserving common uniform logistics", async () => {
+    const store = memoryGameDaySnapshotStore();
+    const snapshot = gameDaySnapshotFromProjection({
+      userId,
+      teamName: "U14 Boys",
+      projection,
+      savedAt,
+    });
+    const key = `stable.game-day.v1.${userId}.${teamId}`;
+    await store.setItem(
+      key,
+      JSON.stringify({
+        ...snapshot,
+        coachFocus: "Coach-only focus detail",
+      }),
+    );
+
+    expect(await readGameDaySnapshot(store, userId, teamId)).toEqual(snapshot);
+    const stored = await store.getItem(key);
+    expect(stored).not.toContain("Coach-only focus detail");
+    expect(stored).toContain("uniformNote");
+    expect(stored).toContain('"uniformNote":"White"');
+    expect(stored).not.toContain("coachFocus");
   });
 
   it("rejects non-object snapshots and malformed index JSON", async () => {

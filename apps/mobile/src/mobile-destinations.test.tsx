@@ -35,6 +35,9 @@ describe("mobile destinations", () => {
     expect(screen.getByText("Updates")).toBeTruthy();
     expect(screen.getByText("Profile")).toBeTruthy();
     expect(screen.getByText("Mentone Mustangs")).toBeTruthy();
+    expect(
+      screen.getByTestId("mobile-destination-content").props.scrollEnabled,
+    ).toBe(true);
 
     await user.press(screen.getByRole("tab", { name: "Team" }));
     expect(screen.getByText("Alexander R.")).toBeTruthy();

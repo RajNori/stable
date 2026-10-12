@@ -7,6 +7,8 @@ const PROFILE_APP_ENV = {
   development: "local",
   preview: "staging",
   production: "production",
+  testflight: "staging",
+  "play-internal": "staging",
 } as const satisfies Record<string, AppEnv>;
 
 type EasProfileName = keyof typeof PROFILE_APP_ENV;
@@ -43,10 +45,11 @@ function readEnv(value: unknown, name: EasProfileName): Record<string, string> {
   return env;
 }
 
-function assertProfile(
+function resolveProfile(
   build: Record<string, unknown>,
   name: EasProfileName,
-): void {
+  chain: ReadonlySet<string> = new Set(),
+): Record<string, unknown> {
   const profile = build[name];
   if (!isRecord(profile)) {
     throw new ApplicationError(
@@ -54,6 +57,42 @@ function assertProfile(
       `eas.json is missing the ${name} build profile.`,
     );
   }
+  if (chain.has(name)) {
+    throw new ApplicationError(
+      "VALIDATION_FAILED",
+      `EAS ${name} profile has a circular extends chain.`,
+    );
+  }
+
+  const nextChain = new Set(chain).add(name);
+  const parentName = profile.extends;
+  let parent: Record<string, unknown> = {};
+  if (parentName !== undefined) {
+    if (typeof parentName !== "string" || !(parentName in build)) {
+      throw new ApplicationError(
+        "VALIDATION_FAILED",
+        `EAS ${name} profile extends an unknown profile.`,
+      );
+    }
+    parent = resolveProfile(build, parentName as EasProfileName, nextChain);
+  }
+
+  const parentEnv = isRecord(parent.env) ? parent.env : {};
+  const ownEnv = profile.env;
+  const env =
+    ownEnv === undefined
+      ? parentEnv
+      : isRecord(ownEnv)
+        ? { ...parentEnv, ...ownEnv }
+        : ownEnv;
+  return { ...parent, ...profile, env };
+}
+
+function assertProfile(
+  build: Record<string, unknown>,
+  name: EasProfileName,
+): void {
+  const profile = resolveProfile(build, name);
   if ("submit" in profile) {
     throw new ApplicationError(
       "VALIDATION_FAILED",
@@ -87,6 +126,30 @@ function assertProfile(
       `EAS preview must set ${ENV.expoSupabaseUrl} to the approved Stable staging project.`,
     );
   }
+
+  if (name === "testflight" || name === "play-internal") {
+    if (profile.environment !== "preview") {
+      throw new ApplicationError(
+        "VALIDATION_FAILED",
+        `EAS ${name} must use the preview environment.`,
+      );
+    }
+    if (url?.trim() !== APPROVED_STAGING_SUPABASE_URL) {
+      throw new ApplicationError(
+        "VALIDATION_FAILED",
+        `EAS ${name} must set ${ENV.expoSupabaseUrl} to the approved Stable staging project.`,
+      );
+    }
+    if (name === "play-internal") {
+      const android = profile.android;
+      if (!isRecord(android) || android.buildType !== "app-bundle") {
+        throw new ApplicationError(
+          "VALIDATION_FAILED",
+          "EAS play-internal must build an Android app bundle.",
+        );
+      }
+    }
+  }
 }
 
 export function assertEasConfig(input: unknown): void {
@@ -112,4 +175,6 @@ export function assertEasConfig(input: unknown): void {
   assertProfile(input.build, "development");
   assertProfile(input.build, "preview");
   assertProfile(input.build, "production");
+  assertProfile(input.build, "testflight");
+  assertProfile(input.build, "play-internal");
 }

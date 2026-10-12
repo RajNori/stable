@@ -89,6 +89,9 @@ export function OfflineGameDayView({
       </Text>
       <Text style={styles.body}>Venue {snapshot.venueText ?? "Not set"}</Text>
       <Text style={styles.body}>Court {snapshot.courtLabel ?? "Not set"}</Text>
+      <Text style={styles.body}>
+        Uniform {snapshot.uniformNote ?? "Not set"}
+      </Text>
       {freshness === "stale" ? (
         <Text accessibilityLiveRegion="polite" style={styles.body}>
           This snapshot is stale.

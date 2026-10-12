@@ -49,7 +49,7 @@ begin
 end;
 $$;
 
-select plan(226);
+select plan(230);
 
 insert into auth.users (
   instance_id, id, aud, role, email, encrypted_password, email_confirmed_at,
@@ -1228,6 +1228,10 @@ do $$ begin
   perform pg_temp.assume_user('c1000000-0000-4000-8000-000000000001');
 end $$;
 set local role authenticated;
+select is_empty(
+  $$select id from public.audit_events where id = '1b1b1b1b-1b1b-41b1-81b1-1b1b1b1b1b1b'$$,
+  'Head Coach without Club Admin membership cannot read operational audit'
+);
 select throws_ok($$select public.create_club_season_and_team('11111111-1111-4111-8111-111111111111', 'Denied', 'Denied')$$, '42501', 'FORBIDDEN', 'Head Coach cannot create a season and team');
 select throws_ok($$select public.create_club_season('11111111-1111-4111-8111-111111111111', 'Denied')$$, '42501', 'FORBIDDEN', 'Head Coach cannot create a season');
 select throws_ok($$select public.update_club_season('88888888-8888-4888-8888-888888888888', 'Denied', true)$$, 'P0002', 'NOT_FOUND', 'Head Coach cannot update a season');
@@ -1247,6 +1251,10 @@ do $$ begin
   perform pg_temp.assume_user('c1000000-0000-4000-8000-000000000002');
 end $$;
 set local role authenticated;
+select is_empty(
+  $$select id from public.audit_events where id = '1b1b1b1b-1b1b-41b1-81b1-1b1b1b1b1b1b'$$,
+  'Assistant Coach without Club Admin membership cannot read operational audit'
+);
 select throws_ok($$select public.create_club_season_and_team('11111111-1111-4111-8111-111111111111', 'Denied', 'Denied')$$, '42501', 'FORBIDDEN', 'Assistant Coach cannot create a season and team');
 select throws_ok($$select public.create_club_season('11111111-1111-4111-8111-111111111111', 'Denied')$$, '42501', 'FORBIDDEN', 'Assistant Coach cannot create a season');
 select throws_ok($$select public.update_club_season('88888888-8888-4888-8888-888888888888', 'Denied', true)$$, 'P0002', 'NOT_FOUND', 'Assistant Coach cannot update a season');
@@ -1266,6 +1274,10 @@ do $$ begin
   perform pg_temp.assume_user('c1000000-0000-4000-8000-000000000003');
 end $$;
 set local role authenticated;
+select is_empty(
+  $$select id from public.audit_events where id = '1b1b1b1b-1b1b-41b1-81b1-1b1b1b1b1b1b'$$,
+  'Team Manager without Club Admin membership cannot read operational audit'
+);
 select throws_ok($$select public.create_club_season_and_team('11111111-1111-4111-8111-111111111111', 'Denied', 'Denied')$$, '42501', 'FORBIDDEN', 'Team Manager cannot create a season and team');
 select throws_ok($$select public.create_club_season('11111111-1111-4111-8111-111111111111', 'Denied')$$, '42501', 'FORBIDDEN', 'Team Manager cannot create a season');
 select throws_ok($$select public.update_club_season('88888888-8888-4888-8888-888888888888', 'Denied', true)$$, 'P0002', 'NOT_FOUND', 'Team Manager cannot update a season');
@@ -1285,6 +1297,10 @@ do $$ begin
   perform pg_temp.assume_user('c1000000-0000-4000-8000-000000000004');
 end $$;
 set local role authenticated;
+select is_empty(
+  $$select id from public.audit_events where id = '1b1b1b1b-1b1b-41b1-81b1-1b1b1b1b1b1b'$$,
+  'Other-team Coach without Club Admin membership cannot read operational audit'
+);
 select throws_ok($$select public.create_club_season_and_team('11111111-1111-4111-8111-111111111111', 'Denied', 'Denied')$$, '42501', 'FORBIDDEN', 'Other-team Coach cannot create a season and team');
 select throws_ok($$select public.create_club_season('11111111-1111-4111-8111-111111111111', 'Denied')$$, '42501', 'FORBIDDEN', 'Other-team Coach cannot create a season');
 select throws_ok($$select public.update_club_season('88888888-8888-4888-8888-888888888888', 'Denied', true)$$, 'P0002', 'NOT_FOUND', 'Other-team Coach cannot update a season');
