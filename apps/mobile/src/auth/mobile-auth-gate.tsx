@@ -33,8 +33,9 @@ type GateActions = {
 
 type MobileAuthGateProps = {
   readonly restore: () => Promise<AuthSessionSnapshot>;
-  readonly signOut: () => Promise<AuthSessionSnapshot>;
+  readonly signOut: (userId: string) => Promise<AuthSessionSnapshot>;
   readonly actions: GateActions;
+  readonly beforeCompleteCallback?: (() => Promise<void>) | undefined;
   readonly linking?: MobileLinking;
   readonly clearPrivateCache?: (
     previousUserId: string | null,
@@ -46,11 +47,13 @@ export function MobileAuthGate({
   restore,
   signOut,
   actions,
+  beforeCompleteCallback,
   linking,
   clearPrivateCache = noopClearPrivateCache,
   authenticated,
 }: MobileAuthGateProps) {
   const [callbackPending, setCallbackPending] = useState(false);
+  const [signOutFailed, setSignOutFailed] = useState(false);
   const [session, setSession] = useState<AuthSessionSnapshot>({
     state: "loading",
   });
@@ -124,6 +127,7 @@ export function MobileAuthGate({
       setCallbackPending(true);
       void (async () => {
         try {
+          await beforeCompleteCallback?.();
           await updateSession(await actions.completeCallback(url), transition);
         } catch (error: unknown) {
           let restored: AuthSessionSnapshot;
@@ -162,7 +166,13 @@ export function MobileAuthGate({
       active = false;
       unsubscribe();
     };
-  }, [actions, beginSessionTransition, linking, updateSession]);
+  }, [
+    actions,
+    beforeCompleteCallback,
+    beginSessionTransition,
+    linking,
+    updateSession,
+  ]);
 
   if (session.state === "authenticated") {
     if (callbackPending) {
@@ -178,18 +188,26 @@ export function MobileAuthGate({
           accessibilityRole="button"
           accessibilityLabel="Sign out"
           onPress={() => {
+            setSignOutFailed(false);
             setCallbackPending(false);
             const transition = beginSessionTransition();
-            void signOut()
+            void signOut(session.principal.userId)
               .then((next) => updateSession(next, transition))
-              .catch((error: unknown) => {
-                void updateSession(recoverySnapshot(error), transition);
+              .catch(() => {
+                if (transition === sessionTransition.current) {
+                  setSignOutFailed(true);
+                }
               });
           }}
           style={styles.signOut}
         >
           <Text style={styles.signOutLabel}>Sign out</Text>
         </Pressable>
+        {signOutFailed ? (
+          <Text accessibilityRole="alert" style={styles.signOutError}>
+            Could not sign out. Your session is still active. Try again.
+          </Text>
+        ) : null}
         {authenticated(session.principal.userId)}
       </View>
     );
@@ -262,5 +280,11 @@ const styles = StyleSheet.create({
     color: theme.color.brand.primary,
     fontSize: theme.typeScale.labelMd.fontSize,
     fontWeight: "700",
+  },
+  signOutError: {
+    color: theme.color.text.primary,
+    fontSize: theme.typeScale.bodyMd.fontSize,
+    lineHeight: theme.typeScale.bodyMd.lineHeight,
+    paddingHorizontal: theme.space[4],
   },
 });

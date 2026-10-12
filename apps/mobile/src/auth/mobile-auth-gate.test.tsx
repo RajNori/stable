@@ -97,15 +97,20 @@ describe("mobile auth gate", () => {
       void queryClient.cancelQueries();
       queryClient.clear();
     });
+    const accountTransition: string[] = [];
     await render(
       <MobileAuthGate
         restore={async () => authenticated}
         signOut={async () => ({ state: "unauthenticated" })}
         actions={idleActions({
           async completeCallback() {
+            accountTransition.push("callback");
             return secondAuthenticated;
           },
         })}
+        beforeCompleteCallback={async () => {
+          accountTransition.push("push-cleanup");
+        }}
         clearPrivateCache={clearPrivateCache}
         linking={{
           async getInitialUrl() {
@@ -131,6 +136,7 @@ describe("mobile auth gate", () => {
     expect(
       await screen.findByText(`Signed in as ${secondUserId}`),
     ).toBeTruthy();
+    expect(accountTransition).toEqual(["push-cleanup", "callback"]);
     expect(queryClient.getQueryCache().getAll()).toEqual([]);
 
     queryClient.setQueryData(["current-club-context"], {
@@ -604,7 +610,7 @@ describe("mobile auth gate", () => {
     expect(screen.queryByText("provider returned private detail")).toBeNull();
   });
 
-  it("returns to recovery if sign-out cannot reach the provider", async () => {
+  it("keeps the active session visible if sign-out cannot reach the provider", async () => {
     await render(
       <MobileAuthGate
         restore={async () => authenticated}
@@ -617,7 +623,12 @@ describe("mobile auth gate", () => {
     );
 
     await userEvent.press(await screen.findByLabelText("Sign out"));
-    expect(await screen.findByText(AUTH_ERROR_MESSAGES.INTERNAL)).toBeTruthy();
+    expect(
+      await screen.findByText(
+        "Could not sign out. Your session is still active. Try again.",
+      ),
+    ).toBeTruthy();
+    expect(screen.getByText("Club home")).toBeTruthy();
     expect(screen.queryByText("private account")).toBeNull();
   });
 

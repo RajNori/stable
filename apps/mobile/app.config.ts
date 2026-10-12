@@ -14,7 +14,7 @@ const config = {
   android: {
     package: "app.stable.mobile",
   },
-  plugins: ["expo-router"],
+  plugins: ["expo-router", "expo-notifications"],
 } satisfies ExpoConfig;
 
 export default config;

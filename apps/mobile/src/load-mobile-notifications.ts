@@ -62,12 +62,15 @@ async function signedIn() {
   };
 }
 
-export async function registerMobileDevice(token: string): Promise<void> {
+export async function registerMobileDevice(
+  token: string,
+  platform: "IOS" | "ANDROID",
+): Promise<void> {
   const loaded = await signedIn();
   await registerDevice({
     principal: loaded.principal,
     token,
-    platform: "IOS",
+    platform,
     writer: loaded.writer,
   });
 }

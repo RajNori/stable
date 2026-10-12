@@ -40,6 +40,11 @@ import {
 import { loadMobileTeamRoster } from "../src/load-mobile-team-roster";
 import { loadMobileTeamSchedule } from "../src/load-mobile-team-schedule";
 import { MobileDestinations } from "../src/mobile-destinations";
+import {
+  MobilePushRegistrationLifecycle,
+  removeLivePushRegistration,
+  requestLivePushRegistration,
+} from "../src/expo-push-lifecycle";
 import { ProfileScreen } from "../src/profile-screen";
 import { expoNetworkMonitor } from "../src/expo-network-monitor";
 import { secureGameDaySnapshotStore } from "../src/game-day-snapshot";
@@ -92,6 +97,16 @@ export default function CurrentClubContextRoute() {
     }),
     [],
   );
+  const clearPushRegistration = useCallback(
+    async (userId: string) => removeLivePushRegistration(userId),
+    [],
+  );
+  const beforeCompleteCallback = useCallback(async () => {
+    const { data, error } = await getMobileSupabaseClient().auth.getSession();
+    if (error !== null) throw new Error("The session could not be read.");
+    const userId = data.session?.user.id;
+    if (userId !== undefined) await clearPushRegistration(userId);
+  }, [clearPushRegistration]);
 
   return (
     <SafeAreaView
@@ -99,71 +114,76 @@ export default function CurrentClubContextRoute() {
     >
       <MobileAuthGate
         restore={restoreLiveMobileAuthSession}
-        signOut={signOutLiveMobileAuthSession}
+        signOut={() => signOutLiveMobileAuthSession(clearPushRegistration)}
         actions={actions}
+        beforeCompleteCallback={beforeCompleteCallback}
         linking={linking}
         clearPrivateCache={clearPrivateCache}
         authenticated={(userId) => (
-          <MobileDestinations
-            loadContext={loadContext}
-            home={(navigate, scopedLoadContext) => (
-              <GuardianHomeScreen
-                loadContext={scopedLoadContext}
-                loadSchedule={loadMobileTeamSchedule}
-                loadGameDay={loadMobileGameDay}
-                loadAnnouncements={loadMobileAnnouncements}
-                onOpenSchedule={() => navigate("Schedule")}
-                onOpenGameDay={() => navigate("Schedule")}
-                onOpenUpdates={() => navigate("Updates")}
-              />
-            )}
-            schedule={(scopedLoadContext) => (
-              <>
-                <TeamGameDayScreen
-                  loadContext={scopedLoadContext}
-                  loadGameDay={loadMobileGameDay}
-                  loadRsvpChoices={loadMobileRsvpChoices}
-                  saveRsvp={saveMobileRsvp}
-                  loadFillInOptions={loadMobileFillIn}
-                  respondFillIn={respondMobileFillIn}
-                  loadDutySwaps={(teamId, eventId) =>
-                    loadMobileOpenDutySwaps({ teamId, eventId })
-                  }
-                  acknowledgeDuty={acknowledgeMobileDuty}
-                  requestDutySwap={requestMobileOpenDutySwap}
-                  acceptDutySwap={acceptMobileDutySwap}
-                  snapshotStore={snapshotStore}
-                  localUserId={userId}
-                  online={online}
-                />
-                <TeamScheduleScreen
+          <>
+            <MobilePushRegistrationLifecycle userId={userId} />
+            <MobileDestinations
+              loadContext={loadContext}
+              home={(navigate, scopedLoadContext) => (
+                <GuardianHomeScreen
                   loadContext={scopedLoadContext}
                   loadSchedule={loadMobileTeamSchedule}
+                  loadGameDay={loadMobileGameDay}
+                  loadAnnouncements={loadMobileAnnouncements}
+                  onOpenSchedule={() => navigate("Schedule")}
+                  onOpenGameDay={() => navigate("Schedule")}
+                  onOpenUpdates={() => navigate("Updates")}
                 />
-              </>
-            )}
-            team={(scopedLoadContext) => (
-              <TeamRosterScreen
-                loadContext={scopedLoadContext}
-                loadRoster={loadMobileTeamRoster}
-              />
-            )}
-            updates={(scopedLoadContext) => (
-              <TeamAnnouncementsScreen
-                loadContext={scopedLoadContext}
-                loadAnnouncements={loadMobileAnnouncements}
-                acknowledge={acknowledgeMobileAnnouncement}
-                markRead={markMobileAnnouncementRead}
-              />
-            )}
-            profile={(scopedLoadContext) => (
-              <ProfileScreen
-                loadContext={scopedLoadContext}
-                loadPreferences={loadMobileNotificationPreferences}
-                savePreference={saveMobileNotificationPreference}
-              />
-            )}
-          />
+              )}
+              schedule={(scopedLoadContext) => (
+                <>
+                  <TeamGameDayScreen
+                    loadContext={scopedLoadContext}
+                    loadGameDay={loadMobileGameDay}
+                    loadRsvpChoices={loadMobileRsvpChoices}
+                    saveRsvp={saveMobileRsvp}
+                    loadFillInOptions={loadMobileFillIn}
+                    respondFillIn={respondMobileFillIn}
+                    loadDutySwaps={(teamId, eventId) =>
+                      loadMobileOpenDutySwaps({ teamId, eventId })
+                    }
+                    acknowledgeDuty={acknowledgeMobileDuty}
+                    requestDutySwap={requestMobileOpenDutySwap}
+                    acceptDutySwap={acceptMobileDutySwap}
+                    snapshotStore={snapshotStore}
+                    localUserId={userId}
+                    online={online}
+                  />
+                  <TeamScheduleScreen
+                    loadContext={scopedLoadContext}
+                    loadSchedule={loadMobileTeamSchedule}
+                  />
+                </>
+              )}
+              team={(scopedLoadContext) => (
+                <TeamRosterScreen
+                  loadContext={scopedLoadContext}
+                  loadRoster={loadMobileTeamRoster}
+                />
+              )}
+              updates={(scopedLoadContext) => (
+                <TeamAnnouncementsScreen
+                  loadContext={scopedLoadContext}
+                  loadAnnouncements={loadMobileAnnouncements}
+                  acknowledge={acknowledgeMobileAnnouncement}
+                  markRead={markMobileAnnouncementRead}
+                />
+              )}
+              profile={(scopedLoadContext) => (
+                <ProfileScreen
+                  loadContext={scopedLoadContext}
+                  loadPreferences={loadMobileNotificationPreferences}
+                  savePreference={saveMobileNotificationPreference}
+                  requestPush={() => requestLivePushRegistration(userId)}
+                />
+              )}
+            />
+          </>
         )}
       />
     </SafeAreaView>

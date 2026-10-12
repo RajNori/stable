@@ -7,7 +7,15 @@ import {
 import { themeFor } from "@stable/design-tokens";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import React from "react";
-import { ScrollView, StyleSheet, Switch, Text, View } from "react-native";
+import {
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Switch,
+  Text,
+  View,
+} from "react-native";
+import type { PushRegistrationResult } from "./push-registration";
 
 const theme = themeFor("mustangs");
 const labels: Record<(typeof NOTIFICATION_TYPES)[number], string> = {
@@ -57,6 +65,15 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
     gap: theme.space[3],
   },
+  action: {
+    minHeight: 44,
+    minWidth: 44,
+    justifyContent: "center",
+    paddingHorizontal: theme.space[3],
+    borderWidth: 1,
+    borderColor: theme.color.border.default,
+    borderRadius: theme.radius.sm,
+  },
 });
 
 function safeError(error: unknown): string {
@@ -68,12 +85,15 @@ export function ProfileScreen({
   loadContext,
   loadPreferences,
   savePreference,
+  requestPush,
 }: {
   loadContext: () => Promise<CurrentClubContext>;
   loadPreferences: () => Promise<NotificationPreference[]>;
   savePreference: (value: NotificationPreference) => Promise<void>;
+  requestPush: () => Promise<PushRegistrationResult>;
 }) {
   const queryClient = useQueryClient();
+  const [pushStatus, setPushStatus] = React.useState<string | null>(null);
   const context = useQuery({
     queryKey: ["current-club-context"],
     queryFn: loadContext,
@@ -144,6 +164,41 @@ export function ProfileScreen({
       <Text accessibilityRole="header" style={styles.title}>
         Notifications
       </Text>
+      <Pressable
+        accessibilityRole="button"
+        accessibilityLabel="Enable push notifications"
+        disabled={save.isPending}
+        onPress={() => {
+          setPushStatus("Setting up notifications…");
+          void requestPush()
+            .then((result) => {
+              if (result.status === "registered") {
+                setPushStatus("Notifications are enabled on this device.");
+              } else if (result.status === "permission-denied") {
+                setPushStatus(
+                  "Notification permission is off. You can change it in device settings.",
+                );
+              } else {
+                setPushStatus(
+                  "Push notifications are not configured for this app build yet.",
+                );
+              }
+            })
+            .catch(() => {
+              setPushStatus(
+                "Push notifications could not be set up. Try again.",
+              );
+            });
+        }}
+        style={styles.action}
+      >
+        <Text style={styles.body}>Enable push notifications</Text>
+      </Pressable>
+      {pushStatus === null ? null : (
+        <Text accessibilityRole="alert" style={styles.body}>
+          {pushStatus}
+        </Text>
+      )}
       {preferences.isPending ? (
         <Text accessibilityRole="progressbar" style={styles.body}>
           Loading notification preferences
@@ -158,7 +213,7 @@ export function ProfileScreen({
             Choose which team events may send you a push notification.
           </Text>
           {NOTIFICATION_TYPES.map((category) => {
-            const enabled = preferenceMap.get(category) ?? false;
+            const enabled = preferenceMap.get(category) ?? true;
             return (
               <View key={category} style={styles.preference}>
                 <Text style={styles.body}>{labels[category]}</Text>

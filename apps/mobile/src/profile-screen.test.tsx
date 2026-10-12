@@ -6,11 +6,13 @@ import {
   fireEvent,
   render,
   screen,
+  userEvent,
   waitFor,
 } from "@testing-library/react-native";
 import React from "react";
 
 import { ProfileScreen } from "./profile-screen";
+import type { PushRegistrationResult } from "./push-registration";
 
 const context: CurrentClubContext = {
   userId: "19191919-1919-4919-8919-191919191919",
@@ -49,6 +51,7 @@ function renderProfile(
   input: {
     loadPreferences?: () => Promise<NotificationPreference[]>;
     savePreference?: (value: NotificationPreference) => Promise<void>;
+    requestPush?: () => Promise<PushRegistrationResult>;
   } = {},
 ) {
   return render(
@@ -61,6 +64,10 @@ function renderProfile(
             Promise.resolve([{ category: "GAME_REMINDER", pushEnabled: true }]))
         }
         savePreference={input.savePreference ?? (() => Promise.resolve())}
+        requestPush={
+          input.requestPush ??
+          (() => Promise.resolve({ status: "configuration-required" }))
+        }
       />
     </QueryClientProvider>,
   );
@@ -80,6 +87,11 @@ describe("ProfileScreen", () => {
   it("loads a caller-owned preference and saves a change", async () => {
     const saved: NotificationPreference[] = [];
     await renderProfile({
+      loadPreferences: () =>
+        Promise.resolve([
+          { category: "FIXTURE_CHANGED", pushEnabled: false },
+          { category: "GAME_REMINDER", pushEnabled: true },
+        ]),
       savePreference: (preference) => {
         saved.push(preference);
         return Promise.resolve();
@@ -112,5 +124,18 @@ describe("ProfileScreen", () => {
       await screen.findByText("Notifications could not be read."),
     ).toBeTruthy();
     expect(screen.queryByText("private provider detail")).toBeNull();
+  });
+
+  it("explains when the app build has no Expo project configuration", async () => {
+    await renderProfile();
+    const user = userEvent.setup();
+    await user.press(
+      await screen.findByRole("button", { name: "Enable push notifications" }),
+    );
+    expect(
+      await screen.findByText(
+        "Push notifications are not configured for this app build yet.",
+      ),
+    ).toBeTruthy();
   });
 });
