@@ -88,20 +88,23 @@ export async function enforcePendingPushCleanup(input: {
   readonly rejectOtherAccount: () => Promise<void>;
 }): Promise<void> {
   const pendingUserIds = await readPendingPushCleanupUsers(input.store);
-  const pendingUserId = pendingUserIds[0];
-  if (pendingUserId === undefined) return;
-  if (pendingUserId !== input.nextUserId) {
+  if (pendingUserIds.length === 0) return;
+  if (!pendingUserIds.includes(input.nextUserId)) {
     await input.rejectOtherAccount();
     throw new Error("A previous account push cleanup is still required.");
   }
 
-  const removed = await input.removeRegistration(pendingUserId);
-  // A returning prior account may be admitted so the device lifecycle can
-  // restore its current Expo token. Keep the marker until the endpoint is
-  // subsequently revoked; never interpret missing local token state as proof
-  // that the server endpoint was removed.
-  if (removed === false) return;
-  await clearPendingPushCleanup(input.store, pendingUserId);
+  const removed = await input.removeRegistration(input.nextUserId);
+  // With one pending account, retain the same-account recovery path so the
+  // device lifecycle can recover its Expo token and retry revocation. With
+  // multiple accounts, no account may enter while another account's endpoint
+  // can still deliver notifications to this device.
+  if (removed === false) {
+    if (pendingUserIds.length === 1) return;
+    await input.rejectOtherAccount();
+    throw new Error("A previous account push cleanup is still required.");
+  }
+  await clearPendingPushCleanup(input.store, input.nextUserId);
   if ((await readPendingPushCleanupUsers(input.store)).length > 0) {
     await input.rejectOtherAccount();
     throw new Error("A previous account push cleanup is still required.");

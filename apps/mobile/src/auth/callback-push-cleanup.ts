@@ -1,8 +1,40 @@
+import {
+  clearPendingPushCleanup,
+  readPendingPushCleanupUsers,
+  type PendingPushCleanupStore,
+} from "./pending-push-cleanup";
+
 export type PreviousPushSession = {
   userId: string;
   accessToken: string;
   refreshToken: string;
 };
+
+export async function cleanPendingCallbackPushRegistration(input: {
+  readonly store: PendingPushCleanupStore;
+  readonly userId: string;
+  readonly accessToken: string;
+  readonly refreshToken: string;
+  readonly removeRegistration: (
+    userId: string,
+    accessToken: string,
+    refreshToken: string,
+  ) => Promise<void | boolean>;
+}): Promise<boolean> {
+  const pendingUsers = await readPendingPushCleanupUsers(input.store);
+  if (!pendingUsers.includes(input.userId)) return false;
+
+  const removed = await input.removeRegistration(
+    input.userId,
+    input.accessToken,
+    input.refreshToken,
+  );
+  if (removed === false) {
+    throw new Error("The previous account push endpoint is unresolved.");
+  }
+  await clearPendingPushCleanup(input.store, input.userId);
+  return true;
+}
 
 export async function removePreviousPushAfterSuccessfulAccountSwitch(
   previous: PreviousPushSession | null,

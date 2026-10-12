@@ -21,6 +21,7 @@ import {
 } from "../src/auth/pending-push-cleanup";
 import type { PendingPushCleanupStore } from "../src/auth/pending-push-cleanup";
 import {
+  cleanPendingCallbackPushRegistration,
   clearSessionAfterCallbackTransitionFailure,
   removePreviousPushAfterSuccessfulAccountSwitch,
 } from "../src/auth/callback-push-cleanup";
@@ -183,32 +184,19 @@ export default function CurrentClubContextRoute() {
     const { data, error } = await getMobileSupabaseClient().auth.getSession();
     if (error !== null) throw new Error("The session could not be read.");
     const previousSession = data.session;
-    const pendingUserId = await readPendingPushCleanup(pendingPushCleanupStore);
-    if (
-      pendingUserId !== null &&
-      previousSession !== null &&
-      previousSession?.user.id !== pendingUserId
-    ) {
-      throw new Error("A previous account push cleanup is still required.");
-    }
     if (previousSession === null) return undefined;
     const previous = {
       userId: previousSession.user.id,
       accessToken: previousSession.access_token,
       refreshToken: previousSession.refresh_token,
     };
-    if (pendingUserId !== null && previousSession.user.id === pendingUserId) {
-      const removed = await removeLivePushRegistrationForSession(
-        pendingUserId,
-        previous.accessToken,
-        previous.refreshToken,
-      );
-      if (!removed) {
-        throw new Error("The previous account push endpoint is unresolved.");
-      }
-      await clearPendingPushCleanup(pendingPushCleanupStore, pendingUserId);
-    }
-    await markPendingPushCleanup(pendingPushCleanupStore, previous.userId);
+    await cleanPendingCallbackPushRegistration({
+      store: pendingPushCleanupStore,
+      userId: previous.userId,
+      accessToken: previous.accessToken,
+      refreshToken: previous.refreshToken,
+      removeRegistration: removeLivePushRegistrationForSession,
+    });
     // The callback must first be accepted by Supabase. An expired or forged
     // link must never delete the prior account's endpoint. Use the captured
     // previous session only if the successful callback switches accounts.
@@ -220,6 +208,7 @@ export default function CurrentClubContextRoute() {
         removeLivePushRegistrationForSession,
       );
       if (!removed) {
+        await markPendingPushCleanup(pendingPushCleanupStore, previous.userId);
         throw new Error("The previous account push endpoint is unresolved.");
       }
       if (previous !== null) {

@@ -133,6 +133,57 @@ describe("pending push cleanup fence", () => {
     expect(await readPendingPushCleanupUsers(store)).toEqual(["second-user"]);
   });
 
+  it("does not admit one account while another account endpoint remains unresolved", async () => {
+    const values = new Map<string, string>();
+    const store: PendingPushCleanupStore = {
+      getItem: async (key) => values.get(key) ?? null,
+      setItem: async (key, value) => void values.set(key, value),
+      removeItem: async (key) => void values.delete(key),
+    };
+    await markPendingPushCleanup(store, "first-user");
+    await markPendingPushCleanup(store, "second-user");
+    let rejectCalls = 0;
+
+    await expect(
+      enforcePendingPushCleanup({
+        store,
+        nextUserId: "first-user",
+        removeRegistration: async () => false,
+        rejectOtherAccount: async () => void (rejectCalls += 1),
+      }),
+    ).rejects.toThrow("A previous account push cleanup is still required.");
+
+    expect(rejectCalls).toBe(1);
+    expect(await readPendingPushCleanupUsers(store)).toEqual([
+      "first-user",
+      "second-user",
+    ]);
+  });
+
+  it("lets any pending account clean its own endpoint but denies entry until all are clear", async () => {
+    const values = new Map<string, string>();
+    const store: PendingPushCleanupStore = {
+      getItem: async (key) => values.get(key) ?? null,
+      setItem: async (key, value) => void values.set(key, value),
+      removeItem: async (key) => void values.delete(key),
+    };
+    await markPendingPushCleanup(store, "first-user");
+    await markPendingPushCleanup(store, "second-user");
+    let rejectCalls = 0;
+
+    await expect(
+      enforcePendingPushCleanup({
+        store,
+        nextUserId: "second-user",
+        removeRegistration: async () => true,
+        rejectOtherAccount: async () => void (rejectCalls += 1),
+      }),
+    ).rejects.toThrow("A previous account push cleanup is still required.");
+
+    expect(rejectCalls).toBe(1);
+    expect(await readPendingPushCleanupUsers(store)).toEqual(["first-user"]);
+  });
+
   it("reads a legacy single-user marker so it can be upgraded safely", async () => {
     const store: PendingPushCleanupStore = {
       getItem: async () => "legacy-user",

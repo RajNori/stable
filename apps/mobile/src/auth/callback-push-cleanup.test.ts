@@ -1,7 +1,13 @@
 import {
+  cleanPendingCallbackPushRegistration,
   clearSessionAfterCallbackTransitionFailure,
   removePreviousPushAfterSuccessfulAccountSwitch,
 } from "./callback-push-cleanup";
+import {
+  markPendingPushCleanup,
+  readPendingPushCleanupUsers,
+  type PendingPushCleanupStore,
+} from "./pending-push-cleanup";
 
 const previous = {
   userId: "19191919-1919-4919-8919-191919191919",
@@ -9,6 +15,33 @@ const previous = {
   refreshToken: "old-refresh-token",
 };
 describe("callback push cleanup", () => {
+  it("cleans a pending callback account without moving it behind other accounts", async () => {
+    const values = new Map<string, string>();
+    const store: PendingPushCleanupStore = {
+      getItem: async (key) => values.get(key) ?? null,
+      setItem: async (key, value) => void values.set(key, value),
+      removeItem: async (key) => void values.delete(key),
+    };
+    await markPendingPushCleanup(store, "other-user");
+    await markPendingPushCleanup(store, "current-user");
+    const removedUsers: string[] = [];
+
+    const cleaned = await cleanPendingCallbackPushRegistration({
+      store,
+      userId: "current-user",
+      accessToken: "access-token",
+      refreshToken: "refresh-token",
+      removeRegistration: async (userId) => {
+        removedUsers.push(userId);
+        return true;
+      },
+    });
+
+    expect(cleaned).toBe(true);
+    expect(removedUsers).toEqual(["current-user"]);
+    expect(await readPendingPushCleanupUsers(store)).toEqual(["other-user"]);
+  });
+
   it("clears persisted auth when local sign-out resolves with an error", async () => {
     let clearCalls = 0;
 
