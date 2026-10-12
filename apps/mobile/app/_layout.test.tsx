@@ -9,6 +9,11 @@ declare const jest: {
 
 jest.mock("expo-router", () => ({ Slot: () => null }));
 jest.mock("expo-status-bar", () => ({ StatusBar: () => null }));
+jest.mock("@sentry/react-native", () => ({
+  captureException: () => undefined,
+  init: () => undefined,
+  wrap: (component: unknown) => component,
+}));
 jest.mock("react-native-safe-area-context", () => ({
   SafeAreaProvider: ({ children }: { children: React.ReactNode }) => children,
 }));
@@ -16,7 +21,7 @@ jest.mock("../src/auth-refresh-lifecycle", () => ({
   bindMobileAuthRefreshLifecycle: () => undefined,
 }));
 jest.mock("../src/boot-env", () => ({
-  loadMobileBootEnv: () => undefined,
+  loadMobileBootEnv: () => ({ appEnv: "local", sentryDsn: undefined }),
 }));
 jest.mock("../src/supabase-client", () => ({
   getMobileSupabaseClient: () => ({ auth: {} }),

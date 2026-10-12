@@ -1,3 +1,5 @@
+import { configureObservability, safeSentryEvent } from "@stable/observability";
+import * as Sentry from "@sentry/react-native";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { Slot } from "expo-router";
 import { StatusBar } from "expo-status-bar";
@@ -9,13 +11,37 @@ import { bindMobileAuthRefreshLifecycle } from "../src/auth-refresh-lifecycle";
 import { loadMobileBootEnv } from "../src/boot-env";
 import { getMobileSupabaseClient } from "../src/supabase-client";
 
-loadMobileBootEnv();
+const boot = loadMobileBootEnv();
+const release = process.env.EXPO_PUBLIC_APP_RELEASE;
+if (boot.sentryDsn !== undefined) {
+  Sentry.init({
+    dsn: boot.sentryDsn,
+    environment: boot.appEnv,
+    ...(release === undefined ? {} : { release }),
+    attachStacktrace: false,
+    maxBreadcrumbs: 0,
+    tracesSampleRate: 0,
+    enableAutoSessionTracking: false,
+    beforeSend(event) {
+      return safeSentryEvent(event, {
+        environment: boot.appEnv,
+        runtime: "mobile",
+        ...(release === undefined ? {} : { release }),
+      });
+    },
+  });
+  configureObservability({
+    sentryDsn: boot.sentryDsn,
+    exceptionSink: (error) => Sentry.captureException(error),
+  });
+}
+
 bindMobileAuthRefreshLifecycle({
   appState: AppState,
   client: getMobileSupabaseClient(),
 });
 
-export default function RootLayout() {
+function RootLayout() {
   const [queryClient] = useState(
     () =>
       new QueryClient({
@@ -36,3 +62,7 @@ export default function RootLayout() {
     </SafeAreaProvider>
   );
 }
+
+export default boot.sentryDsn === undefined
+  ? RootLayout
+  : Sentry.wrap(RootLayout);
