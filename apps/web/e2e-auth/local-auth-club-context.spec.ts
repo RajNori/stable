@@ -5,7 +5,7 @@ import { applyLocalSession } from "./local-session";
 const MEMBER_EMAIL = "member@local.stable.test";
 const OUTSIDER_EMAIL = "outsider@local.stable.test";
 
-test("member session resolves the seeded club and club.read", async ({
+test("member session resolves the seeded club context and overview", async ({
   browser,
 }) => {
   const context = await browser.newContext();
@@ -15,22 +15,19 @@ test("member session resolves the seeded club and club.read", async ({
 
   await expect(page).not.toHaveURL(/fixture=/);
   await expect(
-    page.getByRole("heading", { name: "Mentone Mustangs" }),
-  ).toBeVisible();
-  await expect(page.getByText("Local Member")).toBeVisible();
-  await expect(page.getByText("club.read")).toBeVisible();
-  await expect(
-    page.getByRole("heading", { name: "Club overview" }),
+    page.locator("header").getByText("Mentone Mustangs", { exact: true }),
   ).toBeVisible();
   await expect(
-    page
-      .getByRole("region", { name: "Club overview" })
-      .getByRole("heading", { name: "Needs attention" }),
+    page.getByRole("link", { name: "People", exact: true }),
   ).toBeVisible();
-  await expect(page.getByLabel("Club context")).toHaveAttribute(
-    "data-state",
-    "member",
-  );
+  await expect(page.getByRole("heading", { name: "Overview" })).toBeVisible();
+  const attention = page.getByRole("region", { name: "Needs attention" });
+  await expect(attention).toBeVisible();
+  await expect(
+    attention.getByRole("heading", { name: "Needs attention" }),
+  ).toBeVisible();
+  // Member workspaces are represented by the club header and role navigation;
+  // the context notice is intentionally omitted for a successful membership.
   await context.close();
 });
 

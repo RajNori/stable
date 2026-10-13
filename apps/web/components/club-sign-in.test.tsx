@@ -135,9 +135,12 @@ describe("club sign-in", () => {
 
   it("keeps error text at or above 4.5:1", () => {
     render(<ClubSignIn session={unauthenticated} actions={idleActions()} />);
-    const css = document.querySelector("style")?.textContent ?? "";
+    const css = readFileSync(
+      join(process.cwd(), "components/club-sign-in.module.css"),
+      "utf8",
+    );
     expect(css).toMatch(
-      /\.club-sign-in-error\s*\{[^}]*background:\s*var\(--sign-in-surface\)/u,
+      /\.error\s*\{[^}]*background:\s*var\(--sign-in-surface\)/u,
     );
     expect(css).not.toContain("--sign-in-error-soft");
     const theme = themeFor("mustangs");

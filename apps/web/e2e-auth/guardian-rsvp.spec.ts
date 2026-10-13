@@ -2,6 +2,7 @@ import { expect, test } from "@playwright/test";
 
 import { openInvitationAcceptance } from "./invitation-handoff";
 import { applyLocalSession } from "./local-session";
+import { openPlayerManagement } from "./player-management";
 
 const TEAM_ID = "99999999-9999-4999-8999-999999999999";
 const MEMBER_EMAIL = "member@local.stable.test";
@@ -26,7 +27,23 @@ test("guardian accepts a player invitation and records a Game Day RSVP", async (
   await addPlayer.getByRole("button", { name: "Add player" }).click();
   const player = admin.getByRole("listitem").filter({ hasText: playerName });
   await expect(player).toContainText(`${playerName} Synthetic`);
+  await openPlayerManagement(player);
+  const selectedTeamName = await player
+    .getByLabel("Team")
+    .locator("option:checked")
+    .textContent();
   await player.getByRole("button", { name: "Register team" }).click();
+  if (selectedTeamName === null) {
+    throw new Error(
+      "Expected a selected team for the guardian journey player.",
+    );
+  }
+  await expect(
+    player
+      .locator("header")
+      .getByText(selectedTeamName.trim(), { exact: true }),
+  ).toBeVisible({ timeout: 15_000 });
+  await openPlayerManagement(player);
   await expect(
     player.getByRole("button", { name: "Unregister team" }),
   ).toBeVisible();
@@ -169,12 +186,13 @@ test("guardian accepts a player invitation and records a Game Day RSVP", async (
 
   await guardian.goto(gameHref);
   const gameDay = guardian.getByRole("region", { name: "Game day" });
-  await expect(gameDay.getByText(`Game: ${opponent}`)).toBeVisible();
+  await expect(gameDay.getByRole("heading", { name: opponent })).toBeVisible();
   const rsvp = gameDay.getByRole("button", { name: "Save RSVP" });
   await expect(rsvp).toBeVisible();
   await gameDay.getByLabel("Status").selectOption("ATTENDING");
   await rsvp.click();
-  await expect(gameDay.getByText("RSVP ATTENDING")).toBeVisible();
+  await expect(gameDay.getByText("Your RSVP", { exact: true })).toBeVisible();
+  await expect(gameDay.getByText("attending", { exact: true })).toBeVisible();
 
   await adminContext.close();
   await guardianContext.close();

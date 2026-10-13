@@ -3,7 +3,9 @@ import { join } from "node:path";
 import { ENV } from "@stable/contracts";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { cleanup, render, screen, within } from "@testing-library/react";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
+
+vi.mock("next/navigation", () => ({ usePathname: () => "/" }));
 
 import { ClubAdminShell } from "./club-admin-shell";
 import {
@@ -26,12 +28,9 @@ describe("current club context shell", () => {
 
     render(<ClubAdminShell presentation={presentation} />);
 
-    const hiddenChrome = screen.getByTestId("admin-chrome-link");
-    expect(hiddenChrome.hidden).toBe(true);
-    expect(hiddenChrome.textContent).toBe("Club settings");
     expect(screen.queryByRole("link", { name: "Club settings" })).toBeNull();
     expect(screen.queryByRole("link", { name: "Club structure" })).toBeNull();
-    expect(screen.queryByRole("link", { name: "Players" })).toBeNull();
+    expect(screen.queryByRole("link", { name: "People" })).toBeNull();
     expect(presentation.status).toBe("no-membership");
     expect(
       screen.getByLabelText("Club context").getAttribute("data-state"),
@@ -45,33 +44,29 @@ describe("current club context shell", () => {
     expect(screen.queryByText("club.read")).toBeNull();
   });
 
-  it("renders club name, display name, and club.read from the use case", async () => {
+  it("renders a clean club context without exposing raw capabilities", async () => {
     const presentation = await loadClubContext(
       fixtureClubContextInput("member"),
     );
 
     render(<ClubAdminShell presentation={presentation} />);
 
-    expect(screen.getByTestId("admin-chrome-link").hidden).toBe(true);
-    expect(
-      screen.getByRole("heading", { name: "Mentone Mustangs" }),
-    ).toBeTruthy();
-    expect(screen.getByText("Jordan P")).toBeTruthy();
-    expect(screen.getByText(/club\.read/)).toBeTruthy();
+    expect(screen.getByText("Mentone Mustangs")).toBeTruthy();
+    expect(screen.queryByText("Jordan P")).toBeNull();
+    expect(screen.queryByText(/club\.read/)).toBeNull();
     expect(
       screen.getByRole("link", { name: "Club structure" }).getAttribute("href"),
     ).toBe("/club-structure");
     expect(
-      screen.getByRole("link", { name: "Players" }).getAttribute("href"),
+      screen.getByRole("link", { name: "People" }).getAttribute("href"),
     ).toBe("/players");
+    expect(screen.queryByLabelText("Club context")).toBeNull();
+    expect(screen.getAllByText("Club administration")).toHaveLength(2);
     expect(
-      screen.getByLabelText("Club context").getAttribute("data-state"),
-    ).toBe("member");
-    expect(
-      screen.getByRole("heading", { name: "Needs attention" }),
-    ).toBeTruthy();
+      screen.queryByRole("heading", { name: "Needs attention" }),
+    ).toBeNull();
     const navigation = screen.getByRole("navigation", {
-      name: "Admin sections",
+      name: "Primary navigation",
     });
     expect(
       within(navigation)
@@ -94,7 +89,7 @@ describe("current club context shell", () => {
     );
 
     expect(screen.queryByRole("link", { name: "Club structure" })).toBeNull();
-    expect(screen.queryByRole("link", { name: "Players" })).toBeNull();
+    expect(screen.queryByRole("link", { name: "People" })).toBeNull();
     expect(screen.queryByRole("link", { name: "Notifications" })).toBeNull();
     expect(
       screen.queryByRole("link", { name: "Operational audit" }),
@@ -118,6 +113,36 @@ describe("current club context shell", () => {
         .getByRole("link", { name: "Operational audit" })
         .getAttribute("href"),
     ).toBe("/audit");
+  });
+
+  it("marks only the current route active and keeps navigation capability-gated", () => {
+    render(
+      <ClubAdminShell
+        presentation={{
+          status: "member",
+          clubName: "Mentone Mustangs",
+          displayName: "Club Admin",
+          capabilities: ["club.manage", "people.manage", "audit.read"],
+        }}
+      />,
+    );
+
+    expect(
+      screen
+        .getByRole("link", { name: "Overview" })
+        .getAttribute("aria-current"),
+    ).toBe("page");
+    expect(
+      screen
+        .getByRole("link", { name: "Club structure" })
+        .getAttribute("aria-current"),
+    ).toBeNull();
+    expect(
+      screen.getByRole("link", { name: "People" }).getAttribute("href"),
+    ).toBe("/players");
+    expect(
+      screen.getByRole("link", { name: "Notifications" }).getAttribute("href"),
+    ).toBe("/notifications");
   });
 
   it("shows a sign-in next step when the principal is missing", async () => {
@@ -173,7 +198,7 @@ describe("current club context shell", () => {
     );
 
     expect(screen.queryByText("Invitation")).toBeNull();
-    expect(screen.queryByRole("link", { name: "Players" })).toBeNull();
+    expect(screen.queryByRole("link", { name: "People" })).toBeNull();
   });
 
   it("shows signed-in page content without granting admin navigation", async () => {
@@ -188,7 +213,7 @@ describe("current club context shell", () => {
     );
 
     expect(screen.getByText("Invitation")).toBeTruthy();
-    expect(screen.queryByRole("link", { name: "Players" })).toBeNull();
+    expect(screen.queryByRole("link", { name: "People" })).toBeNull();
     expect(screen.queryByRole("link", { name: "Club structure" })).toBeNull();
   });
 });

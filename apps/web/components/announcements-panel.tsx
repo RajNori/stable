@@ -30,7 +30,7 @@ export function AnnouncementsPanel({
       <h2 style={{ margin: 0 }}>Announcements</h2>
       {error === undefined ? null : <p role="alert">{error}</p>}
       {announcements.length === 0 ? <p>No announcements.</p> : null}
-      <ul>
+      <ul aria-label="Team announcements">
         {announcements.map((announcement) => (
           <li key={announcement.id}>
             <p>

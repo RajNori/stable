@@ -1,6 +1,8 @@
 import { expect, test } from "@playwright/test";
 
-test("member sees the club, display name, and club.read", async ({ page }) => {
+test("member sees club context without developer-facing capability names", async ({
+  page,
+}) => {
   await page.goto("/?fixture=member");
 
   const frame = page.getByTestId("club-admin-frame");
@@ -9,15 +11,16 @@ test("member sees the club, display name, and club.read", async ({ page }) => {
   expect(box?.width).toBeGreaterThan(1000);
 
   await expect(
-    page.getByRole("heading", { name: "Mentone Mustangs" }),
+    page.locator("header").getByText("Mentone Mustangs", { exact: true }),
   ).toBeVisible();
-  await expect(page.getByText("Jordan P")).toBeVisible();
-  await expect(page.getByText("club.read")).toBeVisible();
-  await expect(page.getByLabel("Club context")).toHaveAttribute(
-    "data-state",
-    "member",
-  );
-  await expect(page.getByTestId("admin-chrome-link")).toBeHidden();
+  await expect(page.getByText("Jordan P")).toHaveCount(0);
+  await expect(page.getByText("club.read")).toHaveCount(0);
+  await expect(
+    page.getByRole("link", { name: "Club structure", exact: true }),
+  ).toBeVisible();
+  await expect(
+    page.getByRole("link", { name: "People", exact: true }),
+  ).toBeVisible();
 });
 
 test("outsider sees no membership even with hidden admin chrome", async ({
@@ -37,8 +40,12 @@ test("outsider sees no membership even with hidden admin chrome", async ({
     page.getByRole("heading", { name: "Mentone Mustangs" }),
   ).toHaveCount(0);
   await expect(page.getByText("club.read")).toHaveCount(0);
-  await expect(page.getByTestId("admin-chrome-link")).toHaveCount(1);
-  await expect(page.getByTestId("admin-chrome-link")).toBeHidden();
+  await expect(
+    page.getByRole("link", { name: "Club structure", exact: true }),
+  ).toHaveCount(0);
+  await expect(
+    page.getByRole("link", { name: "People", exact: true }),
+  ).toHaveCount(0);
 });
 
 test("unauthenticated visitor is asked to sign in", async ({ page }) => {
@@ -52,5 +59,7 @@ test("unauthenticated visitor is asked to sign in", async ({ page }) => {
     "Authentication is required.",
   );
   await expect(page.getByText(/Sign in with the email address/)).toBeVisible();
-  await expect(page.getByTestId("admin-chrome-link")).toBeHidden();
+  await expect(
+    page.getByRole("link", { name: "Club structure", exact: true }),
+  ).toHaveCount(0);
 });

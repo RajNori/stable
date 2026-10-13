@@ -2,6 +2,7 @@ import { expect, test } from "@playwright/test";
 
 import { openInvitationAcceptance } from "./invitation-handoff";
 import { applyLocalSession } from "./local-session";
+import { openPlayerManagement } from "./player-management";
 
 const MEMBER_EMAIL = "member@local.stable.test";
 const OUTSIDER_EMAIL = "outsider@local.stable.test";
@@ -57,8 +58,13 @@ test("roster names follow the caller's capability", async ({ browser }) => {
   await add.getByRole("button", { name: "Add player" }).click();
 
   const item = member.getByRole("listitem").filter({ hasText: firstName });
+  await openPlayerManagement(item);
   await item.getByLabel("Team").selectOption({ label: teamName });
   await item.getByRole("button", { name: "Register team" }).click();
+  await expect(
+    item.locator("header").getByText(teamName, { exact: true }),
+  ).toBeVisible({ timeout: 15_000 });
+  await openPlayerManagement(item);
   await expect(
     item.getByRole("button", { name: "Unregister team" }),
   ).toBeVisible();
@@ -73,6 +79,7 @@ test("roster names follow the caller's capability", async ({ browser }) => {
     outsider.getByRole("button", { name: "Register player", exact: true }),
   ).toHaveCount(0);
 
+  await openPlayerManagement(item);
   await item.getByLabel("Invitation email").fill(OUTSIDER_EMAIL);
   await item.getByRole("button", { name: "Create invitation" }).click();
   const guardianLink = await item.getByLabel("Invitation link").inputValue();

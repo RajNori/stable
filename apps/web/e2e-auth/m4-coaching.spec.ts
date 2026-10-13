@@ -1,6 +1,7 @@
 import { expect, test } from "@playwright/test";
 
 import { applyLocalSession } from "./local-session";
+import { openPlayerManagement } from "./player-management";
 
 const CLUB_ADMIN_EMAIL = "member@local.stable.test";
 const TEAM_ID = "99999999-9999-4999-8999-999999999999";
@@ -30,6 +31,7 @@ test("active coach records game stats, completes a review, and plans practice", 
   await addPlayer.getByRole("button", { name: "Add player" }).click();
   const player = page.locator("li").filter({ hasText: playerName });
   await expect(player.getByText(`${playerName} Synthetic`)).toBeVisible();
+  await openPlayerManagement(player);
   await player.getByRole("button", { name: "Register team" }).click();
 
   await page.goto(`/teams/${TEAM_ID}/fixtures`);
@@ -88,10 +90,16 @@ test("active coach records game stats, completes a review, and plans practice", 
   const planner = page.getByRole("region", { name: "Practice planner" });
   const reviewFocus = planner.locator('input[name="focusRef"]').first();
   await expect(reviewFocus).toBeVisible();
-  await planner.getByLabel("Plan title").fill("Synthetic shooting practice");
+  // Practice planner cards identify sessions by date and duration; the court
+  // label belongs to the separate training projection.
+  const newTraining = planner.getByRole("article").first();
+  await expect(newTraining).toBeVisible();
+  await newTraining
+    .getByLabel("Plan title")
+    .fill("Synthetic shooting practice");
   await reviewFocus.check();
-  await planner.getByRole("button", { name: "Save practice plan" }).click();
-  await expect(planner.getByLabel("Plan title")).toHaveValue(
+  await newTraining.getByRole("button", { name: "Save practice plan" }).click();
+  await expect(newTraining.getByLabel("Plan title")).toHaveValue(
     "Synthetic shooting practice",
   );
 

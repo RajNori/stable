@@ -2,6 +2,7 @@ import { expect, test } from "@playwright/test";
 
 import { openInvitationAcceptance } from "./invitation-handoff";
 import { applyLocalSession } from "./local-session";
+import { openPlayerManagement } from "./player-management";
 
 const TEAM_ID = "99999999-9999-4999-8999-999999999999";
 const MEMBER_EMAIL = "member@local.stable.test";
@@ -116,7 +117,21 @@ test("a non-admin team manager maintains fixtures and team operations", async ({
   await addPlayer.getByLabel("Surname").fill("Synthetic");
   await addPlayer.getByRole("button", { name: "Add player" }).click();
   const player = admin.getByRole("listitem").filter({ hasText: playerName });
+  await openPlayerManagement(player);
+  const selectedTeamName = await player
+    .getByLabel("Team")
+    .locator("option:checked")
+    .textContent();
   await player.getByRole("button", { name: "Register team" }).click();
+  if (selectedTeamName === null) {
+    throw new Error("Expected a selected team for the manager journey player.");
+  }
+  await expect(
+    player
+      .locator("header")
+      .getByText(selectedTeamName.trim(), { exact: true }),
+  ).toBeVisible({ timeout: 15_000 });
+  await openPlayerManagement(player);
   await player.getByLabel("Invitation email").fill(GUARDIAN_EMAIL);
   await player.getByRole("button", { name: "Create invitation" }).click();
   const guardianInvitation = await player
@@ -138,9 +153,8 @@ test("a non-admin team manager maintains fixtures and team operations", async ({
   const playerRsvp = gameDay.locator("form").filter({ hasText: playerName });
   await playerRsvp.getByLabel("Status").selectOption("ATTENDING");
   await playerRsvp.getByRole("button", { name: "Save RSVP" }).click();
-  await expect(
-    gameDay.getByText("RSVP ATTENDING", { exact: true }),
-  ).toBeVisible();
+  await expect(gameDay.getByText("Your RSVP", { exact: true })).toBeVisible();
+  await expect(gameDay.getByText("attending", { exact: true })).toBeVisible();
 
   // Confirm the staff-facing announcement was persisted through the UI.
   await manager.goto(`/teams/${TEAM_ID}/announcements`);
@@ -176,7 +190,8 @@ test("a non-admin team manager maintains fixtures and team operations", async ({
     await candidatePage.goto(gameHref);
     if (
       (await candidatePage
-        .getByText(`Duty ${dutyLabel}`, { exact: true })
+        .locator('dl[aria-label="Your Game Day details"] dd')
+        .getByText(dutyLabel, { exact: true })
         .count()) > 0
     ) {
       persistedAssignment = true;
