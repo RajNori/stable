@@ -386,6 +386,16 @@
   font: inherit;
   font-size: 15px;
 }
+.content :global(select) {
+  min-width: 0;
+  padding-right: 40px;
+  appearance: none;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 16 16' fill='none'%3E%3Cpath d='m4 6 4 4 4-4' stroke='%232f5e50' stroke-width='1.7' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 12px center;
+  background-size: 16px;
+  text-overflow: ellipsis;
+}
 
 .content :global(textarea) {
   min-height: 108px;
@@ -412,14 +422,14 @@
   background: var(--stable-surface);
   box-shadow: var(--stable-shadow-sm);
 }
-.content :global(section[aria-label] > ul[aria-label]) {
+.content > :global(section[aria-label]:not([class])) > ul[aria-label] {
   display: grid;
   gap: 10px;
   margin: 0;
   padding-inline-start: 0;
   list-style: none;
 }
-.content :global(section[aria-label] > ul[aria-label] > li) {
+.content > :global(section[aria-label]:not([class])) > ul[aria-label] > li {
   display: grid;
   gap: 14px;
   min-width: 0;
@@ -429,18 +439,26 @@
   background: var(--stable-surface);
   list-style: none;
 }
-.content :global(section[aria-label] > ul[aria-label] > li > p:first-child) {
+.content
+  > :global(section[aria-label]:not([class]))
+  > ul[aria-label]
+  > li
+  > p:first-child {
   margin: 0;
   font-weight: 700;
 }
-.content :global(section[aria-label] > ul[aria-label] > li > form),
-.content :global(section[aria-label] > form) {
+.content
+  > :global(section[aria-label]:not([class]))
+  > ul[aria-label]
+  > li
+  > form,
+.content > :global(section[aria-label]:not([class])) > form {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(min(100%, 220px), 1fr));
   align-items: end;
   gap: 12px;
 }
-.content :global(section[aria-label] > form) {
+.content > :global(section[aria-label]:not([class])) > form {
   grid-template-columns: repeat(2, minmax(0, 1fr));
   padding: 16px;
   border: 1px solid var(--stable-border);
@@ -448,10 +466,16 @@
   background: var(--stable-surface);
   gap: 16px;
 }
-.content :global(section[aria-label] > form label:has(textarea)) {
+.content
+  > :global(section[aria-label]:not([class]))
+  > form
+  label:has(textarea) {
   grid-column: 1 / -1;
 }
-.content :global(section[aria-label] > form label:has(input[type="checkbox"])) {
+.content
+  > :global(section[aria-label]:not([class]))
+  > form
+  label:has(input[type="checkbox"]) {
   display: flex;
   align-items: center;
   gap: 10px;
@@ -462,11 +486,21 @@
   margin: 0;
   accent-color: var(--stable-brand);
 }
-.content :global(section[aria-label] > ul[aria-label] > li > form button),
-.content :global(section[aria-label] > form button) {
+.content
+  > :global(section[aria-label]:not([class]))
+  > ul[aria-label]
+  > li
+  > form
+  button,
+.content > :global(section[aria-label]:not([class])) > form button {
   justify-self: start;
 }
-.content :global(section[aria-label] > ul[aria-label] > li > form > p) {
+.content
+  > :global(section[aria-label]:not([class]))
+  > ul[aria-label]
+  > li
+  > form
+  > p {
   grid-column: 1 / -1;
   margin: 0;
 }
@@ -614,7 +648,15 @@
   .content > :global(section[aria-label]:not([class])) {
     padding: 18px;
   }
-  .content :global(section[aria-label] > ul[aria-label] > li) {
+  .content > :global(section[aria-label]:not([class])) > form {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 12px;
+    padding: 12px;
+  }
+  .content > :global(section[aria-label]:not([class])) > form button {
+    width: 100%;
+  }
+  .content > :global(section[aria-label]:not([class])) > ul[aria-label] > li {
     padding: 13px;
   }
 }
