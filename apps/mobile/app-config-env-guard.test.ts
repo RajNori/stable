@@ -42,6 +42,14 @@ describe("Expo public environment pre-bundle guard", () => {
     ).toThrow("public Expo variables (EXPO_PUBLIC_OTHER)");
   });
 
+  it("rejects public variable names that imply privileged credentials", () => {
+    expect(() =>
+      assertNoSupabaseSecretInExpoPublicEnv({
+        EXPO_PUBLIC_SUPABASE_SERVICE_ROLE_KEY: "opaque-value",
+      }),
+    ).toThrow("public Expo variables (EXPO_PUBLIC_SUPABASE_SERVICE_ROLE_KEY)");
+  });
+
   it("allows publishable keys and public telemetry destinations", () => {
     expect(() =>
       assertNoSupabaseSecretInExpoPublicEnv({

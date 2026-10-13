@@ -19,6 +19,15 @@ export function assertNoSupabaseSecretInExpoPublicEnv(env: EnvSource): void {
     if (!key.startsWith("EXPO_PUBLIC_") || typeof rawValue !== "string") {
       continue;
     }
+    if (
+      /^EXPO_PUBLIC_.*(SECRET|SERVICE_ROLE|SERVICE_KEY|ACCESS_TOKEN).*$/i.test(
+        key,
+      )
+    ) {
+      throw new Error(
+        `Supabase privileged credentials are not allowed in public Expo variables (${key}).`,
+      );
+    }
     const value = rawValue.trim();
     if (
       value.length > 0 &&
