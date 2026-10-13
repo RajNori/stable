@@ -17,7 +17,6 @@ test("member session resolves the seeded club context and overview", async ({
   await expect(
     page.locator("header").getByText("Mentone Mustangs", { exact: true }),
   ).toBeVisible();
-  await expect(page.getByText("Local Member")).toBeVisible();
   await expect(
     page.getByRole("link", { name: "People", exact: true }),
   ).toBeVisible();

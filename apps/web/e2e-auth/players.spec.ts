@@ -24,7 +24,7 @@ test("club admin adds a player and sees the safe display name", async ({
 
   const item = page.getByRole("listitem").filter({ hasText: firstName });
   await expect(item).toContainText(`${firstName} ${lastName}`);
-  await expect(item).toContainText(`Shown to guardians as ${firstName} C.`);
+  await expect(item).toContainText(`Guardian display name: ${firstName} C.`);
   await expect(
     page
       .getByRole("region", { name: "Players", exact: true })
@@ -34,12 +34,14 @@ test("club admin adds a player and sees the safe display name", async ({
   await item.getByText("Manage profile and access").click();
   await item.getByLabel("Club adult").selectOption({ label: "Local Member" });
   await item.getByRole("button", { name: "Link guardian" }).click();
+  await item.getByText("Manage profile and access").click();
   await expect(item).toContainText("Local Member");
   await expect(
     item.getByRole("button", { name: "Unregister team" }),
   ).toHaveCount(0);
   await item.getByLabel("Team").selectOption({ label: "U14 Boys" });
   await item.getByRole("button", { name: "Register team" }).click();
+  await item.getByText("Manage profile and access").click();
   await expect(
     item.getByRole("button", { name: "Unregister team" }),
   ).toBeVisible();

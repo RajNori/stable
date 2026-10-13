@@ -60,6 +60,7 @@ test("roster names follow the caller's capability", async ({ browser }) => {
   await item.getByText("Manage profile and access").click();
   await item.getByLabel("Team").selectOption({ label: teamName });
   await item.getByRole("button", { name: "Register team" }).click();
+  await item.getByText("Manage profile and access").click();
   await expect(
     item.getByRole("button", { name: "Unregister team" }),
   ).toBeVisible();

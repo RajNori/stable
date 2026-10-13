@@ -118,6 +118,7 @@ test("a non-admin team manager maintains fixtures and team operations", async ({
   const player = admin.getByRole("listitem").filter({ hasText: playerName });
   await player.getByText("Manage profile and access").click();
   await player.getByRole("button", { name: "Register team" }).click();
+  await player.getByText("Manage profile and access").click();
   await player.getByLabel("Invitation email").fill(GUARDIAN_EMAIL);
   await player.getByRole("button", { name: "Create invitation" }).click();
   const guardianInvitation = await player
@@ -139,9 +140,8 @@ test("a non-admin team manager maintains fixtures and team operations", async ({
   const playerRsvp = gameDay.locator("form").filter({ hasText: playerName });
   await playerRsvp.getByLabel("Status").selectOption("ATTENDING");
   await playerRsvp.getByRole("button", { name: "Save RSVP" }).click();
-  await expect(
-    gameDay.getByText("RSVP ATTENDING", { exact: true }),
-  ).toBeVisible();
+  await expect(gameDay.getByText("Your RSVP", { exact: true })).toBeVisible();
+  await expect(gameDay.getByText("attending", { exact: true })).toBeVisible();
 
   // Confirm the staff-facing announcement was persisted through the UI.
   await manager.goto(`/teams/${TEAM_ID}/announcements`);

@@ -28,6 +28,7 @@ test("guardian accepts a player invitation and records a Game Day RSVP", async (
   await expect(player).toContainText(`${playerName} Synthetic`);
   await player.getByText("Manage profile and access").click();
   await player.getByRole("button", { name: "Register team" }).click();
+  await player.getByText("Manage profile and access").click();
   await expect(
     player.getByRole("button", { name: "Unregister team" }),
   ).toBeVisible();
@@ -175,7 +176,8 @@ test("guardian accepts a player invitation and records a Game Day RSVP", async (
   await expect(rsvp).toBeVisible();
   await gameDay.getByLabel("Status").selectOption("ATTENDING");
   await rsvp.click();
-  await expect(gameDay.getByText("RSVP ATTENDING")).toBeVisible();
+  await expect(gameDay.getByText("Your RSVP", { exact: true })).toBeVisible();
+  await expect(gameDay.getByText("attending", { exact: true })).toBeVisible();
 
   await adminContext.close();
   await guardianContext.close();
