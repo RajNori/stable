@@ -79,6 +79,7 @@ test("roster names follow the caller's capability", async ({ browser }) => {
     outsider.getByRole("button", { name: "Register player", exact: true }),
   ).toHaveCount(0);
 
+  await openPlayerManagement(item);
   await item.getByLabel("Invitation email").fill(OUTSIDER_EMAIL);
   await item.getByRole("button", { name: "Create invitation" }).click();
   const guardianLink = await item.getByLabel("Invitation link").inputValue();

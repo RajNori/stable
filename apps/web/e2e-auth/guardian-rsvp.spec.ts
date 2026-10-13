@@ -186,7 +186,7 @@ test("guardian accepts a player invitation and records a Game Day RSVP", async (
 
   await guardian.goto(gameHref);
   const gameDay = guardian.getByRole("region", { name: "Game day" });
-  await expect(gameDay.getByText(`Game: ${opponent}`)).toBeVisible();
+  await expect(gameDay.getByRole("heading", { name: opponent })).toBeVisible();
   const rsvp = gameDay.getByRole("button", { name: "Save RSVP" });
   await expect(rsvp).toBeVisible();
   await gameDay.getByLabel("Status").selectOption("ATTENDING");
