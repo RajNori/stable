@@ -116,6 +116,7 @@ test("a non-admin team manager maintains fixtures and team operations", async ({
   await addPlayer.getByLabel("Surname").fill("Synthetic");
   await addPlayer.getByRole("button", { name: "Add player" }).click();
   const player = admin.getByRole("listitem").filter({ hasText: playerName });
+  await player.getByText("Manage profile and access").click();
   await player.getByRole("button", { name: "Register team" }).click();
   await player.getByLabel("Invitation email").fill(GUARDIAN_EMAIL);
   await player.getByRole("button", { name: "Create invitation" }).click();

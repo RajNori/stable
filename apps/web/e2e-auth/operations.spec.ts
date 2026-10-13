@@ -74,7 +74,10 @@ test("a club admin requests a fill-in and commits a duty allocation", async ({
     .getByRole("link", { name: "Game day" })
     .click();
 
-  await expect(page.getByText("Fill-in None")).toBeVisible();
+  const gameDayDetails = page.getByRole("definition").filter({
+    has: page.getByText("Fill-in", { exact: true }),
+  });
+  await expect(gameDayDetails).toContainText("None");
   await page.getByRole("button", { name: "Request fill-in" }).click();
   await expect(
     page.getByRole("button", { name: "Request fill-in" }),

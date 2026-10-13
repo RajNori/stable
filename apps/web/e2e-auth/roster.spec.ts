@@ -57,6 +57,7 @@ test("roster names follow the caller's capability", async ({ browser }) => {
   await add.getByRole("button", { name: "Add player" }).click();
 
   const item = member.getByRole("listitem").filter({ hasText: firstName });
+  await item.getByText("Manage profile and access").click();
   await item.getByLabel("Team").selectOption({ label: teamName });
   await item.getByRole("button", { name: "Register team" }).click();
   await expect(

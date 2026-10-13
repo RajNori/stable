@@ -30,5 +30,5 @@ test("outsider does not see player management", async ({ page }) => {
   await expect(
     page.getByRole("region", { name: "Players", exact: true }),
   ).toHaveCount(0);
-  await expect(page.getByRole("link", { name: "Players" })).toHaveCount(0);
+  await expect(page.getByRole("link", { name: "People" })).toHaveCount(0);
 });

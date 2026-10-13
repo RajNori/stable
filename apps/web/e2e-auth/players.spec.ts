@@ -16,7 +16,7 @@ test("club admin adds a player and sees the safe display name", async ({
   const page = await context.newPage();
   await page.goto("/");
 
-  await page.getByRole("link", { name: "Players" }).click();
+  await page.getByRole("link", { name: "People" }).click();
   const add = page.getByRole("region", { name: "Add player" });
   await add.getByLabel("Given name").fill(firstName);
   await add.getByLabel("Surname").fill(lastName);
@@ -31,6 +31,7 @@ test("club admin adds a player and sees the safe display name", async ({
       .getByRole("alert"),
   ).toHaveCount(0);
 
+  await item.getByText("Manage profile and access").click();
   await item.getByLabel("Club adult").selectOption({ label: "Local Member" });
   await item.getByRole("button", { name: "Link guardian" }).click();
   await expect(item).toContainText("Local Member");
@@ -56,7 +57,7 @@ test("outsider cannot open player management", async ({ browser }) => {
   const page = await context.newPage();
   await page.goto("/");
 
-  await expect(page.getByRole("link", { name: "Players" })).toHaveCount(0);
+  await expect(page.getByRole("link", { name: "People" })).toHaveCount(0);
   await page.goto("/players");
   await expect(page.locator('[data-state="no-membership"]')).toBeVisible();
   await expect(page.getByRole("button", { name: "Add player" })).toHaveCount(0);

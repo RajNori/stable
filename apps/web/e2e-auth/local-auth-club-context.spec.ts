@@ -5,7 +5,7 @@ import { applyLocalSession } from "./local-session";
 const MEMBER_EMAIL = "member@local.stable.test";
 const OUTSIDER_EMAIL = "outsider@local.stable.test";
 
-test("member session resolves the seeded club and club.read", async ({
+test("member session resolves the seeded club context and overview", async ({
   browser,
 }) => {
   const context = await browser.newContext();
@@ -15,10 +15,12 @@ test("member session resolves the seeded club and club.read", async ({
 
   await expect(page).not.toHaveURL(/fixture=/);
   await expect(
-    page.getByRole("heading", { name: "Mentone Mustangs" }),
+    page.locator("header").getByText("Mentone Mustangs", { exact: true }),
   ).toBeVisible();
   await expect(page.getByText("Local Member")).toBeVisible();
-  await expect(page.getByText("club.read")).toBeVisible();
+  await expect(
+    page.getByRole("link", { name: "People", exact: true }),
+  ).toBeVisible();
   await expect(
     page.getByRole("heading", { name: "Club overview" }),
   ).toBeVisible();
