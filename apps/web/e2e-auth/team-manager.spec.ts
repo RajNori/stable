@@ -118,7 +118,19 @@ test("a non-admin team manager maintains fixtures and team operations", async ({
   await addPlayer.getByRole("button", { name: "Add player" }).click();
   const player = admin.getByRole("listitem").filter({ hasText: playerName });
   await openPlayerManagement(player);
+  const selectedTeamName = await player
+    .getByLabel("Team")
+    .locator("option:checked")
+    .textContent();
   await player.getByRole("button", { name: "Register team" }).click();
+  if (selectedTeamName === null) {
+    throw new Error("Expected a selected team for the manager journey player.");
+  }
+  await expect(
+    player
+      .locator("header")
+      .getByText(selectedTeamName.trim(), { exact: true }),
+  ).toBeVisible({ timeout: 15_000 });
   await openPlayerManagement(player);
   await player.getByLabel("Invitation email").fill(GUARDIAN_EMAIL);
   await player.getByRole("button", { name: "Create invitation" }).click();
@@ -178,7 +190,8 @@ test("a non-admin team manager maintains fixtures and team operations", async ({
     await candidatePage.goto(gameHref);
     if (
       (await candidatePage
-        .getByText(`Duty ${dutyLabel}`, { exact: true })
+        .locator('dl[aria-label="Your Game Day details"] dd')
+        .getByText(dutyLabel, { exact: true })
         .count()) > 0
     ) {
       persistedAssignment = true;

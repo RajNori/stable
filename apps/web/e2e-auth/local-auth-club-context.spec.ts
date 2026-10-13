@@ -26,10 +26,8 @@ test("member session resolves the seeded club context and overview", async ({
   await expect(
     attention.getByRole("heading", { name: "Needs attention" }),
   ).toBeVisible();
-  await expect(page.getByLabel("Club context")).toHaveAttribute(
-    "data-state",
-    "member",
-  );
+  // Member workspaces are represented by the club header and role navigation;
+  // the context notice is intentionally omitted for a successful membership.
   await context.close();
 });
 

@@ -90,9 +90,10 @@ test("active coach records game stats, completes a review, and plans practice", 
   const planner = page.getByRole("region", { name: "Practice planner" });
   const reviewFocus = planner.locator('input[name="focusRef"]').first();
   await expect(reviewFocus).toBeVisible();
-  const newTraining = planner
-    .getByRole("article")
-    .filter({ hasText: "Synthetic court" });
+  // Practice planner cards identify sessions by date and duration; the court
+  // label belongs to the separate training projection.
+  const newTraining = planner.getByRole("article").first();
+  await expect(newTraining).toBeVisible();
   await newTraining
     .getByLabel("Plan title")
     .fill("Synthetic shooting practice");

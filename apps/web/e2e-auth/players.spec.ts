@@ -42,6 +42,9 @@ test("club admin adds a player and sees the safe display name", async ({
   ).toHaveCount(0);
   await item.getByLabel("Team").selectOption({ label: "U14 Boys" });
   await item.getByRole("button", { name: "Register team" }).click();
+  await expect(
+    item.locator("header").getByText("U14 Boys", { exact: true }),
+  ).toBeVisible({ timeout: 15_000 });
   await openPlayerManagement(item);
   await expect(
     item.getByRole("button", { name: "Unregister team" }),

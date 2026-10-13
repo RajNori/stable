@@ -61,6 +61,9 @@ test("roster names follow the caller's capability", async ({ browser }) => {
   await openPlayerManagement(item);
   await item.getByLabel("Team").selectOption({ label: teamName });
   await item.getByRole("button", { name: "Register team" }).click();
+  await expect(
+    item.locator("header").getByText(teamName, { exact: true }),
+  ).toBeVisible({ timeout: 15_000 });
   await openPlayerManagement(item);
   await expect(
     item.getByRole("button", { name: "Unregister team" }),

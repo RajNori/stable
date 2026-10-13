@@ -28,7 +28,21 @@ test("guardian accepts a player invitation and records a Game Day RSVP", async (
   const player = admin.getByRole("listitem").filter({ hasText: playerName });
   await expect(player).toContainText(`${playerName} Synthetic`);
   await openPlayerManagement(player);
+  const selectedTeamName = await player
+    .getByLabel("Team")
+    .locator("option:checked")
+    .textContent();
   await player.getByRole("button", { name: "Register team" }).click();
+  if (selectedTeamName === null) {
+    throw new Error(
+      "Expected a selected team for the guardian journey player.",
+    );
+  }
+  await expect(
+    player
+      .locator("header")
+      .getByText(selectedTeamName.trim(), { exact: true }),
+  ).toBeVisible({ timeout: 15_000 });
   await openPlayerManagement(player);
   await expect(
     player.getByRole("button", { name: "Unregister team" }),
