@@ -8,6 +8,7 @@ import {
   watchAcceptancePost,
 } from "./invitation-handoff";
 import { applyLocalSession } from "./local-session";
+import { openPlayerManagement } from "./player-management";
 
 const MEMBER_EMAIL = "member@local.stable.test";
 const OUTSIDER_EMAIL = "outsider@local.stable.test";
@@ -29,7 +30,7 @@ test("a guardian invitation is one-time and identity-bound", async ({
   await add.getByRole("button", { name: "Add player" }).click();
 
   const item = member.getByRole("listitem").filter({ hasText: firstName });
-  await item.getByText("Manage profile and access").click();
+  await openPlayerManagement(item);
   await item.getByLabel("Invitation email").fill(OUTSIDER_EMAIL);
   await item.getByRole("button", { name: "Create invitation" }).click();
   const link = await item.getByLabel("Invitation link").inputValue();
@@ -126,7 +127,7 @@ test("a scrubbed invitation does not return after client navigation", async ({
   await add.getByRole("button", { name: "Add player" }).click();
 
   const item = member.getByRole("listitem").filter({ hasText: firstName });
-  await item.getByText("Manage profile and access").click();
+  await openPlayerManagement(item);
   await item.getByLabel("Invitation email").fill(OUTSIDER_EMAIL);
   await item.getByRole("button", { name: "Create invitation" }).click();
   const link = await item.getByLabel("Invitation link").inputValue();

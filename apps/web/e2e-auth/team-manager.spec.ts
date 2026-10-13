@@ -2,6 +2,7 @@ import { expect, test } from "@playwright/test";
 
 import { openInvitationAcceptance } from "./invitation-handoff";
 import { applyLocalSession } from "./local-session";
+import { openPlayerManagement } from "./player-management";
 
 const TEAM_ID = "99999999-9999-4999-8999-999999999999";
 const MEMBER_EMAIL = "member@local.stable.test";
@@ -116,9 +117,9 @@ test("a non-admin team manager maintains fixtures and team operations", async ({
   await addPlayer.getByLabel("Surname").fill("Synthetic");
   await addPlayer.getByRole("button", { name: "Add player" }).click();
   const player = admin.getByRole("listitem").filter({ hasText: playerName });
-  await player.getByText("Manage profile and access").click();
+  await openPlayerManagement(player);
   await player.getByRole("button", { name: "Register team" }).click();
-  await player.getByText("Manage profile and access").click();
+  await openPlayerManagement(player);
   await player.getByLabel("Invitation email").fill(GUARDIAN_EMAIL);
   await player.getByRole("button", { name: "Create invitation" }).click();
   const guardianInvitation = await player

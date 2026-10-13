@@ -86,9 +86,12 @@ test("a club admin requests a fill-in and commits a duty allocation", async ({
   await page.getByLabel("Label").fill("Scoreboard");
   await page.getByRole("button", { name: "Add open duty" }).click();
   await page.getByRole("button", { name: "Commit allocation" }).click();
-  await expect(page.getByText("Duty Scoreboard")).toBeVisible();
+  const dutyFact = page
+    .locator('dl[aria-label="Your Game Day details"] div')
+    .filter({ hasText: "Your duty" });
+  await expect(dutyFact).toContainText("Scoreboard");
   await page.getByRole("button", { name: "Acknowledge duty" }).click();
-  await expect(page.getByText("Duty Scoreboard")).toBeVisible();
+  await expect(dutyFact).toContainText("Scoreboard");
   await page.getByRole("button", { name: "Request duty swap" }).click();
   await expect(page.getByText("Open swap Scoreboard")).toBeVisible();
   await context.close();

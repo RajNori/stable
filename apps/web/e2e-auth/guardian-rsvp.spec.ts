@@ -2,6 +2,7 @@ import { expect, test } from "@playwright/test";
 
 import { openInvitationAcceptance } from "./invitation-handoff";
 import { applyLocalSession } from "./local-session";
+import { openPlayerManagement } from "./player-management";
 
 const TEAM_ID = "99999999-9999-4999-8999-999999999999";
 const MEMBER_EMAIL = "member@local.stable.test";
@@ -26,9 +27,9 @@ test("guardian accepts a player invitation and records a Game Day RSVP", async (
   await addPlayer.getByRole("button", { name: "Add player" }).click();
   const player = admin.getByRole("listitem").filter({ hasText: playerName });
   await expect(player).toContainText(`${playerName} Synthetic`);
-  await player.getByText("Manage profile and access").click();
+  await openPlayerManagement(player);
   await player.getByRole("button", { name: "Register team" }).click();
-  await player.getByText("Manage profile and access").click();
+  await openPlayerManagement(player);
   await expect(
     player.getByRole("button", { name: "Unregister team" }),
   ).toBeVisible();

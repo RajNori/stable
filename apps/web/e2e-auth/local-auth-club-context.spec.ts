@@ -20,13 +20,11 @@ test("member session resolves the seeded club context and overview", async ({
   await expect(
     page.getByRole("link", { name: "People", exact: true }),
   ).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Overview" })).toBeVisible();
+  const attention = page.getByRole("region", { name: "Needs attention" });
+  await expect(attention).toBeVisible();
   await expect(
-    page.getByRole("heading", { name: "Club overview" }),
-  ).toBeVisible();
-  await expect(
-    page
-      .getByRole("region", { name: "Club overview" })
-      .getByRole("heading", { name: "Needs attention" }),
+    attention.getByRole("heading", { name: "Needs attention" }),
   ).toBeVisible();
   await expect(page.getByLabel("Club context")).toHaveAttribute(
     "data-state",

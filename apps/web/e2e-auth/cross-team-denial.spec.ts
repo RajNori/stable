@@ -2,6 +2,7 @@ import { createClient } from "@supabase/supabase-js";
 import { expect, test } from "@playwright/test";
 
 import { applyLocalSession } from "./local-session";
+import { openPlayerManagement } from "./player-management";
 
 const MEMBER_EMAIL = "member@local.stable.test";
 const LOCAL_PASSWORD = "local-dev-password";
@@ -98,7 +99,7 @@ test("a Team A coach keeps fixture visibility but is denied Team B coaching data
   await addPlayer.getByRole("button", { name: "Add player" }).click();
   const player = page.getByRole("listitem").filter({ hasText: playerName });
   await expect(player).toBeVisible();
-  await player.getByText("Manage profile and access").click();
+  await openPlayerManagement(player);
   await player.locator('select[name="teamId"]').selectOption(teamBId);
   await player.getByRole("button", { name: "Register team" }).click();
   await expect(player).toContainText(teamBName);

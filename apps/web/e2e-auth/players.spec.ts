@@ -1,6 +1,7 @@
 import { expect, test } from "@playwright/test";
 
 import { applyLocalSession } from "./local-session";
+import { openPlayerManagement } from "./player-management";
 
 const MEMBER_EMAIL = "member@local.stable.test";
 const OUTSIDER_EMAIL = "outsider@local.stable.test";
@@ -31,17 +32,17 @@ test("club admin adds a player and sees the safe display name", async ({
       .getByRole("alert"),
   ).toHaveCount(0);
 
-  await item.getByText("Manage profile and access").click();
+  await openPlayerManagement(item);
   await item.getByLabel("Club adult").selectOption({ label: "Local Member" });
   await item.getByRole("button", { name: "Link guardian" }).click();
-  await item.getByText("Manage profile and access").click();
+  await openPlayerManagement(item);
   await expect(item).toContainText("Local Member");
   await expect(
     item.getByRole("button", { name: "Unregister team" }),
   ).toHaveCount(0);
   await item.getByLabel("Team").selectOption({ label: "U14 Boys" });
   await item.getByRole("button", { name: "Register team" }).click();
-  await item.getByText("Manage profile and access").click();
+  await openPlayerManagement(item);
   await expect(
     item.getByRole("button", { name: "Unregister team" }),
   ).toBeVisible();
