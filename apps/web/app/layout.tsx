@@ -1,5 +1,6 @@
 import type { ReactNode } from "react";
 import { themeFor } from "@stable/design-tokens";
+import "./globals.css";
 
 import { loadWebBootEnv } from "../lib/boot-env.server";
 
@@ -21,7 +22,6 @@ export default function RootLayout({ children }: { children: ReactNode }) {
           minHeight: "100vh",
           background: theme.color.background.canvas,
           color: theme.color.text.primary,
-          fontFamily: "system-ui, sans-serif",
         }}
       >
         {children}

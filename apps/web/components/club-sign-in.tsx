@@ -16,6 +16,7 @@ import {
   type AuthProviderSettings,
 } from "../lib/provider-visibility";
 import { safeAuthMessage } from "../lib/safe-auth-message";
+import styles from "./club-sign-in.module.css";
 
 const theme = themeFor("mustangs");
 
@@ -94,7 +95,6 @@ export function ClubSignIn({
     "--sign-in-border": theme.color.border.default,
     "--sign-in-error": theme.color.state.error,
     "--sign-in-radius": `${theme.radius.md}px`,
-    "--sign-in-pad": `${theme.space[8]}px`,
   } as CSSProperties;
 
   const startGoogle = providerButtonReady(providerSettings.google, onProvider)
@@ -108,148 +108,52 @@ export function ClubSignIn({
     : undefined;
 
   return (
-    <div className="club-sign-in" style={frameStyle}>
-      <style>{`
-        .club-sign-in {
-          min-height: 100vh;
-          display: grid;
-          grid-template-columns: minmax(18rem, 0.9fr) minmax(22rem, 1.1fr);
-          background: var(--sign-in-canvas);
-          color: var(--sign-in-ink);
-        }
-        .club-sign-in-brand,
-        .club-sign-in-panel {
-          padding: var(--sign-in-pad);
-        }
-        .club-sign-in-brand {
-          background: var(--sign-in-inverse);
-          color: var(--sign-in-inverse-ink);
-          border-top: 4px solid var(--sign-in-gold);
-          display: flex;
-          flex-direction: column;
-          justify-content: center;
-          gap: 1rem;
-        }
-        .club-sign-in-panel {
-          display: flex;
-          align-items: center;
-          justify-content: center;
-        }
-        .club-sign-in-form {
-          width: min(100%, 28rem);
-          display: grid;
-          gap: 1rem;
-        }
-        .club-sign-in h1 {
-          margin: 0;
-          font-size: ${theme.typeScale.headingLg.fontSize}px;
-          line-height: ${theme.typeScale.headingLg.lineHeight}px;
-          font-weight: ${theme.typeScale.headingLg.fontWeight};
-        }
-        .club-sign-in p { margin: 0; }
-        .club-sign-in label {
-          display: grid;
-          gap: 0.4rem;
-          font-size: ${theme.typeScale.labelMd.fontSize}px;
-        }
-        .club-sign-in input {
-          min-height: 44px;
-          padding: 0 0.8rem;
-          border: 1px solid var(--sign-in-border);
-          border-radius: var(--sign-in-radius);
-          background: var(--sign-in-surface);
-          color: var(--sign-in-ink);
-          font-size: 1rem;
-        }
-        .club-sign-in button {
-          min-height: 44px;
-          min-width: 44px;
-          border-radius: var(--sign-in-radius);
-          font-size: 1rem;
-          cursor: pointer;
-        }
-        .club-sign-in button:disabled { cursor: default; opacity: 0.7; }
-        .club-sign-in button:focus-visible,
-        .club-sign-in input:focus-visible {
-          outline: 2px solid var(--sign-in-green);
-          outline-offset: 2px;
-        }
-        .club-sign-in-primary {
-          background: var(--sign-in-gold);
-          color: var(--sign-in-ink);
-          border: 1px solid var(--sign-in-gold);
-          font-weight: 700;
-        }
-        .club-sign-in-secondary {
-          background: transparent;
-          color: var(--sign-in-green);
-          border: 1px solid var(--sign-in-green);
-        }
-        .club-sign-in-text {
-          background: transparent;
-          color: var(--sign-in-green);
-          border: 0;
-          justify-self: start;
-          padding: 0;
-        }
-        .club-sign-in-error {
-          color: var(--sign-in-error);
-          background: var(--sign-in-surface);
-          padding: 0.75rem 1rem;
-          border-radius: var(--sign-in-radius);
-        }
-        .club-sign-in-code {
-          letter-spacing: 0.4rem;
-          font-size: 1.25rem;
-        }
-        @media (max-width: 800px) {
-          .club-sign-in { grid-template-columns: minmax(0, 1fr); }
-          .club-sign-in-brand { min-height: 12rem; }
-        }
-        @media (prefers-reduced-motion: reduce) {
-          .club-sign-in * { scroll-behavior: auto; }
-        }
-      `}</style>
-      <section className="club-sign-in-brand" aria-label="The Stable">
-        <p>The Stable</p>
-        <h1>Know what&apos;s next. Show up ready.</h1>
-        <p>
+    <div className={styles.root} style={frameStyle}>
+      <section className={styles.brand} aria-label="The Stable">
+        <span className={styles.brandMark} aria-hidden="true">
+          S
+        </span>
+        <p className={styles.brandName}>The Stable</p>
+        <h1>
+          Know what&apos;s next.
+          <br />
+          Show up ready.
+        </h1>
+        <p className={styles.brandDetail}>
           Everything your basketball team needs for game day, training and the
           week ahead.
         </p>
       </section>
-      <section className="club-sign-in-panel" aria-label="Sign in">
+      <section className={styles.panel} aria-label="Sign in">
         {session.state === "loading" ? (
-          <p role="status">Checking your session</p>
+          <p className={styles.loading} role="status">
+            Checking your session
+          </p>
         ) : session.state === "recovery" ? (
           <form
-            className="club-sign-in-form"
+            className={styles.form}
             onSubmit={(event) => {
               event.preventDefault();
               void run(() => actions.retry());
             }}
           >
             <h2>Sign-in is paused</h2>
-            <p className="club-sign-in-error" role="alert">
+            <p className={styles.error} role="alert">
               {session.message}
             </p>
-            <button
-              className="club-sign-in-primary"
-              type="submit"
-              disabled={busy}
-            >
+            <button className={styles.primary} type="submit" disabled={busy}>
               Try again
             </button>
           </form>
         ) : (
           <form
-            className="club-sign-in-form"
+            className={styles.form}
             onSubmit={(event) => {
               submitStep(event);
             }}
           >
             {session.state === "expired" ? (
-              <p className="club-sign-in-error" role="alert">
+              <p className={styles.error} role="alert">
                 Your session has ended. Sign in again.
               </p>
             ) : null}
@@ -259,7 +163,7 @@ export function ClubSignIn({
                   Sign in
                 </h2>
                 <button
-                  className="club-sign-in-secondary"
+                  className={styles.secondary}
                   type="button"
                   disabled={busy}
                   onClick={() => {
@@ -271,7 +175,7 @@ export function ClubSignIn({
                 </button>
                 {startGoogle !== undefined ? (
                   <button
-                    className="club-sign-in-secondary"
+                    className={styles.secondary}
                     type="button"
                     disabled={busy}
                     onClick={() => {
@@ -283,7 +187,7 @@ export function ClubSignIn({
                 ) : null}
                 {startFacebook !== undefined ? (
                   <button
-                    className="club-sign-in-secondary"
+                    className={styles.secondary}
                     type="button"
                     disabled={busy}
                     onClick={() => {
@@ -318,14 +222,14 @@ export function ClubSignIn({
                   />
                 </label>
                 <button
-                  className="club-sign-in-primary"
+                  className={styles.primary}
                   type="submit"
                   disabled={busy}
                 >
                   Sign in
                 </button>
                 <button
-                  className="club-sign-in-text"
+                  className={styles.textButton}
                   type="button"
                   disabled={busy}
                   onClick={() => {
@@ -336,7 +240,7 @@ export function ClubSignIn({
                   Forgot password?
                 </button>
                 <button
-                  className="club-sign-in-text"
+                  className={styles.textButton}
                   type="button"
                   onClick={() => {
                     setError(null);
@@ -369,14 +273,14 @@ export function ClubSignIn({
                   />
                 </label>
                 <button
-                  className="club-sign-in-primary"
+                  className={styles.primary}
                   type="submit"
                   disabled={busy}
                 >
                   Send recovery link
                 </button>
                 <button
-                  className="club-sign-in-text"
+                  className={styles.textButton}
                   type="button"
                   disabled={busy}
                   onClick={() => {
@@ -398,7 +302,7 @@ export function ClubSignIn({
                   recovery link. Follow it to choose a new password.
                 </p>
                 <button
-                  className="club-sign-in-secondary"
+                  className={styles.secondary}
                   type="button"
                   onClick={() => {
                     setError(null);
@@ -410,7 +314,7 @@ export function ClubSignIn({
               </>
             ) : null}
             {error === null ? null : (
-              <p className="club-sign-in-error" role="alert">
+              <p className={styles.error} role="alert">
                 {error}
               </p>
             )}

@@ -1,0 +1,239 @@
+.gameDay {
+  display: grid;
+  gap: 16px;
+}
+.gameDay > h2 {
+  margin: 0;
+  font-size: 12px;
+  line-height: 17px;
+  color: var(--stable-brand);
+  font-weight: 750;
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+}
+.gameDay > [role="alert"] {
+  margin: 0;
+  padding: 12px 15px;
+  border-left: 3px solid var(--stable-error);
+  border-radius: 6px;
+  background: var(--stable-error-soft);
+}
+.hero {
+  display: grid;
+  gap: 20px;
+  padding: 23px;
+  border-radius: 13px;
+  background: var(--stable-inverse);
+  color: var(--stable-inverse-ink);
+  box-shadow: var(--stable-shadow-sm);
+}
+.heroTitle {
+  display: grid;
+  gap: 5px;
+}
+.heroTitle h1 {
+  margin: 0;
+  color: var(--stable-inverse-ink);
+  font-size: 29px;
+  line-height: 35px;
+  font-weight: 760;
+  letter-spacing: -0.035em;
+}
+.kicker {
+  margin: 0;
+  color: var(--stable-accent);
+  font-size: 11px;
+  line-height: 15px;
+  font-weight: 750;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+.round {
+  margin: 0;
+  color: color-mix(in srgb, var(--stable-inverse-ink) 74%, transparent);
+  font-size: 14px;
+  line-height: 20px;
+}
+.facts {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  margin: 0;
+  padding-top: 16px;
+  border-top: 1px solid
+    color-mix(in srgb, var(--stable-inverse-ink) 19%, transparent);
+}
+.fact {
+  display: grid;
+  align-content: start;
+  gap: 6px;
+  min-width: 0;
+  padding: 0 14px;
+  border-left: 1px solid
+    color-mix(in srgb, var(--stable-inverse-ink) 19%, transparent);
+}
+.fact:first-child {
+  padding-left: 0;
+  border-left: 0;
+}
+.fact dt {
+  color: color-mix(in srgb, var(--stable-inverse-ink) 65%, transparent);
+  font-size: 10px;
+  line-height: 14px;
+  font-weight: 750;
+  letter-spacing: 0.075em;
+  text-transform: uppercase;
+}
+.fact dd {
+  margin: 0;
+  overflow-wrap: anywhere;
+  color: var(--stable-inverse-ink);
+  font-size: 14px;
+  line-height: 20px;
+  font-weight: 650;
+  font-variant-numeric: tabular-nums;
+}
+.personalFacts {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+  margin: 0;
+}
+.personalFacts .fact {
+  padding: 10px 12px;
+  border: 1px solid
+    color-mix(in srgb, var(--stable-inverse-ink) 18%, transparent);
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--stable-inverse-ink) 7%, transparent);
+}
+.personalFacts .fact:first-child {
+  padding-left: 12px;
+}
+.prepNotes {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+  margin: 0;
+}
+.prepNotes .fact {
+  padding: 14px 16px;
+  border: 1px solid var(--stable-border);
+  border-radius: 9px;
+  background: var(--stable-surface);
+}
+.prepNotes .fact:first-child {
+  padding-left: 16px;
+  border-left: 1px solid var(--stable-border);
+}
+.prepNotes .fact dt {
+  color: var(--stable-muted);
+}
+.prepNotes .fact dd {
+  color: var(--stable-ink);
+}
+.teamReadiness {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  margin: 0;
+  border: 1px solid var(--stable-border);
+  border-radius: 10px;
+  background: var(--stable-surface);
+  overflow: hidden;
+}
+.metric {
+  display: grid;
+  gap: 4px;
+  padding: 13px 16px;
+  border-right: 1px solid var(--stable-border);
+}
+.metric:last-child {
+  border-right: 0;
+}
+.metric dt {
+  color: var(--stable-muted);
+  font-size: 11px;
+  line-height: 15px;
+  font-weight: 700;
+}
+.metric dd {
+  margin: 0;
+  font-size: 21px;
+  line-height: 26px;
+  font-weight: 750;
+  font-variant-numeric: tabular-nums;
+}
+.gameDay > form {
+  display: grid;
+  gap: 12px;
+  padding: 16px;
+  border: 1px solid var(--stable-border);
+  border-radius: 10px;
+  background: var(--stable-surface);
+}
+.gameDay > form p {
+  margin: 0;
+  font-size: 14px;
+  line-height: 20px;
+}
+.gameDay > p:not([role="alert"]) {
+  margin: 0;
+  padding: 12px 14px;
+  border: 1px solid var(--stable-border);
+  border-radius: 8px;
+  background: var(--stable-surface);
+  font-size: 13px;
+  line-height: 19px;
+}
+
+@media (max-width: 760px) {
+  .hero {
+    gap: 17px;
+    padding: 19px;
+  }
+  .heroTitle h1 {
+    font-size: 25px;
+    line-height: 30px;
+  }
+  .facts {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    row-gap: 16px;
+  }
+  .fact:nth-child(odd) {
+    padding-left: 0;
+    border-left: 0;
+  }
+  .personalFacts {
+    gap: 8px;
+  }
+  .personalFacts .fact {
+    padding: 9px;
+  }
+  .personalFacts .fact:first-child {
+    padding-left: 9px;
+  }
+  .teamReadiness {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .metric:nth-child(2) {
+    border-right: 0;
+  }
+  .metric:nth-child(-n + 2) {
+    border-bottom: 1px solid var(--stable-border);
+  }
+}
+
+@media (max-width: 480px) {
+  .personalFacts {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .personalFacts .fact {
+    border: 0;
+    border-left: 2px solid var(--stable-accent);
+    border-radius: 0 7px 7px 0;
+  }
+  .prepNotes {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .gameDay > form {
+    padding: 13px;
+  }
+}

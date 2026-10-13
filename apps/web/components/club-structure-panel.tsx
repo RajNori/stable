@@ -1,6 +1,12 @@
-import type { CSSProperties } from "react";
 import type { ClubStructureSnapshot } from "@stable/contracts";
-import { themeFor } from "@stable/design-tokens";
+import {
+  ArrowRight,
+  Building2,
+  CalendarDays,
+  MapPin,
+  Trophy,
+} from "lucide-react";
+import styles from "./club-structure-panel.module.css";
 
 type ClubStructurePanelProps = {
   clubId: string | null;
@@ -36,52 +42,30 @@ export function ClubStructurePanel({
   updateVenueAction,
   error,
 }: ClubStructurePanelProps) {
-  const theme = themeFor("mustangs");
   const activeSeasons = snapshot.seasons.filter((season) => season.active);
-  const cardStyle: CSSProperties = {
-    background: theme.color.background.surface,
-    color: theme.color.text.primary,
-    border: `1px solid ${theme.color.border.default}`,
-    borderRadius: theme.radius.lg,
-    boxShadow: theme.shadow.sm,
-    padding: theme.space[6],
-  };
 
   return (
-    <section aria-label="Club structure" style={cardStyle}>
-      <h2
-        style={{
-          margin: 0,
-          fontSize: theme.typeScale.headingSm.fontSize,
-          lineHeight: `${theme.typeScale.headingSm.lineHeight}px`,
-          fontWeight: theme.typeScale.headingSm.fontWeight,
-        }}
-      >
-        Club structure
-      </h2>
-      {error !== undefined ? <p role="alert">{error}</p> : null}
-      <style>{`
-        .club-structure-columns {
-          display: grid;
-          grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
-          gap: var(--structure-gap);
-          margin-top: var(--structure-gap);
-        }
-        @media (max-width: 960px) {
-          .club-structure-columns {
-            grid-template-columns: minmax(0, 1fr);
-          }
-        }
-      `}</style>
-      <div
-        className="club-structure-columns"
-        style={
-          {
-            "--structure-gap": `${theme.space[6]}px`,
-          } as CSSProperties
-        }
-      >
+    <section className={styles.panel} aria-label="Club structure">
+      <header className={styles.pageHeader}>
+        <div className={styles.pageMark} aria-hidden="true">
+          <Building2 size={19} />
+        </div>
+        <div>
+          <p className={styles.kicker}>Club operations</p>
+          <h1>Club structure</h1>
+          <p className={styles.pageIntro}>
+            Keep seasons, competitions, teams and venues in step.
+          </p>
+        </div>
+      </header>
+      {error !== undefined ? (
+        <p className={styles.error} role="alert">
+          {error}
+        </p>
+      ) : null}
+      <div className={styles.columns}>
         <NameList
+          icon="season"
           title="Seasons"
           items={snapshot.seasons.map((season) => ({
             id: season.id,
@@ -98,6 +82,7 @@ export function ClubStructurePanel({
           }))}
         />
         <NameList
+          icon="competition"
           title="Competitions"
           items={snapshot.competitions.map((competition) => ({
             id: competition.id,
@@ -116,6 +101,7 @@ export function ClubStructurePanel({
           }))}
         />
         <NameList
+          icon="team"
           title="Teams"
           items={snapshot.teams.map((team) => ({
             id: team.id,
@@ -143,6 +129,7 @@ export function ClubStructurePanel({
           }))}
         />
         <NameList
+          icon="venue"
           title="Venues"
           items={snapshot.venues.map((venue) => ({
             id: venue.id,
@@ -160,197 +147,180 @@ export function ClubStructurePanel({
         />
       </div>
       {clubId === null || !canManage ? null : (
-        <div
-          style={{
-            display: "grid",
-            gap: theme.space[6],
-            marginTop: theme.space[6],
-          }}
+        <section
+          className={styles.createSection}
+          aria-labelledby="create-structure-title"
         >
-          <form action={action} style={formStyle(theme)}>
-            <input type="hidden" name="clubId" value={clubId} />
-            <label htmlFor="season-name">
-              Season name
-              <input
-                id="season-name"
-                name="seasonName"
-                required
-                maxLength={120}
-                style={inputStyle(theme)}
-              />
-            </label>
-            <label htmlFor="team-name">
-              First team name
-              <input
-                id="team-name"
-                name="teamName"
-                required
-                maxLength={120}
-                style={inputStyle(theme)}
-              />
-            </label>
-            <button type="submit" style={buttonStyle(theme)}>
-              Create season and team
-            </button>
-          </form>
-          {createCompetitionAction === undefined ? null : (
-            <form action={createCompetitionAction} style={formStyle(theme)}>
+          <div className={styles.createHeading}>
+            <div>
+              <p className={styles.kicker}>Build your club</p>
+              <h2 id="create-structure-title">Add to your structure</h2>
+            </div>
+            <p>
+              New records are available to authorized team members as soon as
+              they’re saved.
+            </p>
+          </div>
+          <div className={styles.createGrid}>
+            <form action={action} className={styles.createCard}>
+              <h3>
+                <CalendarDays size={17} aria-hidden="true" />
+                Season and first team
+              </h3>
               <input type="hidden" name="clubId" value={clubId} />
-              <label htmlFor="competition-season">
-                Season for competition
-                <select
-                  id="competition-season"
-                  name="seasonId"
-                  required
-                  style={inputStyle(theme)}
-                >
-                  {activeSeasons.map((season) => (
-                    <option key={season.id} value={season.id}>
-                      {season.name}
-                    </option>
-                  ))}
-                </select>
-              </label>
-              <label htmlFor="competition-name">
-                Competition name
+              <label htmlFor="season-name">
+                Season name
                 <input
-                  id="competition-name"
-                  name="name"
+                  id="season-name"
+                  name="seasonName"
                   required
                   maxLength={120}
-                  style={inputStyle(theme)}
+                />
+              </label>
+              <label htmlFor="team-name">
+                First team name
+                <input
+                  id="team-name"
+                  name="teamName"
+                  required
+                  maxLength={120}
                 />
               </label>
               <button
                 type="submit"
-                disabled={activeSeasons.length === 0}
-                style={buttonStyle(theme)}
+                className="stable-button stable-button--primary"
               >
-                Create competition
+                Create season and team
               </button>
             </form>
-          )}
-          {createVenueAction === undefined ? null : (
-            <form action={createVenueAction} style={formStyle(theme)}>
-              <input type="hidden" name="clubId" value={clubId} />
-              <label htmlFor="venue-name">
-                Venue name
-                <input
-                  id="venue-name"
-                  name="name"
-                  required
-                  maxLength={120}
-                  style={inputStyle(theme)}
-                />
-              </label>
-              <button type="submit" style={buttonStyle(theme)}>
-                Create venue
-              </button>
-            </form>
-          )}
-          {createTeamAction === undefined ? null : (
-            <form action={createTeamAction} style={formStyle(theme)}>
-              <input type="hidden" name="clubId" value={clubId} />
-              <label htmlFor="team-season">
-                Team season
-                <select
-                  id="team-season"
-                  name="seasonId"
-                  required
-                  style={inputStyle(theme)}
-                >
-                  {activeSeasons.map((season) => (
-                    <option key={season.id} value={season.id}>
-                      {season.name}
-                    </option>
-                  ))}
-                </select>
-              </label>
-              <label htmlFor="team-competition">
-                Competition (optional)
-                <select
-                  id="team-competition"
-                  name="competitionId"
-                  defaultValue=""
-                  style={inputStyle(theme)}
-                >
-                  <option value="">No competition</option>
-                  {snapshot.competitions
-                    .filter((item) => item.active)
-                    .map((competition) => (
-                      <option key={competition.id} value={competition.id}>
-                        {competition.name}
+            {createCompetitionAction === undefined ? null : (
+              <form
+                action={createCompetitionAction}
+                className={styles.createCard}
+              >
+                <h3>
+                  <Trophy size={17} aria-hidden="true" />
+                  Competition
+                </h3>
+                <input type="hidden" name="clubId" value={clubId} />
+                <label htmlFor="competition-season">
+                  Season for competition
+                  <select id="competition-season" name="seasonId" required>
+                    {activeSeasons.map((season) => (
+                      <option key={season.id} value={season.id}>
+                        {season.name}
                       </option>
                     ))}
-                </select>
-              </label>
-              <label htmlFor="team-venue">
-                Home venue (optional)
-                <select
-                  id="team-venue"
-                  name="venueId"
-                  defaultValue=""
-                  style={inputStyle(theme)}
+                  </select>
+                </label>
+                <label htmlFor="competition-name">
+                  Competition name
+                  <input
+                    id="competition-name"
+                    name="name"
+                    required
+                    maxLength={120}
+                  />
+                </label>
+                <button type="submit" disabled={activeSeasons.length === 0}>
+                  Create competition
+                </button>
+              </form>
+            )}
+            {createVenueAction === undefined ? null : (
+              <form action={createVenueAction} className={styles.createCard}>
+                <h3>
+                  <MapPin size={17} aria-hidden="true" />
+                  Venue
+                </h3>
+                <input type="hidden" name="clubId" value={clubId} />
+                <label htmlFor="venue-name">
+                  Venue name
+                  <input id="venue-name" name="name" required maxLength={120} />
+                </label>
+                <button
+                  type="submit"
+                  className="stable-button stable-button--secondary"
                 >
-                  <option value="">No venue</option>
-                  {snapshot.venues
-                    .filter((venue) => venue.active)
-                    .map((venue) => (
-                      <option key={venue.id} value={venue.id}>
-                        {venue.name}
+                  Create venue
+                </button>
+              </form>
+            )}
+            {createTeamAction === undefined ? null : (
+              <form action={createTeamAction} className={styles.createCard}>
+                <h3>
+                  <Building2 size={17} aria-hidden="true" />
+                  Team
+                </h3>
+                <input type="hidden" name="clubId" value={clubId} />
+                <label htmlFor="team-season">
+                  Team season
+                  <select id="team-season" name="seasonId" required>
+                    {activeSeasons.map((season) => (
+                      <option key={season.id} value={season.id}>
+                        {season.name}
                       </option>
                     ))}
-                </select>
-              </label>
-              <label htmlFor="new-team-name">
-                Team name
-                <input
-                  id="new-team-name"
-                  name="name"
-                  required
-                  maxLength={120}
-                  style={inputStyle(theme)}
-                />
-              </label>
-              <button
-                type="submit"
-                disabled={activeSeasons.length === 0}
-                style={buttonStyle(theme)}
-              >
-                Create team
-              </button>
-            </form>
-          )}
-        </div>
+                  </select>
+                </label>
+                <label htmlFor="team-competition">
+                  Competition (optional)
+                  <select
+                    id="team-competition"
+                    name="competitionId"
+                    defaultValue=""
+                  >
+                    <option value="">No competition</option>
+                    {snapshot.competitions
+                      .filter((item) => item.active)
+                      .map((competition) => (
+                        <option key={competition.id} value={competition.id}>
+                          {competition.name}
+                        </option>
+                      ))}
+                  </select>
+                </label>
+                <label htmlFor="team-venue">
+                  Home venue (optional)
+                  <select id="team-venue" name="venueId" defaultValue="">
+                    <option value="">No venue</option>
+                    {snapshot.venues
+                      .filter((venue) => venue.active)
+                      .map((venue) => (
+                        <option key={venue.id} value={venue.id}>
+                          {venue.name}
+                        </option>
+                      ))}
+                  </select>
+                </label>
+                <label htmlFor="new-team-name">
+                  Team name
+                  <input
+                    id="new-team-name"
+                    name="name"
+                    required
+                    maxLength={120}
+                  />
+                </label>
+                <button type="submit" disabled={activeSeasons.length === 0}>
+                  Create team
+                </button>
+              </form>
+            )}
+          </div>
+        </section>
       )}
     </section>
   );
 }
 
-function formStyle(theme: ReturnType<typeof themeFor>): CSSProperties {
-  return {
-    display: "grid",
-    gap: theme.space[4],
-    maxWidth: "32rem",
-  };
-}
-
-function buttonStyle(theme: ReturnType<typeof themeFor>): CSSProperties {
-  return {
-    minHeight: 44,
-    padding: `0 ${theme.space[4]}px`,
-    background: theme.color.brand.primary,
-    color: theme.color.text.inverse,
-    border: `1px solid ${theme.color.brand.primary}`,
-    borderRadius: theme.radius.sm,
-  };
-}
-
 function NameList({
   title,
+  icon,
   items,
 }: {
   title: string;
+  icon: "season" | "competition" | "team" | "venue";
   items: readonly {
     id: string;
     name: string;
@@ -366,47 +336,56 @@ function NameList({
       | undefined;
   }[];
 }) {
-  const theme = themeFor("mustangs");
+  const Icon = {
+    season: CalendarDays,
+    competition: Trophy,
+    team: Building2,
+    venue: MapPin,
+  }[icon];
   return (
-    <div>
-      <h3
-        style={{
-          margin: 0,
-          fontSize: theme.typeScale.labelMd.fontSize,
-          color: theme.color.text.secondary,
-        }}
-      >
-        {title}
-      </h3>
-      <ul
-        aria-label={title}
-        style={{
-          margin: `${theme.space[3]}px 0 0`,
-          paddingLeft: theme.space[5],
-        }}
-      >
+    <section
+      className={styles.listSection}
+      aria-labelledby={`club-structure-${icon}`}
+    >
+      <div className={styles.listHeading}>
+        <span className={styles.listIcon} aria-hidden="true">
+          <Icon size={17} />
+        </span>
+        <h2 id={`club-structure-${icon}`}>{title}</h2>
+        <span className={styles.listCount}>{items.length}</span>
+      </div>
+      <ul aria-label={title} className={styles.recordList}>
         {items.map((item) => (
-          <li key={item.id}>
-            {item.href === undefined ? (
-              item.name
-            ) : (
-              <a href={item.href}>{item.name}</a>
-            )}
-            {item.links?.map((link) => (
-              <a key={link.href} href={link.href}>
-                {link.label}
-              </a>
-            ))}
-            {item.edit === undefined ? null : (
-              <form
-                action={item.edit.action}
-                style={{
-                  display: "grid",
-                  gap: theme.space[3],
-                  maxWidth: "32rem",
-                  marginTop: theme.space[3],
-                }}
+          <li key={item.id} className={styles.record}>
+            <div className={styles.recordHeading}>
+              {item.href === undefined ? (
+                <strong>{item.name}</strong>
+              ) : (
+                <a href={item.href}>
+                  {item.name}
+                  <ArrowRight size={15} aria-hidden="true" />
+                </a>
+              )}
+              {item.name.includes("(inactive)") ? (
+                <span className={styles.inactive}>Inactive</span>
+              ) : (
+                <span className={styles.active}>Active</span>
+              )}
+            </div>
+            {item.links?.length ? (
+              <nav
+                aria-label={`${item.name} workspace`}
+                className={styles.recordLinks}
               >
+                {item.links.map((link) => (
+                  <a key={link.href} href={link.href}>
+                    {link.label}
+                  </a>
+                ))}
+              </nav>
+            ) : null}
+            {item.edit === undefined ? null : (
+              <form action={item.edit.action} className={styles.editForm}>
                 <input type="hidden" name="recordId" value={item.id} />
                 <label htmlFor={`structure-name-${item.id}`}>
                   {item.edit.label} name
@@ -416,7 +395,6 @@ function NameList({
                     required
                     maxLength={120}
                     defaultValue={item.edit.name}
-                    style={inputStyle(theme)}
                   />
                 </label>
                 <label htmlFor={`structure-active-${item.id}`}>
@@ -425,13 +403,15 @@ function NameList({
                     id={`structure-active-${item.id}`}
                     name="active"
                     defaultValue={String(item.edit.active)}
-                    style={inputStyle(theme)}
                   >
                     <option value="true">Active</option>
                     <option value="false">Inactive</option>
                   </select>
                 </label>
-                <button type="submit" style={buttonStyle(theme)}>
+                <button
+                  type="submit"
+                  className="stable-button stable-button--secondary"
+                >
                   Save {item.edit.label}
                 </button>
               </form>
@@ -439,20 +419,6 @@ function NameList({
           </li>
         ))}
       </ul>
-    </div>
+    </section>
   );
-}
-
-function inputStyle(theme: ReturnType<typeof themeFor>): CSSProperties {
-  return {
-    display: "block",
-    width: "100%",
-    marginTop: theme.space[2],
-    minHeight: 44,
-    padding: `0 ${theme.space[3]}px`,
-    border: `1px solid ${theme.color.border.default}`,
-    borderRadius: theme.radius.sm,
-    background: theme.color.background.canvas,
-    color: theme.color.text.primary,
-  };
 }

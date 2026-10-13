@@ -1,0 +1,633 @@
+.home {
+  display: grid;
+  gap: 25px;
+  container-type: inline-size;
+}
+.pageHeading {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 24px;
+}
+.pageHeading h1 {
+  margin: 0;
+  font-size: 34px;
+  line-height: 40px;
+  font-weight: 760;
+  letter-spacing: -0.045em;
+}
+.roleLabel {
+  margin: 0 0 8px;
+  color: var(--stable-brand);
+  font-size: 12px;
+  line-height: 16px;
+  font-weight: 750;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+.headingDetail {
+  margin: 8px 0 0;
+  color: var(--stable-secondary);
+  font-size: 15px;
+  line-height: 22px;
+}
+.switchers {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+}
+.switcher {
+  position: relative;
+}
+.switcher summary {
+  display: flex;
+  min-height: 42px;
+  align-items: center;
+  gap: 8px;
+  padding: 0 12px;
+  border: 1px solid var(--stable-border-strong);
+  border-radius: 8px;
+  background: var(--stable-surface);
+  color: var(--stable-secondary);
+  font-size: 13px;
+  font-weight: 650;
+  cursor: pointer;
+  list-style: none;
+}
+.switcher summary::-webkit-details-marker {
+  display: none;
+}
+.switcher[open] summary {
+  border-color: var(--stable-brand);
+  color: var(--stable-brand-strong);
+}
+.switcher nav {
+  position: absolute;
+  z-index: 8;
+  top: calc(100% + 6px);
+  right: 0;
+  display: grid;
+  min-width: 180px;
+  padding: 6px;
+  border: 1px solid var(--stable-border);
+  border-radius: 9px;
+  background: var(--stable-surface);
+  box-shadow: var(--stable-shadow-md);
+}
+.switcher nav a {
+  min-height: 42px;
+  display: flex;
+  align-items: center;
+  padding: 0 10px;
+  border-radius: 6px;
+  color: var(--stable-ink);
+  font-size: 14px;
+  text-decoration: none;
+}
+.switcher nav a:hover {
+  background: var(--stable-surface-alt);
+}
+.error {
+  margin: 0;
+  padding: 13px 16px;
+  border-left: 3px solid var(--stable-error);
+  border-radius: 5px;
+  background: var(--stable-error-soft);
+}
+.contentGrid {
+  display: grid;
+  grid-template-columns: minmax(0, 1.4fr) minmax(270px, 0.76fr);
+  align-items: start;
+  gap: 22px;
+}
+.primaryColumn,
+.secondaryColumn {
+  display: grid;
+  align-content: start;
+  gap: 22px;
+  min-width: 0;
+}
+.gameHero {
+  display: grid;
+  gap: 18px;
+  overflow: hidden;
+  padding: 23px;
+  border-radius: 14px;
+  background: var(--stable-inverse);
+  color: var(--stable-inverse-ink);
+  box-shadow: var(--stable-shadow-sm);
+}
+.gameIntro {
+  display: grid;
+  gap: 5px;
+}
+.gameEyebrow {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  color: var(--stable-accent);
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+}
+.gameIntro h2 {
+  margin: 0;
+  color: var(--stable-inverse-ink);
+  font-size: 27px;
+  line-height: 32px;
+  font-weight: 750;
+  letter-spacing: -0.035em;
+}
+.round {
+  margin: 0;
+  color: color-mix(in srgb, var(--stable-inverse-ink) 74%, transparent);
+  font-size: 14px;
+  line-height: 20px;
+}
+.gameFacts {
+  display: grid;
+  gap: 11px;
+}
+.gameFacts > div:not(.personalStatus):not(.rsvpSummary):not(.readiness) {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  color: color-mix(in srgb, var(--stable-inverse-ink) 91%, transparent);
+  font-size: 14px;
+  line-height: 20px;
+}
+.factLabel {
+  display: block;
+  color: color-mix(in srgb, var(--stable-inverse-ink) 62%, transparent);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+.personalStatus {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 22px;
+  padding-top: 12px;
+  border-top: 1px solid
+    color-mix(in srgb, var(--stable-inverse-ink) 19%, transparent);
+}
+.personalStatus > span {
+  display: grid;
+  gap: 4px;
+  font-size: 14px;
+  font-weight: 650;
+  text-transform: capitalize;
+}
+.staffStatus {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 20px;
+  padding: 10px 12px;
+  border: 1px solid
+    color-mix(in srgb, var(--stable-inverse-ink) 18%, transparent);
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--stable-inverse-ink) 7%, transparent);
+}
+.staffStatus > span {
+  display: grid;
+  gap: 4px;
+  font-size: 13px;
+  font-weight: 650;
+  text-transform: capitalize;
+}
+.readiness {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  border: 1px solid
+    color-mix(in srgb, var(--stable-inverse-ink) 18%, transparent);
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--stable-inverse-ink) 7%, transparent);
+  font-size: 13px;
+}
+.readinessNumber {
+  display: grid;
+  width: 30px;
+  height: 30px;
+  place-items: center;
+  border-radius: 50%;
+  background: var(--stable-accent);
+  color: var(--stable-brand-strong);
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+}
+.rsvpSummary {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  padding-top: 12px;
+  border-top: 1px solid
+    color-mix(in srgb, var(--stable-inverse-ink) 19%, transparent);
+}
+.rsvpSummary span {
+  display: grid;
+  gap: 3px;
+  color: color-mix(in srgb, var(--stable-inverse-ink) 68%, transparent);
+  font-size: 12px;
+}
+.rsvpSummary strong {
+  color: var(--stable-inverse-ink);
+  font-size: 20px;
+  line-height: 23px;
+  font-variant-numeric: tabular-nums;
+}
+.gameAction {
+  display: flex;
+  min-height: 46px;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 0 15px;
+  border-radius: 8px;
+  background: var(--stable-accent);
+  color: var(--stable-brand-strong);
+  font-size: 14px;
+  font-weight: 750;
+  text-decoration: none;
+}
+.gameAction:hover {
+  background: var(--stable-accent-soft);
+}
+.gameEmpty {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 23px;
+  border: 1px dashed var(--stable-border-strong);
+  border-radius: 13px;
+  background: var(--stable-surface);
+}
+.emptyIcon {
+  display: grid;
+  width: 40px;
+  height: 40px;
+  flex: 0 0 auto;
+  place-items: center;
+  border-radius: 10px;
+  background: var(--stable-surface-alt);
+  color: var(--stable-brand);
+}
+.gameEmpty h2 {
+  margin: 0;
+  font-size: 16px;
+  line-height: 22px;
+}
+.gameEmpty p {
+  margin: 4px 0 0;
+  color: var(--stable-muted);
+  font-size: 13px;
+}
+.sideSection,
+.updateSection,
+.teamNav,
+.managerPanel,
+.coachingSection {
+  border: 1px solid var(--stable-border);
+  border-radius: 13px;
+  background: var(--stable-surface);
+  box-shadow: var(--stable-shadow-sm);
+}
+.sideSection,
+.teamNav {
+  padding: 19px;
+}
+.sideHeading {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  color: var(--stable-brand);
+}
+.sideHeading h2 {
+  margin: 0;
+  color: var(--stable-ink);
+  font-size: 16px;
+  line-height: 22px;
+}
+.sideDate {
+  margin: 14px 0;
+  font-size: 15px;
+  line-height: 21px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+.muted {
+  margin: 12px 0 0;
+  color: var(--stable-muted);
+  font-size: 13px;
+  line-height: 19px;
+}
+.textAction {
+  display: inline-flex;
+  min-height: 38px;
+  align-items: center;
+  gap: 8px;
+  color: var(--stable-brand);
+  font-size: 13px;
+  font-weight: 700;
+  text-decoration: none;
+}
+.textAction:hover {
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+.sectionTitle {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 18px 19px;
+  border-bottom: 1px solid var(--stable-border);
+}
+.sectionTitle h2 {
+  margin: 0;
+  font-size: 16px;
+  line-height: 22px;
+}
+.sectionTitle p {
+  margin: 4px 0 0;
+  color: var(--stable-muted);
+  font-size: 12px;
+  line-height: 17px;
+}
+.sectionTitle > a {
+  display: inline-flex;
+  min-height: 38px;
+  align-items: center;
+  gap: 6px;
+  color: var(--stable-brand);
+  font-size: 12px;
+  font-weight: 700;
+  text-decoration: none;
+  white-space: nowrap;
+}
+.updateBody {
+  display: grid;
+  gap: 11px;
+  padding: 16px 19px 19px;
+}
+.updateBody h3 {
+  margin: 0;
+  font-size: 15px;
+  line-height: 21px;
+}
+.updateBody p {
+  margin: 0;
+  color: var(--stable-secondary);
+  font-size: 13px;
+  line-height: 19px;
+  white-space: pre-wrap;
+}
+.responseRequired {
+  justify-self: start;
+  padding: 5px 9px;
+  border-radius: 5px;
+  background: var(--stable-warning-soft);
+  color: var(--stable-ink);
+  font-size: 11px;
+  font-weight: 700;
+}
+.teamNav h2 {
+  margin: 0 0 11px;
+  font-size: 15px;
+  line-height: 21px;
+}
+.teamNavLinks {
+  display: grid;
+}
+.teamNavLinks a {
+  display: flex;
+  min-height: 42px;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  border-top: 1px solid var(--stable-border);
+  color: var(--stable-secondary);
+  font-size: 13px;
+  font-weight: 600;
+  text-decoration: none;
+}
+.teamNavLinks a svg {
+  color: var(--stable-muted);
+}
+.teamNavLinks a:hover {
+  color: var(--stable-brand);
+}
+.managerPanel,
+.coachingSection {
+  overflow: hidden;
+}
+.managerMetrics {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  margin: 0;
+}
+.managerMetric {
+  display: grid;
+  align-content: start;
+  gap: 5px;
+  min-width: 0;
+  padding: 14px;
+  border-right: 1px solid var(--stable-border);
+}
+.managerMetric:last-child {
+  border-right: 0;
+}
+.managerMetric dt {
+  color: var(--stable-secondary);
+  font-size: 11px;
+  font-weight: 650;
+  line-height: 15px;
+}
+.managerMetric dd {
+  margin: 0;
+  font-size: 24px;
+  line-height: 29px;
+  font-weight: 750;
+  font-variant-numeric: tabular-nums;
+}
+.managerMetric span {
+  color: var(--stable-muted);
+  font-size: 11px;
+  line-height: 15px;
+}
+.quietError {
+  margin: 0;
+  padding: 15px 19px;
+  color: var(--stable-secondary);
+  font-size: 13px;
+  line-height: 19px;
+}
+.actionLinks {
+  display: grid;
+  padding: 0 18px;
+}
+.actionLinks > a {
+  display: grid;
+  grid-template-columns: 38px minmax(0, 1fr) 18px;
+  min-height: 67px;
+  align-items: center;
+  gap: 12px;
+  border-bottom: 1px solid var(--stable-border);
+  color: var(--stable-ink);
+  text-decoration: none;
+}
+.actionLinks > a:last-child {
+  border-bottom: 0;
+}
+.actionLinks > a > span:nth-child(2) {
+  display: grid;
+  gap: 3px;
+}
+.actionLinks strong {
+  font-size: 14px;
+}
+.actionLinks small {
+  color: var(--stable-muted);
+  font-size: 12px;
+  line-height: 16px;
+}
+.actionLinks > a > svg:last-child {
+  color: var(--stable-muted);
+}
+.actionIcon {
+  display: grid;
+  width: 36px;
+  height: 36px;
+  place-items: center;
+  border-radius: 9px;
+  background: var(--stable-surface-alt);
+  color: var(--stable-brand);
+}
+.chooseTeam {
+  max-width: 700px;
+  padding: 24px;
+  border: 1px solid var(--stable-border);
+  border-radius: 14px;
+  background: var(--stable-surface);
+}
+.chooseTeam h1 {
+  margin: 0;
+  font-size: 28px;
+}
+.chooseTeam > p:not(.roleLabel) {
+  color: var(--stable-secondary);
+}
+.chooseTeam ul {
+  display: grid;
+  gap: 8px;
+  margin: 20px 0 0;
+  padding: 0;
+  list-style: none;
+}
+.chooseTeam li a {
+  display: flex;
+  min-height: 48px;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 13px;
+  border: 1px solid var(--stable-border);
+  border-radius: 8px;
+  color: var(--stable-brand);
+  font-weight: 700;
+  text-decoration: none;
+}
+
+@media (max-width: 1100px) {
+  .contentGrid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .secondaryColumn {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    align-items: start;
+  }
+  .teamNav {
+    grid-column: 1 / -1;
+  }
+}
+
+@media (max-width: 720px) {
+  .home {
+    gap: 19px;
+  }
+  .pageHeading {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 14px;
+  }
+  .pageHeading h1 {
+    font-size: 29px;
+    line-height: 35px;
+  }
+  .switchers {
+    flex-wrap: wrap;
+  }
+  .contentGrid,
+  .primaryColumn,
+  .secondaryColumn {
+    gap: 16px;
+  }
+  .secondaryColumn {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .teamNav {
+    grid-column: auto;
+  }
+  .gameHero {
+    gap: 16px;
+    padding: 19px;
+    border-radius: 12px;
+  }
+  .gameIntro h2 {
+    font-size: 24px;
+    line-height: 29px;
+  }
+  .managerMetrics {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .managerMetric:nth-child(2) {
+    border-right: 0;
+  }
+  .managerMetric:nth-child(-n + 2) {
+    border-bottom: 1px solid var(--stable-border);
+  }
+}
+
+/* The role home is nested beside the club overview on wide screens, so its
+   usable width can be tablet-sized even when the viewport is desktop-sized. */
+@container (max-width: 760px) {
+  .contentGrid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .secondaryColumn {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    align-items: start;
+  }
+  .teamNav {
+    grid-column: 1 / -1;
+  }
+}
+
+@container (max-width: 480px) {
+  .secondaryColumn {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .teamNav {
+    grid-column: auto;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .home *,
+  .home *::before,
+  .home *::after {
+    scroll-behavior: auto !important;
+    transition-duration: 0.01ms !important;
+  }
+}
