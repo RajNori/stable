@@ -5,6 +5,7 @@ import { z } from "zod";
 import {
   teamAttendanceSchema,
   type AttendanceWriter,
+  type ManagedAttendance,
   type RecordAttendance,
   type TeamAttendance,
 } from "../application/attendance-commands.js";
@@ -33,6 +34,16 @@ const rowSchema = z
     privateNote: row.private_note,
   }));
 
+const managedRowSchema = z
+  .strictObject({
+    player_id: z.string().uuid(),
+    status: z.string(),
+  })
+  .transform((row) => ({
+    playerId: row.player_id,
+    status: row.status,
+  }));
+
 export type AttendanceGateway = AttendanceWriter;
 
 export function createSupabaseAttendanceGateway(
@@ -42,7 +53,36 @@ export function createSupabaseAttendanceGateway(
   return {
     recordAttendance: (command) => recordAttendance(db, command),
     listTeamAttendance: (eventId) => listTeamAttendance(db, eventId),
+    listManagedAttendance: (eventId) => listManagedAttendance(db, eventId),
   };
+}
+
+async function listManagedAttendance(
+  db: AttendanceClient,
+  eventId: string,
+): Promise<readonly ManagedAttendance[]> {
+  const data = await call(db, "list_managed_attendance", {
+    p_event_id: eventId,
+  });
+  if (!Array.isArray(data)) {
+    throw new ApplicationError("INTERNAL", attendanceMessages.readFailed);
+  }
+  return data.map((row) => {
+    const mapped = managedRowSchema.safeParse(row);
+    if (!mapped.success) {
+      throw new ApplicationError("INTERNAL", attendanceMessages.readFailed);
+    }
+    const parsed = z
+      .strictObject({
+        playerId: z.string().uuid(),
+        status: z.enum(["ATTENDING", "UNAVAILABLE", "UNSURE"]),
+      })
+      .safeParse(mapped.data);
+    if (!parsed.success) {
+      throw new ApplicationError("INTERNAL", attendanceMessages.readFailed);
+    }
+    return parsed.data;
+  });
 }
 
 async function recordAttendance(

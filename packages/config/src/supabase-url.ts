@@ -235,4 +235,11 @@ export function assertSupabaseUrl(
       "Staging and production Supabase URLs must not use loopback or private LAN hosts.",
     );
   }
+
+  if (!url.trim().toLowerCase().startsWith("https://")) {
+    throw new ApplicationError(
+      "VALIDATION_FAILED",
+      "Staging and production Supabase URLs must use HTTPS.",
+    );
+  }
 }

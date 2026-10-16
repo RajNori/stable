@@ -17,6 +17,8 @@ export const emailCredentialChangeSchema = z
 export type EmailCredentialChange = z.infer<typeof emailCredentialChangeSchema>;
 
 export const OAUTH_LINK_PROVIDERS = ["google", "apple"] as const;
+export const OAUTH_SIGN_IN_PROVIDERS = ["google", "apple", "facebook"] as const;
+export type OAuthSignInProvider = (typeof OAUTH_SIGN_IN_PROVIDERS)[number];
 
 export const oauthLinkReceiptSchema = z
   .strictObject({
@@ -233,7 +235,7 @@ export function isStructurallySafeOAuthAuthorizationUrl(
 export const oauthSignInNavigationSchema = z
   .strictObject({
     status: z.literal("redirect_required"),
-    provider: z.enum(OAUTH_LINK_PROVIDERS),
+    provider: z.enum(OAUTH_SIGN_IN_PROVIDERS),
     authorizationUrl: z.string().min(1).max(2048),
   })
   .superRefine((value, context) => {

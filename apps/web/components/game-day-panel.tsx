@@ -1,8 +1,11 @@
 import type { GameDayProjection } from "@stable/game-day";
+import { formatScheduleDateTime } from "@stable/schedule";
 
 export function GameDayPanel({
   projection,
+  timezone,
   error,
+  notice,
   players = [],
   recordAction,
   dutyProposal,
@@ -21,7 +24,9 @@ export function GameDayPanel({
   respondFillIn,
 }: {
   projection: GameDayProjection | null;
+  timezone: string;
   error?: string | undefined;
+  notice?: string | undefined;
   players?: { playerId: string; label: string }[] | undefined;
   recordAction?: ((formData: FormData) => Promise<void>) | undefined;
   dutyProposal?: { fingerprint: string; lines: string[] } | undefined;
@@ -45,13 +50,22 @@ export function GameDayPanel({
     <section aria-label="Game day">
       <h2 style={{ margin: 0 }}>Game day</h2>
       {error !== undefined ? <p role="alert">{error}</p> : null}
+      {notice !== undefined ? <p role="status">{notice}</p> : null}
       {projection === null ? null : (
         <>
           <p>
             {projection.roundLabel ?? "Game"}: {projection.opponentName}
           </p>
-          <p>Official start {projection.officialStartAt}</p>
-          <p>Arrival {projection.arrivalAt ?? "Not set"}</p>
+          <p>
+            Official start{" "}
+            {formatScheduleDateTime(projection.officialStartAt, timezone)}
+          </p>
+          <p>
+            Arrival{" "}
+            {projection.arrivalAt === null
+              ? "Not set"
+              : formatScheduleDateTime(projection.arrivalAt, timezone)}
+          </p>
           <p>Venue {projection.venueText ?? "Not set"}</p>
           <p>Court {projection.courtLabel ?? "Not set"}</p>
           <p>Uniform {projection.uniformNote ?? "Not set"}</p>
@@ -136,7 +150,11 @@ export function GameDayPanel({
                 </form>
               ))
             : null}
-          {acknowledgeDuty !== undefined && projection.ownDutyLabel !== null ? (
+          {projection.ownDutyLabel !== null &&
+          projection.ownDutyStatus === "ACKNOWLEDGED" ? (
+            <p>Duty acknowledged</p>
+          ) : acknowledgeDuty !== undefined &&
+            projection.ownDutyLabel !== null ? (
             <form action={acknowledgeDuty}>
               <input type="hidden" name="clubId" value={projection.clubId} />
               <input type="hidden" name="teamId" value={projection.teamId} />
@@ -149,10 +167,6 @@ export function GameDayPanel({
               <input type="hidden" name="clubId" value={projection.clubId} />
               <input type="hidden" name="teamId" value={projection.teamId} />
               <input type="hidden" name="eventId" value={projection.eventId} />
-              <label>
-                Offer to
-                <input name="targetUserId" />
-              </label>
               <button type="submit">Request duty swap</button>
             </form>
           ) : null}

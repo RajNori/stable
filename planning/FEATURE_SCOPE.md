@@ -11,10 +11,9 @@
 - observability.
 
 ### Identity and access
-- phone OTP;
-- email OTP/magic link;
-- Apple;
-- Google;
+- Web: Google, Facebook, and email/password; recovery link for password reset.
+- Mobile: SMS OTP primary and email magic-link alternative.
+- Supabase Auth is the identity authority; players do not authenticate in V1.
 - user profile;
 - guardian relationship;
 - team and club memberships;
@@ -81,3 +80,13 @@
 
 ## Deferred
 See ATRD non-goals and Wave 2.
+
+## M5B journey completion scope
+
+M5B completes hosted pilot journeys on the existing architecture: server-side
+role homes, Guardian mobile RSVP/duty/swap/fill-in/context/profile flows, full
+Club Admin season/competition/venue/team lifecycle UX, the approved auth split,
+guarded synthetic staging seed, and trusted push delivery. Keep provider-owned
+fixture fields immutable and retain manual fixture entry when PlayHQ access is
+not available. Do not introduce Player authentication, public/marketing web,
+unrestricted chat, public child data, or production operations.

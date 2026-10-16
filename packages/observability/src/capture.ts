@@ -36,6 +36,11 @@ const state: ObservabilityState = {
   productEventSink: undefined,
 };
 
+const MAX_CAUSE_DEPTH = 6;
+const SENSITIVE_KEYS = new Set(
+  SENSITIVE_METADATA_FIELDS.map((field) => field.toLowerCase()),
+);
+
 function configuredValue(value: string | undefined): string | undefined {
   if (value === undefined) {
     return undefined;
@@ -52,82 +57,15 @@ export function configureObservability(config: ObservabilityConfig): void {
   state.productEventSink = config.productEventSink;
 }
 
-const SENSITIVE_KEYS = new Set(
-  SENSITIVE_METADATA_FIELDS.map((field) => field.toLowerCase()),
-);
-const MAX_MESSAGE_LENGTH = 300;
-const MAX_DEPTH = 6;
-
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null;
 }
 
-function safeName(value: string): string {
-  return /^[A-Za-z][A-Za-z0-9_]*$/.test(value) ? value : "Error";
-}
-
-function replaceLiteral(haystack: string, needle: string): string {
-  if (needle.length === 0 || !haystack.includes(needle)) {
-    return haystack;
-  }
-  return haystack.split(needle).join("[redacted]");
-}
-
-function redactText(
-  message: string,
-  sensitiveValues: readonly string[],
-): string {
-  let redacted = message;
-  const literals = [...sensitiveValues]
-    .filter((value) => value.length > 0)
-    .sort((left, right) => right.length - left.length);
-  for (const value of literals) {
-    redacted = replaceLiteral(redacted, value);
-  }
-
-  redacted = redacted
-    .replace(/sb_secret_[A-Za-z0-9_-]+/g, "[redacted]")
-    .replace(/sb_publishable_[A-Za-z0-9_-]+/g, "[redacted]")
-    .replace(/eyJ[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+/g, "[redacted]")
-    .replace(/\bBearer\s+\S+/gi, "Bearer [redacted]")
-    .replace(/[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}/g, "[redacted]")
-    .replace(/\+\d{8,15}\b/g, "[redacted]")
-    .replace(/\botp\b\s*[:=]?\s*\d{4,8}\b/gi, "otp [redacted]");
-
-  return redacted.length > MAX_MESSAGE_LENGTH
-    ? redacted.slice(0, MAX_MESSAGE_LENGTH)
-    : redacted;
-}
-
-function collectSensitive(
-  value: unknown,
-  found: string[],
-  seen: WeakSet<object>,
-  depth: number,
-): void {
-  if (depth > MAX_DEPTH || !isRecord(value) || seen.has(value)) {
-    return;
-  }
-  seen.add(value);
-
-  if (Array.isArray(value)) {
-    for (const item of value) {
-      collectSensitive(item, found, seen, depth + 1);
-    }
-    return;
-  }
-
-  for (const [key, nested] of Object.entries(value)) {
-    if (SENSITIVE_KEYS.has(key.toLowerCase()) && typeof nested === "string") {
-      found.push(nested);
-      continue;
-    }
-    collectSensitive(nested, found, seen, depth + 1);
-  }
-
-  if ("cause" in value) {
-    collectSensitive(value.cause, found, seen, depth + 1);
-  }
+function safeMessage(): string {
+  // Error messages frequently contain server response bodies, names, notes,
+  // URLs, or provider data. Pattern-based redaction cannot reliably identify
+  // all child or coaching data, so only a constant message crosses this sink.
+  return "An application error occurred.";
 }
 
 function classificationOf(error: unknown): string {
@@ -135,25 +73,19 @@ function classificationOf(error: unknown): string {
     return error.code;
   }
   if (error instanceof Error) {
-    return safeName(error.name);
+    return "Error";
   }
   return "unknown";
-}
-
-function messageOf(error: unknown): string {
-  if (error instanceof Error || isRecord(error)) {
-    return typeof error.message === "string" ? error.message : "Unavailable";
-  }
-  if (typeof error === "string") {
-    return error;
-  }
-  return "Unavailable";
 }
 
 export function normalizeException(
   error: unknown,
   stack: WeakSet<object> = new WeakSet(),
+  depth = 0,
 ): SafeException {
+  if (depth > MAX_CAUSE_DEPTH) {
+    return { name: "Error", classification: "unknown", message: "[redacted]" };
+  }
   if (isRecord(error)) {
     if (stack.has(error)) {
       return {
@@ -165,16 +97,14 @@ export function normalizeException(
     stack.add(error);
   }
 
-  const sensitiveValues: string[] = [];
-  collectSensitive(error, sensitiveValues, new WeakSet(), 0);
   const safe: SafeException = {
-    name: error instanceof Error ? safeName(error.name) : "Error",
+    name: error instanceof ApplicationError ? "ApplicationError" : "Error",
     classification: classificationOf(error),
-    message: redactText(messageOf(error), sensitiveValues),
+    message: safeMessage(),
   };
 
   if (isRecord(error) && error.cause !== undefined) {
-    safe.cause = normalizeException(error.cause, stack);
+    safe.cause = normalizeException(error.cause, stack, depth + 1);
   }
 
   return safe;

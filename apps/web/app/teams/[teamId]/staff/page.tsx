@@ -16,7 +16,7 @@ import { TeamStaffPanel } from "../../../../components/team-staff-panel";
 import type { StaffAssignmentView } from "../../../../components/team-staff-panel";
 import { loadLiveClubContext } from "../../../../lib/load-live-club-context";
 import { principalFromSupabase } from "../../../../lib/principal";
-import { createRuntimeClubContextReader } from "../../../../lib/runtime-club-context-reader";
+import { createClubContextReader } from "../../../../lib/reader";
 import { createSupabaseServerClient } from "../../../../lib/supabase/server";
 import {
   createInvitationAction,
@@ -50,7 +50,7 @@ export default async function TeamStaffPage({
   try {
     const supabase = await createSupabaseServerClient();
     const principal = await principalFromSupabase(supabase);
-    const reader = await createRuntimeClubContextReader(supabase);
+    const reader = await createClubContextReader(supabase);
     const context = await getCurrentClubContext({ principal, reader });
     if (context.club === null) {
       return <ClubAdminShell presentation={presentation} />;

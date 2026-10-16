@@ -10,7 +10,7 @@ import { ClubAdminShell } from "../../../../components/club-admin-shell";
 import { FixturesPanel } from "../../../../components/fixtures-panel";
 import { loadLiveClubContext } from "../../../../lib/load-live-club-context";
 import { principalFromSupabase } from "../../../../lib/principal";
-import { createRuntimeClubContextReader } from "../../../../lib/runtime-club-context-reader";
+import { createClubContextReader } from "../../../../lib/reader";
 import { createSupabaseServerClient } from "../../../../lib/supabase/server";
 import {
   createFixtureAction,
@@ -39,7 +39,7 @@ export default async function TeamFixturesPage({
 
   const supabase = await createSupabaseServerClient();
   const principal = await principalFromSupabase(supabase);
-  const reader = await createRuntimeClubContextReader(supabase);
+  const reader = await createClubContextReader(supabase);
   const context = await getCurrentClubContext({ principal, reader });
   const club = context.club;
   if (club === null) {

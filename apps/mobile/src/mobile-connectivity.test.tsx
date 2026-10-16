@@ -68,4 +68,41 @@ describe("mobile connectivity", () => {
     });
     expect(await screen.findByText("online")).toBeTruthy();
   });
+
+  it("uses the online fallback when the initial network read fails", async () => {
+    let removed = false;
+    const monitor: NetworkMonitor = {
+      getNetworkState: () => Promise.reject(new Error("radio unavailable")),
+      addNetworkStateListener: () => ({
+        remove() {
+          removed = true;
+        },
+      }),
+    };
+    const view = await render(<Probe monitor={monitor} />);
+
+    expect(await screen.findByText("online")).toBeTruthy();
+    await act(() => {
+      view.unmount();
+    });
+    expect(removed).toBe(true);
+  });
+
+  it("keeps connectivity unknown until a listener reports a useful state", async () => {
+    let listener: ((state: NetworkState) => void) | undefined;
+    const monitor: NetworkMonitor = {
+      getNetworkState: () => Promise.resolve({}),
+      addNetworkStateListener: (next) => {
+        listener = next;
+        return { remove: () => undefined };
+      },
+    };
+    await render(<Probe monitor={monitor} />);
+    expect(await screen.findByText("unknown")).toBeTruthy();
+
+    await act(() => {
+      listener?.({ isConnected: true });
+    });
+    expect(await screen.findByText("online")).toBeTruthy();
+  });
 });

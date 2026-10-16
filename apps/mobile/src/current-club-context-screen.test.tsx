@@ -1,7 +1,7 @@
 import React from "react";
 import { StyleSheet } from "react-native";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { render, screen } from "@testing-library/react-native";
+import { render, screen, userEvent } from "@testing-library/react-native";
 import { themeFor } from "@stable/design-tokens";
 import type {
   ClubContextReader,
@@ -148,6 +148,36 @@ describe("current club context screen", () => {
       await screen.findByText("Club context could not be read."),
     ).toBeTruthy();
     expect(screen.getByRole("button", { name: "Try again" })).toBeTruthy();
+  });
+
+  it("reloads after a recoverable context failure", async () => {
+    let calls = 0;
+    const reader: ClubContextReader = {
+      read: async () => {
+        calls += 1;
+        if (calls === 1) {
+          throw new Error("temporarily unavailable");
+        }
+        return {
+          displayName: "Ada Lovelace",
+          memberships: [
+            { clubId, role: "CLUB_ADMIN", active: true, club: mustangs },
+          ],
+          teamMemberships: [],
+          guardianLinks: [],
+          registrations: [],
+          teams: [],
+          clubs: [],
+        };
+      },
+    };
+    await renderScreen({ userId }, reader);
+
+    await userEvent.press(
+      await screen.findByRole("button", { name: "Try again" }),
+    );
+    expect(await screen.findByText("Mentone Mustangs")).toBeTruthy();
+    expect(calls).toBe(2);
   });
 
   it("shows the only team and a managed-player count without child names", async () => {

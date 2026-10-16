@@ -6,6 +6,7 @@ import { PracticePlannerPanel } from "./practice-planner-panel";
 const props = {
   clubId: "10000000-0000-4000-8000-000000000001",
   teamId: "20000000-0000-4000-8000-000000000001",
+  timezone: "Australia/Melbourne",
   trainings: [
     {
       eventId: "30000000-0000-4000-8000-000000000001",
@@ -55,6 +56,9 @@ describe("practice planner panel", () => {
     ).toBeTruthy();
     expect(screen.getAllByLabelText("Plan title").length).toBe(2);
     expect(screen.getAllByLabelText(/PASSING/).length).toBeGreaterThan(0);
+    expect(
+      screen.getAllByText("PASSING · Thursday 8 October at 11:00 am"),
+    ).toHaveLength(2);
     expect(screen.getByRole("button", { name: "Apply template" })).toBeTruthy();
     expect(
       screen.getAllByRole("option", { name: "Passing triangles" }).length,
@@ -70,5 +74,61 @@ describe("practice planner panel", () => {
       <PracticePlannerPanel {...props} canManage={false} />,
     );
     expect(container.textContent).toBe("");
+  });
+
+  it("selects an existing focus and carries the nearest earlier plan forward", () => {
+    const focus = props.focusOptions[0];
+    const template = props.templates[0];
+    const training = props.trainings[0];
+    if (
+      focus === undefined ||
+      template === undefined ||
+      training === undefined
+    ) {
+      throw new Error("Expected planning fixture data");
+    }
+    const earlierPlan = {
+      ...template,
+      planId: "50000000-0000-4000-8000-000000000002",
+      trainingEventId: "30000000-0000-4000-8000-000000000001",
+      isTemplate: false,
+      title: "Last practice",
+      focus: [focus],
+      blocks: [
+        {
+          blockId: "60000000-0000-4000-8000-000000000001",
+          order: 1,
+          durationMinutes: 15,
+          drillId: null,
+          title: "Warm up",
+          instructions: "Move safely.",
+        },
+      ],
+    };
+    render(
+      <PracticePlannerPanel
+        {...props}
+        trainings={[
+          { ...training, plan: earlierPlan },
+          {
+            ...training,
+            eventId: "30000000-0000-4000-8000-000000000002",
+            startsAt: "2026-10-16T08:00:00Z",
+            endsAt: "2026-10-16T09:00:00Z",
+          },
+        ]}
+        templates={[]}
+      />,
+    );
+
+    const focusCheckbox = screen.getAllByRole("checkbox", {
+      name: /PASSING/,
+    })[0];
+    if (focusCheckbox === undefined)
+      throw new Error("Expected review focus checkbox");
+    expect((focusCheckbox as HTMLInputElement).checked).toBe(true);
+    expect(screen.getByDisplayValue("Warm up")).toBeTruthy();
+    expect(screen.getByText(/scheduled 60 minutes/)).toBeTruthy();
+    expect(screen.queryByRole("button", { name: "Apply template" })).toBeNull();
   });
 });

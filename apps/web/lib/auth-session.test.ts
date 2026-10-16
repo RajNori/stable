@@ -3,9 +3,12 @@ import { describe, expect, it } from "vitest";
 import {
   refreshWebAuthSession,
   restoreWebAuthSession,
+  signOutLiveWebAuthSession,
   signOutWebAuthSession,
+  webAuthSessionGatewayFromSupabase,
   type WebAuthClient,
 } from "./auth-session";
+import type { SupabaseClient } from "@supabase/supabase-js";
 
 const userId = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
 const now = 1_700_000_000_000;
@@ -108,6 +111,45 @@ describe("web auth session", () => {
     expect(client.scopes).toEqual([]);
   });
 
+  it("returns recovery when a provider returns a verified user together with an error", async () => {
+    const client = fakeClient({
+      user: { id: userId },
+      readErrorWithUser: { status: 503, message: leakedEmail },
+    });
+
+    const snapshot = await restoreWebAuthSession(client, now);
+
+    expect(snapshot).toMatchObject({
+      state: "recovery",
+      errorCode: "UPSTREAM_UNAVAILABLE",
+    });
+    expect(JSON.stringify(snapshot)).not.toContain(leakedEmail);
+  });
+
+  it("keeps a missing display name absent from the principal", async () => {
+    const snapshot = await restoreWebAuthSession(
+      fakeClient({ user: { id: userId } }),
+      now,
+    );
+    expect(snapshot).toEqual({ state: "authenticated", principal: { userId } });
+  });
+
+  it("omits a non-string or empty display name from the principal", async () => {
+    const snapshot = await restoreWebAuthSession(
+      fakeClient({ user: { id: userId, user_metadata: { display_name: 12 } } }),
+      now,
+    );
+    expect(snapshot).toEqual({ state: "authenticated", principal: { userId } });
+    const emptyName = await restoreWebAuthSession(
+      fakeClient({ user: { id: userId, user_metadata: { display_name: "" } } }),
+      now,
+    );
+    expect(emptyName).toEqual({
+      state: "authenticated",
+      principal: { userId },
+    });
+  });
+
   it("refreshes into an authenticated principal", async () => {
     const client = fakeClient({
       user: { id: userId },
@@ -126,6 +168,49 @@ describe("web auth session", () => {
       state: "authenticated",
       principal: { userId, displayName: "Alex M" },
     });
+  });
+
+  it("expires when refresh succeeds without returning a session", async () => {
+    const client = fakeClient({ user: { id: userId }, refreshed: null });
+    const snapshot = await refreshWebAuthSession(client, now);
+    expect(snapshot).toEqual({ state: "expired" });
+    expect(client.scopes).toEqual(["local"]);
+  });
+
+  it("clears local credentials when refresh reports corrupt session data", async () => {
+    const client = fakeClient({
+      user: { id: userId },
+      refreshError: new SyntaxError("corrupt refresh cookie"),
+    });
+    const snapshot = await refreshWebAuthSession(client, now);
+    expect(snapshot).toEqual({ state: "unauthenticated" });
+    expect(client.scopes).toEqual(["local"]);
+  });
+
+  it("reports recovery when the refresh provider throws", async () => {
+    const client = fakeClient({
+      user: { id: userId },
+      refreshThrow: new TypeError(`fetch failed ${leakedEmail}`),
+    });
+    const snapshot = await refreshWebAuthSession(client, now);
+    expect(snapshot).toMatchObject({
+      state: "recovery",
+      errorCode: "UPSTREAM_UNAVAILABLE",
+    });
+    expect(JSON.stringify(snapshot)).not.toContain(leakedEmail);
+  });
+
+  it("reports recovery when corrupt credentials cannot be cleared locally", async () => {
+    const client = fakeClient({
+      user: null,
+      readError: new SyntaxError("corrupt local cookie"),
+      clearLocalError: new TypeError(
+        `local storage unavailable ${leakedEmail}`,
+      ),
+    });
+    const snapshot = await restoreWebAuthSession(client, now);
+    expect(snapshot).toMatchObject({ state: "recovery" });
+    expect(JSON.stringify(snapshot)).not.toContain(leakedEmail);
   });
 
   it("keeps the verified user when a rejected refresh leaves that user in place", async () => {
@@ -193,17 +278,120 @@ describe("web auth session", () => {
     expect(JSON.stringify(snapshot)).not.toContain(leakedToken);
     expect(JSON.stringify(snapshot)).not.toContain(leakedEmail);
   });
+
+  it("adapts Supabase user and refresh responses without preserving token fields", async () => {
+    const supabase = {
+      auth: {
+        async getUser() {
+          return {
+            data: {
+              user: {
+                id: userId,
+                user_metadata: {
+                  display_name: "Alex M",
+                  access_token: leakedToken,
+                },
+              },
+            },
+            error: null,
+          };
+        },
+        async refreshSession() {
+          return {
+            data: {
+              session: {
+                user: { id: userId, user_metadata: { display_name: "Alex M" } },
+                expires_at: Math.floor(now / 1000) + 60,
+              },
+            },
+            error: null,
+          };
+        },
+        async signOut() {
+          return { error: null };
+        },
+      },
+    } as unknown as SupabaseClient;
+
+    const gateway = webAuthSessionGatewayFromSupabase(supabase);
+    expect(await gateway.readPersisted()).toEqual({
+      kind: "principal",
+      principal: { userId, displayName: "Alex M", accessExpiresAt: null },
+    });
+    expect(await gateway.refresh()).toEqual({
+      kind: "principal",
+      principal: {
+        userId,
+        displayName: "Alex M",
+        accessExpiresAt: (Math.floor(now / 1000) + 60) * 1000,
+      },
+    });
+    await gateway.revoke("global");
+    await gateway.clearLocal();
+  });
+
+  it("handles Supabase null and non-expiring responses and signs out the live client locally", async () => {
+    let signedOut = false;
+    let refreshCalls = 0;
+    const supabase = {
+      auth: {
+        async getUser() {
+          return {
+            data: {
+              user: signedOut ? null : { id: userId, user_metadata: null },
+            },
+            error: null,
+          };
+        },
+        async refreshSession() {
+          refreshCalls += 1;
+          if (refreshCalls === 1) {
+            return {
+              data: {
+                session: {
+                  user: {
+                    id: userId,
+                    user_metadata: { display_name: "Alex M" },
+                  },
+                },
+              },
+              error: null,
+            };
+          }
+          return { data: { session: null }, error: null };
+        },
+        async signOut({ scope }: { scope: string }) {
+          expect(scope).toBe("local");
+          signedOut = true;
+          return { error: null };
+        },
+      },
+    } as unknown as SupabaseClient;
+
+    const gateway = webAuthSessionGatewayFromSupabase(supabase);
+    expect(await gateway.refresh()).toEqual({
+      kind: "principal",
+      principal: { userId, displayName: "Alex M", accessExpiresAt: null },
+    });
+    expect(await gateway.refresh()).toEqual({ kind: "expired" });
+    expect(await signOutLiveWebAuthSession(supabase)).toEqual({
+      state: "unauthenticated",
+    });
+  });
 });
 
 function fakeClient(input: {
   user: { id: string; user_metadata?: unknown } | null;
   readError?: unknown;
+  readErrorWithUser?: unknown;
   refreshed?: {
     user: { id: string; user_metadata?: unknown };
     expires_at?: number;
   } | null;
   refreshError?: unknown;
+  refreshThrow?: unknown;
   signOutError?: unknown;
+  clearLocalError?: unknown;
   signOutClears?: boolean;
 }): WebAuthClient & {
   userCalls: number;
@@ -226,10 +414,16 @@ function fakeClient(input: {
         if (input.readError !== undefined) {
           return { data: { user: null }, error: input.readError };
         }
+        if (input.readErrorWithUser !== undefined) {
+          return { data: { user: state.user }, error: input.readErrorWithUser };
+        }
         return { data: { user: state.user }, error: null };
       },
       async refreshSession() {
         state.refreshCalls += 1;
+        if (input.refreshThrow !== undefined) {
+          throw input.refreshThrow;
+        }
         if (input.refreshError !== undefined) {
           return { data: { session: null }, error: input.refreshError };
         }
@@ -240,6 +434,9 @@ function fakeClient(input: {
       },
       async signOut(options) {
         state.scopes.push(options.scope);
+        if (input.clearLocalError !== undefined && options.scope === "local") {
+          return { error: input.clearLocalError };
+        }
         if (input.signOutError !== undefined && options.scope === "global") {
           return { error: input.signOutError };
         }

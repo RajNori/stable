@@ -5,7 +5,7 @@ import type { RosterFacts } from "@stable/roster";
 
 import { loadLiveClubContext } from "./load-live-club-context";
 import { principalFromSupabase } from "./principal";
-import { createRuntimeClubContextReader } from "./runtime-club-context-reader";
+import { createClubContextReader } from "./reader";
 import { createSupabaseServerClient } from "./supabase/server";
 
 export type LoadedRoster = {
@@ -26,7 +26,7 @@ export async function loadRosterRequest(teamId: string): Promise<LoadedRoster> {
     return { presentation, facts: null, teamName: null };
   }
 
-  const reader = await createRuntimeClubContextReader(supabase);
+  const reader = await createClubContextReader(supabase);
   const read = await reader.read(principal.userId);
   const context = await getCurrentClubContext({
     principal,

@@ -5,7 +5,9 @@ import { themeFor } from "@stable/design-tokens";
 import { announcementMessages } from "@stable/announcements";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import React, { useState } from "react";
-import { Pressable, StyleSheet, Text, TextInput, View } from "react-native";
+import { Pressable, StyleSheet, Text, View } from "react-native";
+
+import { ReadRetryControl } from "./read-retry-control";
 
 const theme = themeFor("mustangs");
 
@@ -26,6 +28,11 @@ const styles = StyleSheet.create({
     fontSize: theme.typeScale.bodyMd.fontSize,
     lineHeight: theme.typeScale.bodyMd.lineHeight,
   },
+  action: {
+    minHeight: 44,
+    minWidth: 44,
+    justifyContent: "center",
+  },
 });
 
 function message(error: unknown): string {
@@ -40,19 +47,14 @@ export function TeamAnnouncementsScreen({
   loadAnnouncements,
   acknowledge,
   markRead,
-  registerDevice,
-  removeDevice,
 }: {
   loadContext: () => Promise<CurrentClubContext>;
   loadAnnouncements: (teamId: string) => Promise<AnnouncementRecord[]>;
   acknowledge: (announcement: AnnouncementRecord) => Promise<void>;
   markRead: (announcement: AnnouncementRecord) => Promise<void>;
-  registerDevice?: (token: string) => Promise<void>;
-  removeDevice?: (token: string) => Promise<void>;
 }) {
   const queryClient = useQueryClient();
   const [actionError, setActionError] = useState<string | null>(null);
-  const [deviceToken, setDeviceToken] = useState("");
   const context = useQuery({
     queryKey: ["current-club-context"],
     queryFn: loadContext,
@@ -93,6 +95,12 @@ export function TeamAnnouncementsScreen({
             ? message(context.error)
             : announcementMessages.forbidden}
         </Text>
+        {context.isError ? (
+          <ReadRetryControl
+            disabled={context.isFetching}
+            onPress={() => void context.refetch()}
+          />
+        ) : null}
       </View>
     );
   }
@@ -103,6 +111,10 @@ export function TeamAnnouncementsScreen({
         <Text accessibilityRole="header" style={styles.title}>
           {message(announcements.error)}
         </Text>
+        <ReadRetryControl
+          disabled={announcements.isFetching}
+          onPress={() => void announcements.refetch()}
+        />
       </View>
     );
   }
@@ -112,39 +124,10 @@ export function TeamAnnouncementsScreen({
       <Text accessibilityRole="header" style={styles.title}>
         Updates
       </Text>
-      {registerDevice !== undefined && removeDevice !== undefined ? (
-        <View>
-          <TextInput
-            accessibilityLabel="Device token"
-            value={deviceToken}
-            onChangeText={setDeviceToken}
-          />
-          <Pressable
-            accessibilityRole="button"
-            accessibilityLabel="Register device"
-            onPress={() => {
-              void registerDevice(deviceToken).catch((caught: unknown) => {
-                setActionError(message(caught));
-              });
-            }}
-          >
-            <Text style={styles.body}>Register device</Text>
-          </Pressable>
-          <Pressable
-            accessibilityRole="button"
-            accessibilityLabel="Remove device"
-            onPress={() => {
-              void removeDevice(deviceToken).catch((caught: unknown) => {
-                setActionError(message(caught));
-              });
-            }}
-          >
-            <Text style={styles.body}>Remove device</Text>
-          </Pressable>
-        </View>
-      ) : null}
       {actionError === null ? null : (
-        <Text style={styles.body}>{actionError}</Text>
+        <Text accessibilityRole="alert" style={styles.body}>
+          {actionError}
+        </Text>
       )}
       {announcements.data.length === 0 ? (
         <Text style={styles.body}>No announcements.</Text>
@@ -156,6 +139,7 @@ export function TeamAnnouncementsScreen({
           <Pressable
             accessibilityRole="button"
             accessibilityLabel={`Mark read ${announcement.title}`}
+            style={styles.action}
             onPress={() => {
               void markRead(announcement)
                 .then(async () => {
@@ -176,6 +160,7 @@ export function TeamAnnouncementsScreen({
             <Pressable
               accessibilityRole="button"
               accessibilityLabel={`Acknowledge ${announcement.title}`}
+              style={styles.action}
               onPress={() => {
                 void acknowledge(announcement)
                   .then(async () => {

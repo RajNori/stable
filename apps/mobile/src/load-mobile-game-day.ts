@@ -1,5 +1,6 @@
 import { principalFromSession } from "@stable/auth";
 import { ApplicationError } from "@stable/contracts";
+import { evaluateCapability } from "@stable/permissions";
 import {
   createSupabaseGameDayGateway,
   gameDayMessages,
@@ -103,4 +104,39 @@ export async function loadMobileGameDay(
     eventId: nextGame.eventId,
     reader: createSupabaseGameDayGateway(client),
   });
+}
+
+export async function canReadMobileCoachGameDay(
+  teamId: string,
+): Promise<boolean> {
+  const client = getMobileSupabaseClient();
+  const { data, error } = await client.auth.getSession();
+  if (error !== null || data.session?.user === undefined) return false;
+  const principal = principalFromSession(
+    sessionIdentityFromUser(data.session.user),
+  );
+  if (principal === null) return false;
+  const read = await createMobileClubContextReader(client).read(
+    principal.userId,
+  );
+  const team = read.teams.find((item) => item.id === teamId);
+  if (team === undefined) return false;
+  return (
+    evaluateCapability({
+      clubMemberships: read.memberships.map((membership) => ({
+        clubId: membership.clubId,
+        role: membership.role,
+        active: membership.active,
+      })),
+      teamMemberships: read.teamMemberships,
+      guardianLinks: read.guardianLinks,
+      registrations: read.registrations,
+      resource: {
+        clubId: team.clubId,
+        teamId: team.id,
+        teamActive: team.active,
+      },
+      capability: "coaching_stats.read",
+    }) === "allow"
+  );
 }

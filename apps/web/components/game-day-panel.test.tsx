@@ -11,7 +11,7 @@ const projection: GameDayProjection = {
   opponentName: "Visitors",
   roundLabel: "Round 1",
   officialStartAt: "2026-10-10T07:30:00.000Z",
-  arrivalAt: null,
+  arrivalAt: "2026-10-10T07:00:00.000Z",
   venueText: "Home",
   courtLabel: "Court 1",
   uniformNote: "White",
@@ -32,8 +32,16 @@ afterEach(() => {
 
 describe("game day panel", () => {
   it("shows the guardian projection without staff counts", () => {
-    render(<GameDayPanel projection={projection} />);
+    render(
+      <GameDayPanel projection={projection} timezone="Australia/Melbourne" />,
+    );
     expect(screen.getByText("Round 1: Visitors")).toBeTruthy();
+    expect(
+      screen.getByText("Official start Saturday 10 October at 6:30 pm"),
+    ).toBeTruthy();
+    expect(
+      screen.getByText("Arrival Saturday 10 October at 6:00 pm"),
+    ).toBeTruthy();
     expect(screen.getByText("RSVP UNANSWERED")).toBeTruthy();
     expect(screen.queryByText(/Attending/)).toBeNull();
     expect(screen.queryByRole("button", { name: "Save RSVP" })).toBeNull();
@@ -43,6 +51,7 @@ describe("game day panel", () => {
     render(
       <GameDayPanel
         projection={projection}
+        timezone="Australia/Melbourne"
         players={[{ playerId: projection.eventId, label: "Alex R." }]}
         recordAction={() => Promise.resolve()}
       />,
@@ -61,8 +70,190 @@ describe("game day panel", () => {
           unsureCount: 0,
           unansweredCount: 4,
         }}
+        timezone="Australia/Melbourne"
       />,
     );
     expect(screen.getByText(/Attending 3/)).toBeTruthy();
+  });
+
+  it("shows the error state without exposing a missing game projection", () => {
+    render(
+      <GameDayPanel
+        projection={null}
+        timezone="Australia/Melbourne"
+        error="The game is unavailable."
+      />,
+    );
+
+    expect(screen.getByRole("alert").textContent).toBe(
+      "The game is unavailable.",
+    );
+    expect(screen.queryByText("Round 1: Visitors")).toBeNull();
+    expect(screen.queryByRole("button")).toBeNull();
+  });
+
+  it("shows optional team duties, swaps, fill-in, and RSVP actions", () => {
+    render(
+      <GameDayPanel
+        projection={{
+          ...projection,
+          ownDutyLabel: "Scorer",
+          ownDutyStatus: "ASSIGNED",
+          fillInLabel: "Requested",
+          attendingCount: 2,
+          unavailableCount: 1,
+          unsureCount: 1,
+          unansweredCount: 3,
+        }}
+        timezone="Australia/Melbourne"
+        players={[{ playerId: "player-1", label: "Alex R." }]}
+        recordAction={() => Promise.resolve()}
+        dutyProposal={{
+          fingerprint: "opaque-proposal",
+          lines: ["Scorer: Alex"],
+        }}
+        createDuty={() => Promise.resolve()}
+        commitDuty={() => Promise.resolve()}
+        acknowledgeDuty={() => Promise.resolve()}
+        swaps={[{ id: "swap-1", label: "Scorer" }]}
+        requestSwap={() => Promise.resolve()}
+        acceptSwap={() => Promise.resolve()}
+        fillRequestId={null}
+        fillCandidates={[{ playerId: "candidate-1", displayName: "Morgan R." }]}
+        requestFillIn={() => Promise.resolve()}
+      />,
+    );
+
+    expect(screen.getByRole("button", { name: "Save RSVP" })).toBeTruthy();
+    expect(
+      screen.getByRole("button", { name: "Request fill-in" }),
+    ).toBeTruthy();
+    expect(screen.getByText("Candidate Morgan R.")).toBeTruthy();
+    expect(
+      screen.getByRole("button", { name: "Acknowledge duty" }),
+    ).toBeTruthy();
+    expect(
+      screen.getByRole("button", { name: "Request duty swap" }),
+    ).toBeTruthy();
+    expect(screen.getByText("Open swap Scorer")).toBeTruthy();
+    expect(
+      screen.getByRole("button", { name: "Commit allocation" }),
+    ).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Add open duty" })).toBeTruthy();
+  });
+
+  it("shows only open fill-in responses for a pending request", () => {
+    render(
+      <GameDayPanel
+        projection={projection}
+        timezone="Australia/Melbourne"
+        fillRequestId="request-1"
+        fillResponses={[{ playerId: "player-2", displayName: "Sam R." }]}
+        ownFillPlayers={[{ playerId: "player-1", displayName: "Alex R." }]}
+        confirmFillIn={() => Promise.resolve()}
+        respondFillIn={() => Promise.resolve()}
+      />,
+    );
+
+    expect(screen.getByText("Response Sam R.")).toBeTruthy();
+    expect(screen.getByText("Your player Alex R.")).toBeTruthy();
+    expect(
+      screen.getByRole("button", { name: "Confirm fill-in" }),
+    ).toBeTruthy();
+    expect(
+      screen.getByRole("button", { name: "Respond to fill-in" }),
+    ).toBeTruthy();
+    expect(
+      screen.queryByRole("button", { name: "Request fill-in" }),
+    ).toBeNull();
+  });
+
+  it("does not offer submit actions without their matching capability data", () => {
+    render(
+      <GameDayPanel
+        projection={{ ...projection, ownDutyLabel: null }}
+        timezone="Australia/Melbourne"
+        dutyProposal={{ fingerprint: "", lines: [] }}
+        commitDuty={() => Promise.resolve()}
+        acknowledgeDuty={() => Promise.resolve()}
+        requestSwap={() => Promise.resolve()}
+        acceptSwap={() => Promise.resolve()}
+        swaps={[]}
+        fillRequestId="request-2"
+        confirmFillIn={() => Promise.resolve()}
+        fillResponses={[]}
+        respondFillIn={() => Promise.resolve()}
+        ownFillPlayers={[]}
+      />,
+    );
+
+    expect(
+      screen.queryByRole("button", { name: "Commit allocation" }),
+    ).toBeNull();
+    expect(
+      screen.queryByRole("button", { name: "Acknowledge duty" }),
+    ).toBeNull();
+    expect(
+      screen.queryByRole("button", { name: "Request duty swap" }),
+    ).toBeNull();
+    expect(screen.queryByRole("button", { name: "Accept swap" })).toBeNull();
+    expect(
+      screen.queryByRole("button", { name: "Confirm fill-in" }),
+    ).toBeNull();
+    expect(
+      screen.queryByRole("button", { name: "Respond to fill-in" }),
+    ).toBeNull();
+  });
+
+  it("offers an open duty swap without asking for a raw user id", () => {
+    render(
+      <GameDayPanel
+        projection={{
+          ...projection,
+          ownDutyLabel: "Scorer",
+          ownDutyStatus: "ASSIGNED",
+        }}
+        timezone="Australia/Melbourne"
+        acknowledgeDuty={() => Promise.resolve()}
+        requestSwap={() => Promise.resolve()}
+      />,
+    );
+
+    expect(
+      screen.getByRole("button", { name: "Request duty swap" }),
+    ).toBeTruthy();
+    expect(screen.queryByRole("textbox", { name: /offer to/i })).toBeNull();
+    expect(document.querySelector('input[name="targetUserId"]')).toBeNull();
+  });
+
+  it("confirms a completed duty action with a status message", () => {
+    render(
+      <GameDayPanel
+        projection={projection}
+        timezone="Australia/Melbourne"
+        notice="Duty acknowledged."
+      />,
+    );
+
+    expect(screen.getByRole("status").textContent).toBe("Duty acknowledged.");
+  });
+
+  it("shows acknowledged duty and hides the acknowledgement action", () => {
+    render(
+      <GameDayPanel
+        projection={{
+          ...projection,
+          ownDutyLabel: "Scorer",
+          ownDutyStatus: "ACKNOWLEDGED",
+        }}
+        timezone="Australia/Melbourne"
+        acknowledgeDuty={() => Promise.resolve()}
+      />,
+    );
+
+    expect(screen.getByText("Duty acknowledged")).toBeTruthy();
+    expect(
+      screen.queryByRole("button", { name: "Acknowledge duty" }),
+    ).toBeNull();
   });
 });

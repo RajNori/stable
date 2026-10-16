@@ -2,7 +2,11 @@ import { ApplicationError } from "@stable/contracts";
 import type { PostgrestError } from "@supabase/supabase-js";
 import { z } from "zod";
 
-import type { DutyAllocationWriter } from "../application/duty-commands.js";
+import type {
+  DutyAllocationWriter,
+  TeamManagerGameDayOperations,
+  TeamManagerGameDayOperationsReader,
+} from "../application/duty-commands.js";
 import type {
   DutySwapRecord,
   DutySwapWriter,
@@ -31,6 +35,10 @@ const rowSchema = z
     team_id: z.string().uuid(),
     opponent_name: z.string(),
     round_label: z.string().nullable(),
+    fixture_source: z.enum(["MANUAL", "IMPORT"]).optional(),
+    fixture_status: z
+      .enum(["SCHEDULED", "POSTPONED", "CANCELLED", "COMPLETED"])
+      .optional(),
     official_start_at: z.string(),
     arrival_at: z.string().nullable(),
     venue_text: z.string().nullable(),
@@ -52,6 +60,8 @@ const rowSchema = z
     teamId: row.team_id,
     opponentName: row.opponent_name,
     roundLabel: row.round_label,
+    fixtureSource: row.fixture_source,
+    fixtureStatus: row.fixture_status,
     officialStartAt: asInstant(row.official_start_at),
     arrivalAt: asInstant(row.arrival_at),
     venueText: row.venue_text,
@@ -91,9 +101,21 @@ const swapRowSchema = z.strictObject({
   target_user_id: z.string().uuid().nullable(),
 });
 
+const managerOperationsRowSchema = z.strictObject({
+  unassigned_duty_count: z.number().int().nonnegative(),
+  assigned_duty_count: z.number().int().nonnegative(),
+  acknowledged_duty_count: z.number().int().nonnegative(),
+  pending_duty_acknowledgement_count: z.number().int().nonnegative(),
+  open_duty_swap_count: z.number().int().nonnegative(),
+  open_fill_in_request_count: z.number().int().nonnegative(),
+  open_fill_in_response_count: z.number().int().nonnegative(),
+  confirmed_fill_in_count: z.number().int().nonnegative(),
+});
+
 export type GameDayGateway = GameDayReader &
   DutyAllocationWriter &
-  DutySwapWriter;
+  DutySwapWriter &
+  TeamManagerGameDayOperationsReader;
 
 export function createSupabaseGameDayGateway(client: unknown): GameDayGateway {
   const db = client as GameDayClient;
@@ -112,6 +134,32 @@ export function createSupabaseGameDayGateway(client: unknown): GameDayGateway {
     enqueueDutySwapAccepted: (requestId) =>
       enqueueDutySwapAccepted(db, requestId),
     listOpenDutySwaps: (eventId) => listOpenDutySwaps(db, eventId),
+    readTeamManagerGameDayOperations: (eventId) =>
+      readTeamManagerGameDayOperations(db, eventId),
+  };
+}
+
+async function readTeamManagerGameDayOperations(
+  db: GameDayClient,
+  eventId: string,
+): Promise<TeamManagerGameDayOperations> {
+  const data = await call(db, "read_team_manager_game_day_operations", {
+    p_event_id: eventId,
+  });
+  const rows = z.array(managerOperationsRowSchema).safeParse(data);
+  const row = rows.success ? rows.data[0] : undefined;
+  if (row === undefined) {
+    throw new ApplicationError("INTERNAL", gameDayMessages.readFailed);
+  }
+  return {
+    unassignedDutyCount: row.unassigned_duty_count,
+    assignedDutyCount: row.assigned_duty_count,
+    acknowledgedDutyCount: row.acknowledged_duty_count,
+    pendingDutyAcknowledgementCount: row.pending_duty_acknowledgement_count,
+    openDutySwapCount: row.open_duty_swap_count,
+    openFillInRequestCount: row.open_fill_in_request_count,
+    openFillInResponseCount: row.open_fill_in_response_count,
+    confirmedFillInCount: row.confirmed_fill_in_count,
   };
 }
 

@@ -69,6 +69,13 @@ export const teamAttendanceSchema = z.strictObject({
 
 export type TeamAttendance = z.infer<typeof teamAttendanceSchema>;
 
+export const managedAttendanceSchema = z.strictObject({
+  playerId: idSchema,
+  status: z.enum(ATTENDANCE_STATUSES),
+});
+
+export type ManagedAttendance = z.infer<typeof managedAttendanceSchema>;
+
 export type AttendanceAccess = {
   principal: Principal | null;
   clubMemberships: readonly MembershipFact[];
@@ -81,6 +88,7 @@ export type AttendanceAccess = {
 export type AttendanceWriter = {
   recordAttendance(command: RecordAttendance): Promise<{ responseId: string }>;
   listTeamAttendance(eventId: string): Promise<readonly TeamAttendance[]>;
+  listManagedAttendance(eventId: string): Promise<readonly ManagedAttendance[]>;
 };
 
 function validationFailed(): never {
@@ -168,4 +176,48 @@ export async function listTeamAttendance(
   }
   assertAllowed(input, clubId.data, teamId.data, "attendance.read_team");
   return input.writer.listTeamAttendance(eventId.data);
+}
+
+export async function listManagedAttendance(
+  input: AttendanceAccess & {
+    clubId: string;
+    teamId: string;
+    eventId: string;
+    writer: AttendanceWriter;
+  },
+): Promise<readonly ManagedAttendance[]> {
+  const eventId = idSchema.safeParse(input.eventId);
+  const clubId = idSchema.safeParse(input.clubId);
+  const teamId = idSchema.safeParse(input.teamId);
+  if (!eventId.success || !clubId.success || !teamId.success) {
+    validationFailed();
+  }
+  if (input.principal === null) {
+    throw new ApplicationError(
+      "UNAUTHENTICATED",
+      attendanceMessages.unauthenticated,
+    );
+  }
+  const rows = await input.writer.listManagedAttendance(eventId.data);
+  return rows.filter((row) => {
+    const parsed = managedAttendanceSchema.safeParse(row);
+    if (!parsed.success) {
+      throw new ApplicationError("INTERNAL", attendanceMessages.readFailed);
+    }
+    return (
+      evaluateCapability({
+        clubMemberships: input.clubMemberships,
+        teamMemberships: input.teamMemberships,
+        guardianLinks: input.guardianLinks,
+        registrations: input.registrations,
+        resource: {
+          clubId: clubId.data,
+          teamId: teamId.data,
+          teamActive: input.teamActive,
+          playerId: parsed.data.playerId,
+        },
+        capability: "attendance.manage_managed_player",
+      }) === "allow"
+    );
+  });
 }

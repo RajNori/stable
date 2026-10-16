@@ -57,19 +57,26 @@ export function getMobileSessionStorage(): ChunkedSessionStorage {
   return sessionStorage;
 }
 
+export function mobileSupabasePublicConfig(): {
+  readonly url: string;
+  readonly publishableKey: string;
+} {
+  return {
+    url: requiredPublicEnv(ENV.expoSupabaseUrl),
+    publishableKey: requiredPublicEnv(ENV.expoSupabasePublishableKey),
+  };
+}
+
 export function createMobileSupabaseClient(): SupabaseClient {
-  return createClient(
-    requiredPublicEnv(ENV.expoSupabaseUrl),
-    requiredPublicEnv(ENV.expoSupabasePublishableKey),
-    {
-      auth: {
-        storage: getMobileSessionStorage(),
-        autoRefreshToken: MOBILE_SESSION_PERSISTENCE.autoRefreshToken,
-        persistSession: MOBILE_SESSION_PERSISTENCE.persistSession,
-        detectSessionInUrl: MOBILE_SESSION_PERSISTENCE.detectSessionInUrl,
-      },
+  const config = mobileSupabasePublicConfig();
+  return createClient(config.url, config.publishableKey, {
+    auth: {
+      storage: getMobileSessionStorage(),
+      autoRefreshToken: MOBILE_SESSION_PERSISTENCE.autoRefreshToken,
+      persistSession: MOBILE_SESSION_PERSISTENCE.persistSession,
+      detectSessionInUrl: MOBILE_SESSION_PERSISTENCE.detectSessionInUrl,
     },
-  );
+  });
 }
 
 export function getMobileSupabaseClient(): SupabaseClient {

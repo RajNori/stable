@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 
 import {
   listTeamAttendance,
+  listManagedAttendance,
   recordAttendance,
   type AttendanceAccess,
   type AttendanceWriter,
@@ -71,6 +72,17 @@ function writer(): AttendanceWriter & { calls: string[] } {
         },
       ]);
     },
+    listManagedAttendance: () => {
+      calls.push("list-managed");
+      return Promise.resolve([
+        { playerId, status: "UNSURE" },
+        { playerId: siblingId, status: "UNAVAILABLE" },
+        {
+          playerId: "88888888-8888-4888-8888-888888888887",
+          status: "ATTENDING",
+        },
+      ]);
+    },
   };
 }
 
@@ -124,6 +136,18 @@ describe("attendance", () => {
       }),
     ).rejects.toMatchObject({ code: "FORBIDDEN" });
     expect(source.calls).toEqual(["list"]);
+  });
+
+  it("returns only managed players' response statuses to a guardian", async () => {
+    const rows = await listManagedAttendance({
+      ...guardian([playerId]),
+      clubId,
+      teamId,
+      eventId,
+      writer: writer(),
+    });
+
+    expect(rows).toEqual([{ playerId, status: "UNSURE" }]);
   });
 
   it("rejects an unrelated player, a category on an attending response, and a signed-out caller", async () => {

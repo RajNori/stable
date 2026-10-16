@@ -7,6 +7,8 @@ import { useQuery } from "@tanstack/react-query";
 import React from "react";
 import { StyleSheet, Text, View } from "react-native";
 
+import { ReadRetryControl } from "./read-retry-control";
+
 const theme = themeFor("mustangs");
 
 const styles = StyleSheet.create({
@@ -79,6 +81,12 @@ export function TeamRosterScreen({
         <Text accessibilityRole="header" style={styles.title}>
           {context.isError ? message(context.error) : rosterMessages.forbidden}
         </Text>
+        {context.isError ? (
+          <ReadRetryControl
+            disabled={context.isFetching}
+            onPress={() => void context.refetch()}
+          />
+        ) : null}
       </View>
     );
   }
@@ -107,6 +115,10 @@ export function TeamRosterScreen({
         <Text accessibilityRole="header" style={styles.title}>
           {message(roster.error)}
         </Text>
+        <ReadRetryControl
+          disabled={roster.isFetching}
+          onPress={() => void roster.refetch()}
+        />
       </View>
     );
   }

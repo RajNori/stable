@@ -75,12 +75,18 @@ function authenticatedSnapshot(user: OtpProviderUser): AuthSessionSnapshot {
 
 export async function requestEmailSignIn(
   client: OtpAuthClient,
-  input: { email: string; redirectTo: string; appEnv: AppEnv },
+  input: {
+    email: string;
+    redirectTo: string;
+    appEnv: AppEnv;
+    webOrigin?: string;
+  },
 ): Promise<SignInChallenge> {
   const email = assertEmail(input.email);
   const redirectTo = assertAllowedSignInRedirect(
     input.redirectTo,
     input.appEnv,
+    input.webOrigin,
   );
   await fromProvider(() => client.requestEmailOtp({ email, redirectTo }));
   return signInChallengeSchema.parse({
@@ -103,10 +109,19 @@ export async function verifyEmailOtp(
 
 export async function completeEmailCallback(
   client: OtpAuthClient,
-  input: { callbackUrl: string; appEnv: AppEnv; returnTo?: string },
+  input: {
+    callbackUrl: string;
+    appEnv: AppEnv;
+    webOrigin?: string;
+    returnTo?: string;
+  },
 ): Promise<CompletedEmailSignIn> {
   const returnTo = assertSafeReturnPath(input.returnTo ?? "/");
-  const code = authCodeFromCallback(input.callbackUrl, input.appEnv);
+  const code = authCodeFromCallback(
+    input.callbackUrl,
+    input.appEnv,
+    input.webOrigin,
+  );
   const user = await fromProvider(() => client.exchangeEmailCode({ code }));
   return { snapshot: authenticatedSnapshot(user), returnTo };
 }

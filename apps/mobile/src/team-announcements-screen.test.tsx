@@ -1,5 +1,8 @@
-import type { AnnouncementRecord } from "@stable/announcements";
-import type { CurrentClubContext } from "@stable/contracts";
+import {
+  announcementMessages,
+  type AnnouncementRecord,
+} from "@stable/announcements";
+import { ApplicationError, type CurrentClubContext } from "@stable/contracts";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { render, screen, userEvent } from "@testing-library/react-native";
 import React from "react";
@@ -45,7 +48,7 @@ describe("team announcements", () => {
   it("lets a reader acknowledge an update", async () => {
     const acknowledged: string[] = [];
     const queryClient = new QueryClient({
-      defaultOptions: { queries: { retry: false } },
+      defaultOptions: { queries: { retry: false, gcTime: 0 } },
     });
     await render(
       <QueryClientProvider client={queryClient}>
@@ -68,11 +71,9 @@ describe("team announcements", () => {
     expect(acknowledged).toEqual([announcement.id]);
   });
 
-  it("registers and removes the token in the device field", async () => {
-    const registered: string[] = [];
-    const removed: string[] = [];
+  it("does not expose raw push-token entry in the updates screen", async () => {
     const queryClient = new QueryClient({
-      defaultOptions: { queries: { retry: false } },
+      defaultOptions: { queries: { retry: false, gcTime: 0 } },
     });
     await render(
       <QueryClientProvider client={queryClient}>
@@ -81,26 +82,189 @@ describe("team announcements", () => {
           loadAnnouncements={() => Promise.resolve([])}
           acknowledge={() => Promise.resolve()}
           markRead={() => Promise.resolve()}
-          registerDevice={(token) => {
-            registered.push(token);
-            return Promise.resolve();
+        />
+      </QueryClientProvider>,
+    );
+    expect(await screen.findByText("No announcements.")).toBeTruthy();
+    expect(screen.queryByLabelText("Device token")).toBeNull();
+    expect(
+      screen.queryByRole("button", { name: "Register device" }),
+    ).toBeNull();
+    expect(screen.queryByRole("button", { name: "Remove device" })).toBeNull();
+  });
+
+  it("fails closed when team context cannot be loaded", async () => {
+    const queryClient = new QueryClient({
+      defaultOptions: { queries: { retry: false, gcTime: 0 } },
+    });
+    await render(
+      <QueryClientProvider client={queryClient}>
+        <TeamAnnouncementsScreen
+          loadContext={() => Promise.reject(new Error("provider response"))}
+          loadAnnouncements={() => Promise.reject(new Error("must not load"))}
+          acknowledge={() => Promise.resolve()}
+          markRead={() => Promise.resolve()}
+        />
+      </QueryClientProvider>,
+    );
+
+    expect(
+      await screen.findByText(announcementMessages.readFailed),
+    ).toBeTruthy();
+    expect(screen.queryByText("provider response")).toBeNull();
+  });
+
+  it("shows a safe forbidden state when there is no active club team", async () => {
+    const queryClient = new QueryClient({
+      defaultOptions: { queries: { retry: false, gcTime: 0 } },
+    });
+    await render(
+      <QueryClientProvider client={queryClient}>
+        <TeamAnnouncementsScreen
+          loadContext={() =>
+            Promise.resolve({
+              ...context,
+              club: null,
+              activeTeam: null,
+              availableTeams: [],
+            })
+          }
+          loadAnnouncements={() => Promise.reject(new Error("must not load"))}
+          acknowledge={() => Promise.resolve()}
+          markRead={() => Promise.resolve()}
+        />
+      </QueryClientProvider>,
+    );
+
+    expect(
+      await screen.findByText(announcementMessages.forbidden),
+    ).toBeTruthy();
+  });
+
+  it("shows a safe read error when team announcements are unavailable", async () => {
+    const queryClient = new QueryClient({
+      defaultOptions: { queries: { retry: false, gcTime: 0 } },
+    });
+    await render(
+      <QueryClientProvider client={queryClient}>
+        <TeamAnnouncementsScreen
+          loadContext={() => Promise.resolve(context)}
+          loadAnnouncements={() =>
+            Promise.reject(
+              new ApplicationError(
+                "UPSTREAM_UNAVAILABLE",
+                announcementMessages.readFailed,
+              ),
+            )
+          }
+          acknowledge={() => Promise.resolve()}
+          markRead={() => Promise.resolve()}
+        />
+      </QueryClientProvider>,
+    );
+
+    expect(
+      await screen.findByText(announcementMessages.readFailed),
+    ).toBeTruthy();
+  });
+
+  it("allows a failed announcements read to be retried", async () => {
+    let attempts = 0;
+    const queryClient = new QueryClient({
+      defaultOptions: { queries: { retry: false, gcTime: 0 } },
+    });
+    await render(
+      <QueryClientProvider client={queryClient}>
+        <TeamAnnouncementsScreen
+          loadContext={() => Promise.resolve(context)}
+          loadAnnouncements={() => {
+            attempts += 1;
+            return attempts === 1
+              ? Promise.reject(new Error("temporary transport failure"))
+              : Promise.resolve([]);
           }}
-          removeDevice={(token) => {
-            removed.push(token);
+          acknowledge={() => Promise.resolve()}
+          markRead={() => Promise.resolve()}
+        />
+      </QueryClientProvider>,
+    );
+
+    expect(
+      await screen.findByText(announcementMessages.readFailed),
+    ).toBeTruthy();
+    await userEvent.press(screen.getByRole("button", { name: "Try again" }));
+    expect(await screen.findByText("No announcements.")).toBeTruthy();
+    expect(attempts).toBe(2);
+  });
+
+  it("surfaces safe mark-read and acknowledgement failures", async () => {
+    const queryClient = new QueryClient({
+      defaultOptions: { queries: { retry: false, gcTime: 0 } },
+    });
+    await render(
+      <QueryClientProvider client={queryClient}>
+        <TeamAnnouncementsScreen
+          loadContext={() => Promise.resolve(context)}
+          loadAnnouncements={() => Promise.resolve([announcement])}
+          acknowledge={() =>
+            Promise.reject(new Error("secret guardian contact detail"))
+          }
+          markRead={() =>
+            Promise.reject(
+              new ApplicationError("FORBIDDEN", "Cannot mark read"),
+            )
+          }
+        />
+      </QueryClientProvider>,
+    );
+    const user = userEvent.setup();
+
+    const markReadButton = await screen.findByRole("button", {
+      name: "Mark read Bring water",
+    });
+    expect(markReadButton.props.style).toMatchObject({
+      minHeight: 44,
+      minWidth: 44,
+    });
+    await user.press(markReadButton);
+    expect(await screen.findByRole("alert")).toBeTruthy();
+    expect(await screen.findByText("Cannot mark read")).toBeTruthy();
+
+    await user.press(
+      await screen.findByRole("button", { name: "Acknowledge Bring water" }),
+    );
+    expect(await screen.findByRole("alert")).toBeTruthy();
+    expect(
+      await screen.findByText(announcementMessages.readFailed),
+    ).toBeTruthy();
+    expect(screen.queryByText("secret guardian contact detail")).toBeNull();
+  });
+
+  it("marks an announcement as read and refreshes the list", async () => {
+    const markedRead: string[] = [];
+    const queryClient = new QueryClient({
+      defaultOptions: { queries: { retry: false, gcTime: 0 } },
+    });
+    await render(
+      <QueryClientProvider client={queryClient}>
+        <TeamAnnouncementsScreen
+          loadContext={() => Promise.resolve(context)}
+          loadAnnouncements={() => Promise.resolve([announcement])}
+          acknowledge={() => Promise.resolve()}
+          markRead={(item) => {
+            markedRead.push(item.id);
             return Promise.resolve();
           }}
         />
       </QueryClientProvider>,
     );
     const user = userEvent.setup();
-    expect(await screen.findByText("No announcements.")).toBeTruthy();
-    await user.type(
-      screen.getByLabelText("Device token"),
-      "ExponentPushToken[phone]",
+
+    await user.press(
+      await screen.findByRole("button", { name: "Mark read Bring water" }),
     );
-    await user.press(screen.getByRole("button", { name: "Register device" }));
-    await user.press(screen.getByRole("button", { name: "Remove device" }));
-    expect(registered).toEqual(["ExponentPushToken[phone]"]);
-    expect(removed).toEqual(["ExponentPushToken[phone]"]);
+
+    expect(markedRead).toEqual([announcement.id]);
+    expect(await screen.findByText("Bring water")).toBeTruthy();
   });
 });

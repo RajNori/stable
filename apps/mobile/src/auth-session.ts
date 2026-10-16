@@ -206,6 +206,10 @@ export function createLiveMobileAuthSessionGateway(): AuthSessionGateway {
   );
 }
 
+export async function clearLiveMobileAuthSessionStorage(): Promise<void> {
+  await createLiveMobileAuthSessionGateway().clearLocal();
+}
+
 async function settle(
   gateway: AuthSessionGateway,
   now: number | undefined,
@@ -246,10 +250,15 @@ export async function restoreLiveMobileAuthSession(): Promise<AuthSessionSnapsho
   return decision.snapshot;
 }
 
-export async function signOutLiveMobileAuthSession(): Promise<AuthSessionSnapshot> {
+export async function signOutLiveMobileAuthSession(
+  beforeSignOut?: (userId: string) => Promise<void>,
+): Promise<AuthSessionSnapshot> {
   const client = getMobileSupabaseClient();
   const { data } = await client.auth.getSession();
   const userId = data.session?.user.id;
+  if (userId !== undefined) {
+    await beforeSignOut?.(userId);
+  }
   const decision = await signOutAuthSession(
     createLiveMobileAuthSessionGateway(),
     "local",

@@ -15,6 +15,8 @@ import {
   readOfflineContextPointer,
   readOfflineGameDay,
   removeObsoleteOfflineGameDay,
+  replaceOfflineContextPointer,
+  saveOfflineContextPointer,
 } from "./offline-context";
 
 const userId = "19191919-1919-4919-8919-191919191919";
@@ -157,6 +159,29 @@ describe("offline game day locator", () => {
     expect(await readOfflineContextPointer(inner, userId)).toBeNull();
   });
 
+  it("clears the old cold-launch pointer before attempting a team switch write", async () => {
+    const inner = memoryGameDaySnapshotStore();
+    await persistOfflineGameDay(inner, snapshotFor(userId, teamId));
+    const failedNewPointerStore: GameDaySnapshotStore = {
+      getItem: (key) => inner.getItem(key),
+      removeItem: (key) => inner.removeItem(key),
+      setItem: (key, value) =>
+        key.startsWith("stable.offline-context.")
+          ? Promise.reject(new Error("secure storage unavailable"))
+          : inner.setItem(key, value),
+    };
+
+    await expect(
+      replaceOfflineContextPointer(failedNewPointerStore, {
+        version: 1,
+        userId,
+        teamId: otherTeamId,
+      }),
+    ).rejects.toThrow("secure storage unavailable");
+    expect(await readOfflineContextPointer(inner, userId)).toBeNull();
+    expect(await readOfflineGameDay(inner, userId)).toBeNull();
+  });
+
   it("fails closed when the pointer has no snapshot", async () => {
     const store = memoryGameDaySnapshotStore();
     await store.setItem(
@@ -192,6 +217,41 @@ describe("offline game day locator", () => {
     );
     expect(await readOfflineGameDay(store, userId)).toBeNull();
     expect(await readGameDaySnapshot(store, userId, teamId)).not.toBeNull();
+  });
+
+  it("fails closed when the locator is missing, corrupt, or names another user", async () => {
+    const store = memoryGameDaySnapshotStore();
+    expect(await readOfflineGameDay(store, userId)).toBeNull();
+
+    const key = `stable.offline-context.v1.${userId}`;
+    await store.setItem(key, "{not-json");
+    expect(await readOfflineContextPointer(store, userId)).toBeNull();
+    expect(await readOfflineGameDay(store, userId)).toBeNull();
+
+    await store.setItem(
+      key,
+      JSON.stringify({ version: 1, userId: otherUserId, teamId }),
+    );
+    expect(await readOfflineContextPointer(store, userId)).toBeNull();
+    expect(await readOfflineGameDay(store, userId)).toBeNull();
+  });
+
+  it("fails closed when a valid locator points at a corrupt or wrong-team snapshot", async () => {
+    const store = memoryGameDaySnapshotStore();
+    await persistOfflineGameDay(store, snapshotFor(userId, teamId));
+    const snapshotKey = `stable.game-day.v1.${userId}.${teamId}`;
+
+    await store.setItem(snapshotKey, "{not-json");
+    expect(await readOfflineGameDay(store, userId)).toBeNull();
+
+    await store.setItem(
+      snapshotKey,
+      JSON.stringify({
+        ...snapshotFor(userId, teamId),
+        teamId: otherTeamId,
+      }),
+    );
+    expect(await readOfflineGameDay(store, userId)).toBeNull();
   });
 
   it("does not read another user's snapshot", async () => {
@@ -259,6 +319,33 @@ describe("offline game day locator", () => {
     });
   });
 
+  it("prunes revoked non-selected team snapshots while retaining selected context", async () => {
+    const store = memoryGameDaySnapshotStore();
+    await persistOfflineGameDay(store, snapshotFor(userId, teamId));
+    await persistOfflineGameDay(store, snapshotFor(userId, otherTeamId));
+    await saveOfflineContextPointer(store, {
+      version: 1,
+      userId,
+      teamId,
+    });
+    await removeObsoleteOfflineGameDay(
+      store,
+      userId,
+      contextFor([{ id: teamId, name: "U14 Boys" }], {
+        id: teamId,
+        name: "U14 Boys",
+      }),
+    );
+
+    expect(await readOfflineContextPointer(store, userId)).toEqual({
+      version: 1,
+      userId,
+      teamId,
+    });
+    expect(await readGameDaySnapshot(store, userId, teamId)).not.toBeNull();
+    expect(await readGameDaySnapshot(store, userId, otherTeamId)).toBeNull();
+  });
+
   it("does not treat a transport failure as lost access", () => {
     expect(isOfflineAuthorizationFailure(new Error("offline"))).toBe(false);
     expect(
@@ -269,6 +356,16 @@ describe("offline game day locator", () => {
     expect(
       isOfflineAuthorizationFailure(
         new ApplicationError("FORBIDDEN", "This game day is not available."),
+      ),
+    ).toBe(true);
+    expect(
+      isOfflineAuthorizationFailure(
+        new ApplicationError("UNAUTHENTICATED", "Sign in is required."),
+      ),
+    ).toBe(true);
+    expect(
+      isOfflineAuthorizationFailure(
+        new ApplicationError("NOT_FOUND", "This game day is not available."),
       ),
     ).toBe(true);
   });

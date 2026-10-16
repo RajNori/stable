@@ -12,6 +12,7 @@ export {
 } from "./application/training-commands.js";
 export type {
   TrainingAccess,
+  TrainingEditMetadata,
   TrainingFollowingEdit,
   TrainingOccurrenceEdit,
   TrainingSeries,

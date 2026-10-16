@@ -8,6 +8,8 @@ import {
   waitFor,
 } from "@testing-library/react-native";
 import React from "react";
+import { AccessibilityInfo } from "react-native";
+import type { Text } from "react-native";
 
 import { AuthScreen, type AuthActions } from "./auth-screen";
 import {
@@ -15,6 +17,39 @@ import {
   visibleAuthProviders,
   type AuthProviderSettings,
 } from "./provider-visibility";
+
+type AccessibilitySpy = {
+  mockImplementation: (
+    implementation: (message: string) => void,
+  ) => AccessibilitySpy;
+  mockRestore: () => void;
+};
+type FocusSpy = {
+  mockImplementation: (implementation: (tag: number) => void) => FocusSpy;
+  mockRestore: () => void;
+  mock: { calls: number[][] };
+};
+type ScreenReaderSpy = {
+  mockImplementation: (
+    implementation: () => Promise<boolean>,
+  ) => ScreenReaderSpy;
+  mockRestore: () => void;
+  mock: { calls: unknown[][] };
+};
+declare const jest: {
+  spyOn(
+    object: typeof AccessibilityInfo,
+    method: "announceForAccessibility",
+  ): AccessibilitySpy;
+  spyOn(
+    object: typeof AccessibilityInfo,
+    method: "setAccessibilityFocus",
+  ): FocusSpy;
+  spyOn(
+    object: typeof AccessibilityInfo,
+    method: "isScreenReaderEnabled",
+  ): ScreenReaderSpy;
+};
 
 const unauthenticated = {
   state: "unauthenticated",
@@ -146,8 +181,191 @@ describe("mobile auth screen", () => {
       screen.getByLabelText("Email address"),
       "adult@example.com",
     );
-    await userEvent.press(screen.getByLabelText("Send code"));
-    expect(screen.getByRole("header", { name: "Enter the code" })).toBeTruthy();
+    await userEvent.press(screen.getByLabelText("Send sign-in link"));
+    expect(
+      screen.getByRole("header", { name: "Check your email" }),
+    ).toBeTruthy();
+  });
+
+  it("announces each auth step when advancing and returning", async () => {
+    const announced: string[] = [];
+    const announce = jest
+      .spyOn(AccessibilityInfo, "announceForAccessibility")
+      .mockImplementation((message) => {
+        announced.push(message);
+      });
+    const actions = idleActions();
+    const { rerender } = await render(
+      <AuthScreen
+        session={unauthenticated}
+        actions={actions}
+        resendCooldownSeconds={0}
+      />,
+    );
+
+    await userEvent.press(screen.getByLabelText("Continue with mobile"));
+    expect(announced.at(-1)).toBe("Your mobile");
+    fireEvent.changeText(screen.getByLabelText("Mobile number"), "0412345678");
+    await userEvent.press(screen.getByLabelText("Continue"));
+    await screen.findByLabelText("6-digit code");
+    expect(announced.at(-1)).toBe("Enter the code. Sent to 0412 345 678");
+
+    await userEvent.press(screen.getByLabelText("Change mobile number"));
+    expect(announced.at(-1)).toBe("Your mobile");
+    await userEvent.press(screen.getByLabelText("Back"));
+    expect(announced.at(-1)).toBe("Know what's next. Show up ready.");
+
+    await userEvent.press(screen.getByLabelText("Continue with email"));
+    expect(announced.at(-1)).toBe("Your email");
+    fireEvent.changeText(
+      screen.getByLabelText("Email address"),
+      "adult@example.com",
+    );
+    await userEvent.press(screen.getByLabelText("Send sign-in link"));
+    await screen.findByLabelText("Resend link");
+    expect(announced.at(-1)).toBe("Sign-in link sent to adult@example.com");
+    await userEvent.press(screen.getByLabelText("Change email"));
+    expect(announced.at(-1)).toBe("Your email");
+
+    await rerender(
+      <AuthScreen
+        session={{
+          state: "recovery",
+          errorCode: "UPSTREAM_UNAVAILABLE",
+          message: AUTH_ERROR_MESSAGES.UPSTREAM_UNAVAILABLE,
+        }}
+        actions={actions}
+      />,
+    );
+    await waitFor(() => {
+      expect(announced.at(-1)).toBe(
+        `Sign-in is paused. ${AUTH_ERROR_MESSAGES.UPSTREAM_UNAVAILABLE}`,
+      );
+    });
+    announce.mockRestore();
+  });
+
+  it("moves screen-reader focus to each newly mounted auth heading", async () => {
+    const focusedTargets: number[] = [];
+    const resolvedHeadings: Array<Text | null> = [];
+    let nextTarget = 0;
+    const announce = jest
+      .spyOn(AccessibilityInfo, "announceForAccessibility")
+      .mockImplementation(() => undefined);
+    const screenReader = jest
+      .spyOn(AccessibilityInfo, "isScreenReaderEnabled")
+      .mockImplementation(async () => true);
+    const focus = jest
+      .spyOn(AccessibilityInfo, "setAccessibilityFocus")
+      .mockImplementation((target) => {
+        focusedTargets.push(target);
+      });
+    const accessibilityFocusTarget = (heading: Text | null): number => {
+      resolvedHeadings.push(heading);
+      nextTarget += 1;
+      return nextTarget;
+    };
+    const actions = idleActions();
+    const { rerender } = await render(
+      <AuthScreen
+        session={unauthenticated}
+        actions={actions}
+        accessibilityFocusTarget={accessibilityFocusTarget}
+        resendCooldownSeconds={0}
+      />,
+    );
+
+    let lastTarget = 0;
+    let lastHeading: Text | null | undefined;
+    let lastScreenReaderCheck = 0;
+    const expectHeadingFocus = async (name: string): Promise<void> => {
+      expect(screen.getByRole("header", { name })).toBeTruthy();
+      await waitFor(() => {
+        expect(screenReader.mock.calls.length).toBeGreaterThan(
+          lastScreenReaderCheck,
+        );
+      });
+      lastScreenReaderCheck = screenReader.mock.calls.length;
+      await waitFor(() => {
+        expect(focusedTargets.at(-1)).toBeGreaterThan(lastTarget);
+      });
+      lastTarget = focusedTargets.at(-1) ?? lastTarget;
+      expect(lastTarget).toBe(nextTarget);
+      const heading = resolvedHeadings.at(-1);
+      expect(heading).toBeDefined();
+      if (lastHeading !== undefined) {
+        expect(heading).not.toBe(lastHeading);
+      }
+      lastHeading = heading;
+    };
+
+    await expectHeadingFocus("Know what's next. Show up ready.");
+    await userEvent.press(screen.getByLabelText("Continue with mobile"));
+    await expectHeadingFocus("Your mobile");
+    fireEvent.changeText(screen.getByLabelText("Mobile number"), "0412345678");
+    await userEvent.press(screen.getByLabelText("Continue"));
+    await screen.findByLabelText("6-digit code");
+    await expectHeadingFocus("Enter the code");
+    await userEvent.press(screen.getByLabelText("Change mobile number"));
+    await expectHeadingFocus("Your mobile");
+    await userEvent.press(screen.getByLabelText("Back"));
+    await expectHeadingFocus("Know what's next. Show up ready.");
+
+    await userEvent.press(screen.getByLabelText("Continue with email"));
+    await expectHeadingFocus("Your email");
+    fireEvent.changeText(
+      screen.getByLabelText("Email address"),
+      "adult@example.com",
+    );
+    await userEvent.press(screen.getByLabelText("Send sign-in link"));
+    await screen.findByLabelText("Resend link");
+    await expectHeadingFocus("Check your email");
+    await userEvent.press(screen.getByLabelText("Change email"));
+    await expectHeadingFocus("Your email");
+
+    await rerender(
+      <AuthScreen
+        session={{
+          state: "recovery",
+          errorCode: "UPSTREAM_UNAVAILABLE",
+          message: AUTH_ERROR_MESSAGES.UPSTREAM_UNAVAILABLE,
+        }}
+        actions={actions}
+        accessibilityFocusTarget={accessibilityFocusTarget}
+      />,
+    );
+    await expectHeadingFocus("Sign-in is paused");
+    expect(focusedTargets.length).toBeGreaterThanOrEqual(9);
+    focus.mockRestore();
+    screenReader.mockRestore();
+    announce.mockRestore();
+  });
+
+  it("does not move accessibility focus when a screen reader is off", async () => {
+    const focus = jest
+      .spyOn(AccessibilityInfo, "setAccessibilityFocus")
+      .mockImplementation(() => undefined);
+    const screenReader = jest
+      .spyOn(AccessibilityInfo, "isScreenReaderEnabled")
+      .mockImplementation(async () => false);
+    const announce = jest
+      .spyOn(AccessibilityInfo, "announceForAccessibility")
+      .mockImplementation(() => undefined);
+    await render(
+      <AuthScreen
+        session={unauthenticated}
+        actions={idleActions()}
+        resendCooldownSeconds={0}
+      />,
+    );
+    await userEvent.press(screen.getByLabelText("Continue with email"));
+    await waitFor(() => {
+      expect(screenReader.mock.calls.length).toBeGreaterThanOrEqual(2);
+    });
+    expect(focus.mock.calls.length).toBe(0);
+    focus.mockRestore();
+    screenReader.mockRestore();
+    announce.mockRestore();
   });
 
   it("formats a mobile number and requests a code", async () => {
@@ -262,7 +480,7 @@ describe("mobile auth screen", () => {
     expect(screen.queryByText(/\+614/)).toBeNull();
   });
 
-  it("accepts an email and verifies the code", async () => {
+  it("sends an email magic link for the mobile callback", async () => {
     const emails: string[] = [];
     await render(
       <AuthScreen
@@ -270,9 +488,6 @@ describe("mobile auth screen", () => {
         actions={idleActions({
           async requestEmail(email) {
             emails.push(email);
-          },
-          async verifyEmail(email, token) {
-            emails.push(`${email}:${token}`);
           },
         })}
       />,
@@ -283,15 +498,56 @@ describe("mobile auth screen", () => {
       screen.getByLabelText("Email address"),
       "  adult@example.com",
     );
-    await userEvent.press(screen.getByLabelText("Send code"));
-    fireEvent.changeText(
-      await screen.findByLabelText("6-digit code"),
-      "123456",
-    );
-    await userEvent.press(screen.getByLabelText("Continue"));
+    await userEvent.press(screen.getByLabelText("Send sign-in link"));
 
-    expect(await screen.findByText("Sent to adult@example.com")).toBeTruthy();
-    expect(emails).toEqual(["adult@example.com", "adult@example.com:123456"]);
+    expect(
+      await screen.findByText(
+        "We sent a sign-in link to adult@example.com. Open it on this device to continue.",
+      ),
+    ).toBeTruthy();
+    expect(screen.queryByLabelText("6-digit code")).toBeNull();
+    expect(emails).toEqual(["adult@example.com"]);
+  });
+
+  it("allows a sent magic link to be resent or its email changed", async () => {
+    const requests: string[] = [];
+    await render(
+      <AuthScreen
+        session={unauthenticated}
+        resendCooldownSeconds={0}
+        actions={idleActions({
+          async requestEmail(email) {
+            requests.push(email);
+          },
+        })}
+      />,
+    );
+
+    await userEvent.press(screen.getByLabelText("Continue with email"));
+    fireEvent.changeText(
+      screen.getByLabelText("Email address"),
+      "adult@example.com",
+    );
+    await userEvent.press(screen.getByLabelText("Send sign-in link"));
+    await screen.findByLabelText("Resend link");
+    await userEvent.press(screen.getByLabelText("Change email"));
+    expect(screen.getByLabelText("Email address")).toBeTruthy();
+    await userEvent.press(screen.getByLabelText("Back"));
+    expect(screen.getByLabelText("Continue with email")).toBeTruthy();
+
+    await userEvent.press(screen.getByLabelText("Continue with email"));
+    fireEvent.changeText(
+      screen.getByLabelText("Email address"),
+      "adult@example.com",
+    );
+    await userEvent.press(screen.getByLabelText("Send sign-in link"));
+    await screen.findByLabelText("Resend link");
+    await userEvent.press(screen.getByLabelText("Resend link"));
+    expect(requests).toEqual([
+      "adult@example.com",
+      "adult@example.com",
+      "adult@example.com",
+    ]);
   });
 
   it("shows a catalog sentence for an invalid email", async () => {
@@ -314,7 +570,7 @@ describe("mobile auth screen", () => {
       screen.getByLabelText("Email address"),
       "not-an-email",
     );
-    await userEvent.press(screen.getByLabelText("Send code"));
+    await userEvent.press(screen.getByLabelText("Send sign-in link"));
 
     expect(
       await screen.findByText(AUTH_ERROR_MESSAGES.VALIDATION_FAILED),
@@ -425,9 +681,6 @@ function idleActions(overrides: Partial<AuthActions> = {}): AuthActions {
       return undefined;
     },
     async requestEmail() {
-      return undefined;
-    },
-    async verifyEmail() {
       return undefined;
     },
     async retry() {

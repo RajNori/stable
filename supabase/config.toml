@@ -402,6 +402,14 @@ inspector_port = 8083
 # The Deno major version to use.
 deno_version = 2
 
+# These operator endpoints use a private shared dispatch key in addition to
+# Supabase's service-role runtime credential. They are never called by clients.
+[functions.dispatch-notifications]
+verify_jwt = false
+
+[functions.collect-notification-receipts]
+verify_jwt = false
+
 # [edge_runtime.secrets]
 # secret_key = "env(SECRET_VALUE)"
 

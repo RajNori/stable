@@ -2,11 +2,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import type { ClubContextReader } from "@stable/contracts";
 import { createSupabaseClubContextReader } from "@stable/current-club-context";
 
-/**
- * Typed Supabase adapter for club context.
- * The domain workstream owns this export. This file stays on the web branch
- * so the import is ready when that export lands.
- */
+/** Typed web boundary for the domain-owned Supabase club-context reader. */
 export function createClubContextReader(
   client: SupabaseClient,
 ): ClubContextReader {

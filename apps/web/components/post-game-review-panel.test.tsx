@@ -25,6 +25,7 @@ describe("post-game review panel", () => {
   it("shows separate review fields, typed focus and explicit completion action", () => {
     render(
       <PostGameReviewPanel
+        timezone="Australia/Melbourne"
         review={review}
         players={[player]}
         privateNotes={new Map()}
@@ -61,6 +62,7 @@ describe("post-game review panel", () => {
   it("renders private-note affordance only for an active team coach", () => {
     const { rerender } = render(
       <PostGameReviewPanel
+        timezone="Australia/Melbourne"
         review={review}
         players={[player]}
         privateNotes={new Map([[player.playerId, "confidence"]])}
@@ -81,6 +83,7 @@ describe("post-game review panel", () => {
     ).toBe("confidence");
     rerender(
       <PostGameReviewPanel
+        timezone="Australia/Melbourne"
         review={review}
         players={[player]}
         privateNotes={new Map()}
@@ -103,6 +106,7 @@ describe("post-game review panel", () => {
   it("does not expose a public leaderboard or manager mutation surface", () => {
     render(
       <PostGameReviewPanel
+        timezone="Australia/Melbourne"
         review={review}
         players={[player]}
         privateNotes={new Map()}
@@ -130,6 +134,7 @@ describe("post-game review panel", () => {
     };
     render(
       <PostGameReviewPanel
+        timezone="Australia/Melbourne"
         review={review}
         players={[player, unlinked]}
         privateNotes={new Map()}
@@ -144,6 +149,77 @@ describe("post-game review panel", () => {
     expect(screen.getByRole("option", { name: "Taylor S." })).toBeTruthy();
     expect(
       screen.getByRole("textbox", { name: "Taylor S. private coaching note" }),
+    ).toBeTruthy();
+  });
+
+  it("renders a completed review and historical recognition without edit controls", () => {
+    render(
+      <PostGameReviewPanel
+        timezone="Australia/Melbourne"
+        review={{
+          ...review,
+          completedAt: "2026-10-07T00:00:00.000Z",
+          recognitions: [
+            {
+              playerId: "77777777-7777-4777-8777-777777777777",
+              category: "HUSTLE",
+              note: null,
+            },
+          ],
+        }}
+        players={[player]}
+        privateNotes={new Map()}
+        canWrite={false}
+        canWritePrivateNotes={false}
+        saveReviewAction={noop}
+        saveRecognitionAction={noop}
+        removeRecognitionAction={noop}
+        savePrivateNoteAction={noop}
+      />,
+    );
+
+    expect(
+      screen.getByText("Completed Wednesday 7 October at 11:00 am"),
+    ).toBeTruthy();
+    expect(screen.getByText("Player: Hustle")).toBeTruthy();
+    expect(screen.queryByRole("button", { name: /Remove/ })).toBeNull();
+    expect(
+      screen.getByText(
+        "Private notes are available to active coaches for this team.",
+      ),
+    ).toBeTruthy();
+  });
+
+  it("shows a recognized player's optional staff note and coach removal action", () => {
+    render(
+      <PostGameReviewPanel
+        timezone="Australia/Melbourne"
+        review={{
+          ...review,
+          recognitions: [
+            {
+              playerId: player.playerId,
+              category: "TEAMWORK",
+              note: "Helped every teammate.",
+            },
+          ],
+        }}
+        players={[player]}
+        privateNotes={new Map()}
+        canWrite
+        canWritePrivateNotes={false}
+        saveReviewAction={noop}
+        saveRecognitionAction={noop}
+        removeRecognitionAction={noop}
+        savePrivateNoteAction={noop}
+      />,
+    );
+
+    expect(
+      screen.getByText("Jordan R.: Teamwork — Helped every teammate."),
+    ).toBeTruthy();
+    expect(
+      screen.getByRole("button", { name: "Remove Teamwork recognition" }),
     ).toBeTruthy();
   });
 });

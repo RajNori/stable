@@ -12,7 +12,11 @@ import {
   listTeamSchedule,
   scheduleMessages,
 } from "@stable/schedule";
-import { trainingMessages } from "@stable/training";
+import {
+  createSupabaseTrainingGateway,
+  trainingMessages,
+  type TrainingEditMetadata,
+} from "@stable/training";
 
 import { ClubAdminShell } from "../../../../components/club-admin-shell";
 import { TrainingPanel } from "../../../../components/training-panel";
@@ -20,10 +24,11 @@ import { PracticePlannerPanel } from "../../../../components/practice-planner-pa
 import { fixtureAccessFrom } from "../../../../lib/fixture-access";
 import { loadLiveClubContext } from "../../../../lib/load-live-club-context";
 import { principalFromSupabase } from "../../../../lib/principal";
-import { createRuntimeClubContextReader } from "../../../../lib/runtime-club-context-reader";
+import { createClubContextReader } from "../../../../lib/reader";
 import { createSupabaseServerClient } from "../../../../lib/supabase/server";
 import {
   checkInTrainingAction,
+  editTrainingAction,
   createTrainingSeriesAction,
   createTrainingSessionAction,
   savePracticePlanAction,
@@ -55,7 +60,7 @@ export default async function TrainingPage({
 
   const supabase = await createSupabaseServerClient();
   const principal = await principalFromSupabase(supabase);
-  const reader = await createRuntimeClubContextReader(supabase);
+  const reader = await createClubContextReader(supabase);
   const context = await getCurrentClubContext({ principal, reader });
   const club = context.club;
   if (club === null || principal === null) {
@@ -98,7 +103,13 @@ export default async function TrainingPage({
       capability: "practice_plan.manage",
     }) === "allow";
   const range = agendaRange(new Date());
-  let sessions: { eventId: string; startsAt: string }[] = [];
+  let sessions: {
+    eventId: string;
+    startsAt: string;
+    endsAt: string | null;
+    courtLabel: string | null;
+    editMetadata: TrainingEditMetadata | null;
+  }[] = [];
   let error =
     requestedError !== undefined && visibleErrors.has(requestedError)
       ? requestedError
@@ -131,9 +142,28 @@ export default async function TrainingPage({
       eventType: "TRAINING",
       reader: createSupabaseScheduleGateway(supabase),
     });
+    let metadata: TrainingEditMetadata[] = [];
+    if (canManage) {
+      try {
+        metadata = await createSupabaseTrainingGateway(
+          supabase,
+        ).listTrainingEditMetadata(
+          team.id,
+          agenda.map((entry) => entry.eventId),
+        );
+      } catch {
+        error = trainingMessages.readFailed;
+      }
+    }
+    const metadataByEvent = new Map(
+      metadata.map((item) => [item.eventId, item]),
+    );
     sessions = agenda.map((entry) => ({
       eventId: entry.eventId,
       startsAt: entry.startsAt,
+      endsAt: entry.endsAt,
+      courtLabel: entry.courtLabel,
+      editMetadata: metadataByEvent.get(entry.eventId) ?? null,
     }));
   } catch (caught: unknown) {
     error =
@@ -155,10 +185,12 @@ export default async function TrainingPage({
         createSession={createTrainingSessionAction}
         createSeries={createTrainingSeriesAction}
         checkIn={checkInTrainingAction}
+        editTraining={editTrainingAction}
       />
       <PracticePlannerPanel
         clubId={club.id}
         teamId={team.id}
+        timezone={club.timezone}
         trainings={plannerData.trainings}
         templates={plannerData.templates}
         focusOptions={plannerData.focusOptions}

@@ -8,12 +8,21 @@ import {
   createSupabaseClubStructureGateway,
 } from "@stable/club-structure";
 
-import { createSeasonAndTeamAction } from "./actions";
+import {
+  createCompetitionAction,
+  createSeasonAndTeamAction,
+  createTeamAction,
+  createVenueAction,
+  updateCompetitionAction,
+  updateSeasonAction,
+  updateTeamAction,
+  updateVenueAction,
+} from "./actions";
 import { ClubAdminShell } from "../../components/club-admin-shell";
 import { ClubStructurePanel } from "../../components/club-structure-panel";
 import { loadLiveClubContext } from "../../lib/load-live-club-context";
 import { principalFromSupabase } from "../../lib/principal";
-import { createRuntimeClubContextReader } from "../../lib/runtime-club-context-reader";
+import { createClubContextReader } from "../../lib/reader";
 import { createSupabaseServerClient } from "../../lib/supabase/server";
 
 export const dynamic = "force-dynamic";
@@ -42,7 +51,7 @@ export default async function ClubStructurePage({
   try {
     const supabase = await createSupabaseServerClient();
     const principal = await principalFromSupabase(supabase);
-    const reader = await createRuntimeClubContextReader(supabase);
+    const reader = await createClubContextReader(supabase);
     const context = await getCurrentClubContext({ principal, reader });
     if (context.club === null) {
       return <ClubAdminShell presentation={presentation} />;
@@ -55,8 +64,16 @@ export default async function ClubStructurePage({
       <ClubAdminShell presentation={presentation}>
         <ClubStructurePanel
           clubId={context.club.id}
+          canManage={presentation.capabilities.includes("club.manage")}
           snapshot={snapshot}
           action={createSeasonAndTeamAction}
+          createCompetitionAction={createCompetitionAction}
+          createTeamAction={createTeamAction}
+          createVenueAction={createVenueAction}
+          updateSeasonAction={updateSeasonAction}
+          updateCompetitionAction={updateCompetitionAction}
+          updateTeamAction={updateTeamAction}
+          updateVenueAction={updateVenueAction}
           error={error}
         />
       </ClubAdminShell>
@@ -70,8 +87,16 @@ export default async function ClubStructurePage({
       <ClubAdminShell presentation={presentation}>
         <ClubStructurePanel
           clubId={null}
+          canManage={false}
           snapshot={EMPTY_SNAPSHOT}
           action={createSeasonAndTeamAction}
+          createCompetitionAction={createCompetitionAction}
+          createTeamAction={createTeamAction}
+          createVenueAction={createVenueAction}
+          updateSeasonAction={updateSeasonAction}
+          updateCompetitionAction={updateCompetitionAction}
+          updateTeamAction={updateTeamAction}
+          updateVenueAction={updateVenueAction}
           error={message}
         />
       </ClubAdminShell>

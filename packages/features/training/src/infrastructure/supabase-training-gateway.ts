@@ -3,6 +3,7 @@ import type { PostgrestError } from "@supabase/supabase-js";
 import { z } from "zod";
 
 import type {
+  TrainingEditMetadata,
   TrainingFollowingEdit,
   TrainingOccurrenceEdit,
   TrainingSeries,
@@ -21,6 +22,37 @@ type TrainingClient = {
 const OPERATION_CODE =
   /^(?:[0-9A-Z]{5}:\s*)?(UNAUTHENTICATED|FORBIDDEN|NOT_FOUND|VALIDATION_FAILED|CONFLICT)$/;
 
+const editMetadataRowSchema = z
+  .strictObject({
+    event_id: z.string().uuid(),
+    recurrence_series_id: z.string().uuid().nullable(),
+    weekday: z.number().int().min(1).max(7).nullable(),
+    local_time: z
+      .string()
+      .regex(/^\d{2}:\d{2}(?::\d{2})?$/)
+      .nullable(),
+    timezone: z.string().nullable(),
+    ends_on: z.string().nullable(),
+    lead_coach_user_id: z.string().uuid().nullable(),
+  })
+  .superRefine((row, context) => {
+    const hasSeries = row.recurrence_series_id !== null;
+    const hasSchedule =
+      row.weekday !== null && row.local_time !== null && row.timezone !== null;
+    if (hasSeries !== hasSchedule) {
+      context.addIssue({ code: "custom", message: "series metadata" });
+    }
+  })
+  .transform((row): TrainingEditMetadata => ({
+    eventId: row.event_id,
+    recurrenceSeriesId: row.recurrence_series_id,
+    weekday: row.weekday,
+    localTime: row.local_time?.slice(0, 5) ?? null,
+    timezone: row.timezone,
+    endsOn: row.ends_on,
+    leadCoachUserId: row.lead_coach_user_id,
+  }));
+
 export type TrainingGateway = TrainingWriter;
 
 export function createSupabaseTrainingGateway(
@@ -28,6 +60,29 @@ export function createSupabaseTrainingGateway(
 ): TrainingGateway {
   const db = client as TrainingClient;
   return {
+    listTrainingEditMetadata: async (teamId, eventIds) => {
+      const data = await call(db, "list_team_training_edit_metadata", {
+        p_team_id: teamId,
+        p_event_ids: eventIds,
+      });
+      if (!Array.isArray(data)) {
+        throw new ApplicationError("INTERNAL", trainingMessages.readFailed);
+      }
+      const mapped = data.map((row) => {
+        const parsed = editMetadataRowSchema.safeParse(row);
+        if (!parsed.success) {
+          throw new ApplicationError("INTERNAL", trainingMessages.readFailed);
+        }
+        return parsed.data;
+      });
+      if (
+        mapped.length !== eventIds.length ||
+        new Set(mapped.map((item) => item.eventId)).size !== mapped.length
+      ) {
+        throw new ApplicationError("INTERNAL", trainingMessages.readFailed);
+      }
+      return mapped;
+    },
     createTrainingSession: (command) => createSession(db, command),
     createTrainingSeries: (command) => createSeries(db, command),
     editTrainingOccurrence: (command) => editOccurrence(db, command),

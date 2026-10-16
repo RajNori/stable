@@ -9,11 +9,8 @@ export const LOCAL_SIGN_IN_REDIRECTS = [
   "stable://auth/callback",
 ] as const;
 
-const SIGN_IN_REDIRECTS: Record<AppEnv, readonly string[]> = {
-  local: LOCAL_SIGN_IN_REDIRECTS,
-  staging: [],
-  production: [],
-};
+const LOCAL_WEB_ORIGIN = "http://127.0.0.1:3000";
+const MOBILE_CALLBACK = "stable://auth/callback";
 
 function rejectRedirect(): never {
   throw new ApplicationError(
@@ -25,9 +22,13 @@ function rejectRedirect(): never {
 export function assertAllowedSignInRedirect(
   redirectTo: string,
   appEnv: AppEnv,
+  webOrigin?: string,
 ): string {
-  const allowed = SIGN_IN_REDIRECTS[appEnv];
-  if (!allowed.some((candidate) => candidate === redirectTo)) {
+  if (redirectTo === MOBILE_CALLBACK) {
+    return redirectTo;
+  }
+  const webCallback = webCallbackFor(appEnv, webOrigin);
+  if (redirectTo !== webCallback) {
     rejectRedirect();
   }
 
@@ -58,6 +59,7 @@ export function assertSafeReturnPath(returnTo: string): string {
 export function authCodeFromCallback(
   callbackUrl: string,
   appEnv: AppEnv,
+  webOrigin?: string,
 ): string {
   if (
     callbackUrl.includes("@") ||
@@ -66,10 +68,11 @@ export function authCodeFromCallback(
     rejectRedirect();
   }
 
-  const identity = callbackIdentity(callbackUrl);
+  const identity = callbackIdentity(callbackUrl, appEnv, webOrigin);
   if (
     identity === null ||
-    !SIGN_IN_REDIRECTS[appEnv].some((candidate) => candidate === identity)
+    (identity !== MOBILE_CALLBACK &&
+      identity !== webCallbackFor(appEnv, webOrigin))
   ) {
     rejectRedirect();
   }
@@ -83,29 +86,59 @@ export function authCodeFromCallback(
   return code;
 }
 
-export function callbackTargetFromUrl(callbackUrl: string): string | null {
-  return callbackIdentity(callbackUrl);
+export function callbackTargetFromUrl(
+  callbackUrl: string,
+  appEnv: AppEnv = "local",
+  webOrigin?: string,
+): string | null {
+  return callbackIdentity(callbackUrl, appEnv, webOrigin);
 }
 
-function callbackIdentity(callbackUrl: string): string | null {
-  const web = "http://127.0.0.1:3000/auth/callback";
-  const mobile = "stable://auth/callback";
-  if (callbackUrl.startsWith(`${web}?`) || callbackUrl.startsWith(`${web}#`)) {
-    return web;
+function callbackIdentity(
+  callbackUrl: string,
+  appEnv: AppEnv,
+  webOrigin?: string,
+): string | null {
+  for (const candidate of [MOBILE_CALLBACK]) {
+    if (
+      callbackUrl.startsWith(`${candidate}?`) ||
+      callbackUrl.startsWith(`${candidate}#`) ||
+      callbackUrl.startsWith(`${candidate}/?`) ||
+      callbackUrl.startsWith(`${candidate}/#`)
+    ) {
+      return candidate;
+    }
   }
-  if (
-    callbackUrl.startsWith(`${web}/?`) ||
-    callbackUrl.startsWith(`${web}/#`)
-  ) {
-    return web;
-  }
-  if (
-    callbackUrl.startsWith(`${mobile}?`) ||
-    callbackUrl.startsWith(`${mobile}#`)
-  ) {
-    return mobile;
+  const expectedWebCallback = webCallbackFor(appEnv, webOrigin);
+  for (const candidate of [expectedWebCallback]) {
+    if (
+      callbackUrl.startsWith(`${candidate}?`) ||
+      callbackUrl.startsWith(`${candidate}#`) ||
+      callbackUrl.startsWith(`${candidate}/?`) ||
+      callbackUrl.startsWith(`${candidate}/#`)
+    ) {
+      return candidate;
+    }
   }
   return null;
+}
+
+function webCallbackFor(appEnv: AppEnv, webOrigin?: string): string {
+  const origin = webOrigin ?? (appEnv === "local" ? LOCAL_WEB_ORIGIN : null);
+  if (origin === null) {
+    rejectRedirect();
+  }
+  const isLocal = appEnv === "local" && origin === LOCAL_WEB_ORIGIN;
+  const isHosted =
+    appEnv !== "local" &&
+    /^https:\/\/(?:[a-z0-9](?:[a-z0-9-]*[a-z0-9])?\.)+[a-z]{2,63}$/u.test(
+      origin,
+    ) &&
+    !origin.endsWith(".supabase.co");
+  if (!isLocal && !isHosted) {
+    rejectRedirect();
+  }
+  return `${origin}/auth/callback`;
 }
 
 function readQueryValue(query: string, key: string): string | null {

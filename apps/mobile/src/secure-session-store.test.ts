@@ -55,6 +55,49 @@ describe("chunked session storage", () => {
     expect([...backing.values.values()].join("")).not.toContain(secret);
   });
 
+  it("cleans an invalid write marker before returning an absent value", async () => {
+    const backing = memoryStore();
+    backing.values.set(`${storageKey}.writing`, "{not-json");
+    const storage = createChunkedSessionStorage(backing.store);
+
+    expect(await storage.getItem(storageKey)).toBeNull();
+    expect(backing.values.has(`${storageKey}.writing`)).toBe(false);
+  });
+
+  it("cleans a marker already represented by the committed manifest", async () => {
+    const backing = memoryStore();
+    const storage = createChunkedSessionStorage(backing.store);
+    await storage.setItem(storageKey, "saved-session");
+    const manifest = JSON.parse(backing.values.get(storageKey) ?? "{}") as {
+      generation: string;
+      count: number;
+    };
+    backing.values.set(
+      `${storageKey}.writing`,
+      JSON.stringify({
+        generation: manifest.generation,
+        count: manifest.count,
+      }),
+    );
+
+    expect(await storage.getItem(storageKey)).toBe("saved-session");
+    expect(backing.values.has(`${storageKey}.writing`)).toBe(false);
+  });
+
+  it("stores an empty session as a valid zero-chunk record", async () => {
+    const backing = memoryStore();
+    const storage = createChunkedSessionStorage(backing.store);
+
+    await storage.setItem(storageKey, "");
+
+    expect(await storage.getItem(storageKey)).toBe("");
+    expect(JSON.parse(backing.values.get(storageKey) ?? "{}")).toMatchObject({
+      count: 0,
+      bytes: 0,
+      previousGeneration: null,
+    });
+  });
+
   it("clears a corrupt manifest and a digest mismatch", async () => {
     const backing = memoryStore();
     const storage = createChunkedSessionStorage(backing.store);
@@ -143,6 +186,25 @@ describe("chunked session storage", () => {
     expect(await storage.getItem(storageKey)).toBeNull();
   });
 
+  it("removes both generations when a previous session is still referenced", async () => {
+    const backing = memoryStore();
+    const storage = createChunkedSessionStorage(backing.store);
+    await storage.setItem(storageKey, "older-session");
+    const previous = JSON.parse(backing.values.get(storageKey) ?? "{}") as {
+      generation: string;
+    };
+    await storage.setItem(storageKey, "newer-session");
+    const current = JSON.parse(backing.values.get(storageKey) ?? "{}") as {
+      generation: string;
+      previousGeneration: string;
+    };
+    expect(current.previousGeneration).toBe(previous.generation);
+
+    await storage.removeItem(storageKey);
+
+    expect(backing.values.size).toBe(0);
+  });
+
   it("refuses a payload that exceeds the chunk budget", async () => {
     const backing = memoryStore();
     const storage = createChunkedSessionStorage(backing.store);
@@ -164,6 +226,26 @@ describe("chunked session storage", () => {
     ]);
 
     expect(await storage.getItem(storageKey)).toBe("second");
+  });
+
+  it("round-trips unicode across chunk boundaries and cleans the prior generation", async () => {
+    const backing = memoryStore();
+    const storage = createChunkedSessionStorage(backing.store);
+    const first = "🟠é漢".repeat(700);
+    const second = "🏀ø漢".repeat(740);
+    await storage.setItem(storageKey, first);
+    const firstManifest = JSON.parse(
+      backing.values.get(storageKey) ?? "{}",
+    ) as { generation: string };
+
+    await storage.setItem(storageKey, second);
+    expect(await storage.getItem(storageKey)).toBe(second);
+    expect(
+      [...backing.values.keys()].some((key) =>
+        key.startsWith(`${storageKey}.${firstManifest.generation}.`),
+      ),
+    ).toBe(false);
+    expect(backing.maxBytes).toBeLessThanOrEqual(SESSION_STORE_VALUE_BUDGET);
   });
 });
 

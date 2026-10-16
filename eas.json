@@ -13,14 +13,36 @@
     },
     "preview": {
       "distribution": "internal",
+      "environment": "preview",
       "env": {
         "EXPO_PUBLIC_APP_ENV": "staging",
-        "EXPO_PUBLIC_SUPABASE_URL": "https://staging.invalid"
+        "EXPO_PUBLIC_SUPABASE_URL": "https://rporaeagbsfmgbmhyett.supabase.co"
       }
     },
     "production": {
       "env": {
         "EXPO_PUBLIC_APP_ENV": "production"
+      }
+    },
+    "testflight": {
+      "extends": "preview",
+      "distribution": "store",
+      "environment": "preview",
+      "env": {
+        "EXPO_PUBLIC_APP_ENV": "staging",
+        "EXPO_PUBLIC_SUPABASE_URL": "https://rporaeagbsfmgbmhyett.supabase.co"
+      }
+    },
+    "play-internal": {
+      "extends": "preview",
+      "distribution": "store",
+      "environment": "preview",
+      "env": {
+        "EXPO_PUBLIC_APP_ENV": "staging",
+        "EXPO_PUBLIC_SUPABASE_URL": "https://rporaeagbsfmgbmhyett.supabase.co"
+      },
+      "android": {
+        "buildType": "app-bundle"
       }
     }
   }

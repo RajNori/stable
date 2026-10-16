@@ -2,6 +2,7 @@ import { ApplicationError, ENV } from "@stable/contracts";
 import { describe, expect, it } from "vitest";
 
 import easFile from "../../../eas.json" with { type: "json" };
+import mobileEasFile from "../../../apps/mobile/eas.json" with { type: "json" };
 
 import { assertEasConfig } from "./index.js";
 
@@ -15,7 +16,8 @@ function readEasFile(): unknown {
 
 function profileEnv(
   config: unknown,
-  name: "development" | "preview" | "production",
+  name:
+    "development" | "preview" | "production" | "testflight" | "play-internal",
 ): Record<string, unknown> {
   if (!isRecord(config) || !isRecord(config.build)) {
     throw new Error("eas.json is missing build profiles");
@@ -31,6 +33,8 @@ function easConfig(profiles: {
   development?: unknown;
   preview?: unknown;
   production?: unknown;
+  testflight?: unknown;
+  "play-internal"?: unknown;
   submit?: unknown;
 }): unknown {
   const config: Record<string, unknown> = {
@@ -41,11 +45,30 @@ function easConfig(profiles: {
       preview: profiles.preview ?? {
         env: {
           [ENV.expoAppEnv]: "staging",
-          [ENV.expoSupabaseUrl]: "https://staging.invalid",
+          [ENV.expoSupabaseUrl]: "https://rporaeagbsfmgbmhyett.supabase.co",
         },
       },
       production: profiles.production ?? {
         env: { [ENV.expoAppEnv]: "production" },
+      },
+      testflight: profiles.testflight ?? {
+        extends: "preview",
+        distribution: "store",
+        environment: "preview",
+        env: {
+          [ENV.expoAppEnv]: "staging",
+          [ENV.expoSupabaseUrl]: "https://rporaeagbsfmgbmhyett.supabase.co",
+        },
+      },
+      "play-internal": profiles["play-internal"] ?? {
+        extends: "preview",
+        distribution: "store",
+        environment: "preview",
+        env: {
+          [ENV.expoAppEnv]: "staging",
+          [ENV.expoSupabaseUrl]: "https://rporaeagbsfmgbmhyett.supabase.co",
+        },
+        android: { buildType: "app-bundle" },
       },
     },
   };
@@ -72,7 +95,11 @@ function expectEasFailure(config: unknown, pattern: RegExp): void {
 }
 
 describe("eas.json", () => {
-  it("parses the repo file and checks Milestone 0 profiles", () => {
+  it("keeps the mobile EAS CLI profiles aligned with release checks", () => {
+    expect(mobileEasFile).toEqual(easFile);
+  });
+
+  it("parses the repo file and checks all mobile build profiles", () => {
     const config = readEasFile();
     expect(isRecord(config)).toBe(true);
     if (!isRecord(config)) {
@@ -80,7 +107,13 @@ describe("eas.json", () => {
     }
 
     expect(config).not.toHaveProperty("submit");
-    expect(JSON.stringify(config)).not.toContain("supabase.co");
+    expect(JSON.stringify(config)).toContain(
+      "https://rporaeagbsfmgbmhyett.supabase.co",
+    );
+    expect(
+      JSON.stringify(config).split("https://rporaeagbsfmgbmhyett.supabase.co")
+        .length - 1,
+    ).toBe(3);
     expect(JSON.stringify(config)).not.toMatch(
       /192\.168\.|10\.0\.2\.2|172\.16\./,
     );
@@ -88,18 +121,50 @@ describe("eas.json", () => {
     const development = profileEnv(config, "development");
     const preview = profileEnv(config, "preview");
     const production = profileEnv(config, "production");
+    const testflight = profileEnv(config, "testflight");
+    const playInternal = profileEnv(config, "play-internal");
 
     expect(development[ENV.expoAppEnv]).toBe("local");
     expect(development[ENV.expoSupabaseUrl]).toBeUndefined();
     expect(preview[ENV.expoAppEnv]).toBe("staging");
-    expect(preview[ENV.expoSupabaseUrl]).toBe("https://staging.invalid");
+    expect(preview[ENV.expoSupabaseUrl]).toBe(
+      "https://rporaeagbsfmgbmhyett.supabase.co",
+    );
     expect(production[ENV.expoAppEnv]).toBe("production");
     expect(production).not.toHaveProperty("submit");
+    for (const env of [testflight, playInternal]) {
+      expect(env[ENV.expoAppEnv]).toBe("staging");
+      expect(env[ENV.expoSupabaseUrl]).toBe(
+        "https://rporaeagbsfmgbmhyett.supabase.co",
+      );
+    }
+
+    if (!isRecord(config.build) || !isRecord(config.build.preview)) {
+      throw new Error("eas.json is missing the preview profile");
+    }
+    expect(config.build.preview.environment).toBe("preview");
 
     if (!isRecord(config.build) || !isRecord(config.build.production)) {
       throw new Error("eas.json is missing the production profile");
     }
     expect(config.build.production).not.toHaveProperty("submit");
+
+    for (const name of ["testflight", "play-internal"] as const) {
+      const profile = config.build[name];
+      if (!isRecord(profile)) {
+        throw new Error(`eas.json is missing the ${name} profile`);
+      }
+      expect(profile.environment).toBe("preview");
+      expect(profile.distribution).toBe("store");
+      expect(profile).not.toHaveProperty("submit");
+    }
+    if (!isRecord(config.build["play-internal"])) {
+      throw new Error("eas.json is missing the play-internal profile");
+    }
+    expect(config.build["play-internal"]).toHaveProperty(
+      "android.buildType",
+      "app-bundle",
+    );
 
     expect(() => assertEasConfig(config)).not.toThrow();
   });
@@ -145,15 +210,14 @@ describe("eas.json", () => {
   });
 
   it("requires preview to be staging and not a laptop, loopback, or LAN url", () => {
-    expect(() =>
-      assertEasConfig(
-        easConfig({
-          preview: {
-            env: { [ENV.expoAppEnv]: "staging" },
-          },
-        }),
-      ),
-    ).not.toThrow();
+    expectEasFailure(
+      easConfig({
+        preview: {
+          env: { [ENV.expoAppEnv]: "staging" },
+        },
+      }),
+      /approved Stable staging project/i,
+    );
 
     expect(() =>
       assertEasConfig(
@@ -166,7 +230,7 @@ describe("eas.json", () => {
           },
         }),
       ),
-    ).not.toThrow();
+    ).toThrow(/approved Stable staging project/i);
 
     for (const url of [
       "http://127.0.0.1:54321",
@@ -247,6 +311,46 @@ describe("eas.json", () => {
     expectEasFailure(easConfig({ submit: { production: {} } }), /submit/i);
   });
 
+  it("resolves shipping profile inheritance and rejects production drift", () => {
+    expect(() => assertEasConfig(easConfig({}))).not.toThrow();
+
+    for (const profile of ["testflight", "play-internal"] as const) {
+      expectEasFailure(
+        easConfig({
+          [profile]: {
+            extends: "preview",
+            environment: "preview",
+            distribution: "store",
+            env: {
+              [ENV.expoAppEnv]: "production",
+              [ENV.expoSupabaseUrl]: "https://lohriezdxegtkbcbkonw.supabase.co",
+            },
+            ...(profile === "play-internal"
+              ? { android: { buildType: "app-bundle" } }
+              : {}),
+          },
+        }),
+        /staging/,
+      );
+    }
+
+    expectEasFailure(
+      easConfig({
+        "play-internal": {
+          extends: "preview",
+          environment: "preview",
+          distribution: "store",
+          env: {
+            [ENV.expoAppEnv]: "staging",
+            [ENV.expoSupabaseUrl]: "https://rporaeagbsfmgbmhyett.supabase.co",
+          },
+          android: { buildType: "apk" },
+        },
+      }),
+      /app bundle/i,
+    );
+  });
+
   it("fails closed when the file or a profile is not usable", () => {
     expectEasFailure(null, /eas\.json/i);
     expectEasFailure(1, /eas\.json/i);
@@ -270,17 +374,16 @@ describe("eas.json", () => {
       }),
       /string/i,
     );
-    expect(() =>
-      assertEasConfig(
-        easConfig({
-          preview: {
-            env: {
-              [ENV.expoAppEnv]: "staging",
-              [ENV.expoSupabaseUrl]: "   ",
-            },
+    expectEasFailure(
+      easConfig({
+        preview: {
+          env: {
+            [ENV.expoAppEnv]: "staging",
+            [ENV.expoSupabaseUrl]: "   ",
           },
-        }),
-      ),
-    ).not.toThrow();
+        },
+      }),
+      /approved Stable staging project/i,
+    );
   });
 });

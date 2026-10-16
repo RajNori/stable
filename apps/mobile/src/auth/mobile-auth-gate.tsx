@@ -6,11 +6,18 @@ import {
 } from "@stable/contracts";
 import { themeFor } from "@stable/design-tokens";
 import React, { useEffect, useState } from "react";
-import { Pressable, StyleSheet, Text, View } from "react-native";
+import {
+  AccessibilityInfo,
+  Pressable,
+  StyleSheet,
+  Text,
+  View,
+} from "react-native";
 
 import { AuthScreen } from "./auth-screen";
 
 const theme = themeFor("mustangs");
+const noopClearPrivateCache = (): void => undefined;
 
 export type MobileLinking = {
   getInitialUrl: () => Promise<string | null>;
@@ -21,15 +28,31 @@ type GateActions = {
   requestPhone: (phone: string) => Promise<void>;
   verifyPhone: (phone: string, token: string) => Promise<AuthSessionSnapshot>;
   requestEmail: (email: string) => Promise<void>;
-  verifyEmail: (email: string, token: string) => Promise<AuthSessionSnapshot>;
-  completeCallback: (callbackUrl: string) => Promise<AuthSessionSnapshot>;
+  validateCallback: (callbackUrl: string) => void;
+  completeCallback: (
+    callbackUrl: string,
+    beforeCommit?: (next: AuthSessionSnapshot) => Promise<void>,
+  ) => Promise<AuthSessionSnapshot>;
 };
 
 type MobileAuthGateProps = {
   readonly restore: () => Promise<AuthSessionSnapshot>;
-  readonly signOut: () => Promise<AuthSessionSnapshot>;
+  readonly signOut: (userId: string) => Promise<AuthSessionSnapshot>;
   readonly actions: GateActions;
+  readonly beforeCompleteCallback?:
+    | (() => Promise<
+        ((next: AuthSessionSnapshot) => Promise<void>) | undefined
+      >)
+    | undefined;
+  readonly clearFailedCallbackSession?: (() => Promise<void>) | undefined;
+  readonly afterCallbackRestore?:
+    ((restored: AuthSessionSnapshot) => Promise<void>) | undefined;
+  readonly beforeAcceptAuthenticated?:
+    ((next: AuthSessionSnapshot) => Promise<void>) | undefined;
   readonly linking?: MobileLinking;
+  readonly clearPrivateCache?: (
+    previousUserId: string | null,
+  ) => void | Promise<void>;
   readonly authenticated: (userId: string) => React.ReactNode;
 };
 
@@ -37,30 +60,92 @@ export function MobileAuthGate({
   restore,
   signOut,
   actions,
+  beforeCompleteCallback,
+  clearFailedCallbackSession,
+  afterCallbackRestore,
+  beforeAcceptAuthenticated,
   linking,
+  clearPrivateCache = noopClearPrivateCache,
   authenticated,
 }: MobileAuthGateProps) {
+  const [callbackPending, setCallbackPending] = useState(false);
+  const [signOutFailed, setSignOutFailed] = useState(false);
   const [session, setSession] = useState<AuthSessionSnapshot>({
     state: "loading",
   });
+  const callbackQueued = React.useRef(false);
+  const sessionUserId = React.useRef<string | null>(null);
+  const sessionTransition = React.useRef(0);
+  const sessionOperations = React.useRef<Promise<void>>(Promise.resolve());
+  const enqueueSessionOperation = React.useCallback(
+    (operation: () => Promise<void>) => {
+      const queued = sessionOperations.current.then(operation, operation);
+      sessionOperations.current = queued.catch(() => undefined);
+      return queued;
+    },
+    [],
+  );
+  const beginSessionTransition = React.useCallback(() => {
+    sessionTransition.current += 1;
+    return sessionTransition.current;
+  }, []);
+  const updateSession = React.useCallback(
+    async (next: AuthSessionSnapshot, transition: number) => {
+      if (transition !== sessionTransition.current) {
+        return "stale" as const;
+      }
+      const nextUserId =
+        next.state === "authenticated" ? next.principal.userId : null;
+      if (sessionUserId.current !== nextUserId) {
+        try {
+          await clearPrivateCache(sessionUserId.current);
+        } catch (error: unknown) {
+          if (transition === sessionTransition.current) {
+            setSession(recoverySnapshot(error));
+            return "cache-clear-failed" as const;
+          }
+          return "stale" as const;
+        }
+        if (transition !== sessionTransition.current) {
+          return "stale" as const;
+        }
+        sessionUserId.current = nextUserId;
+      }
+      setSession(next);
+      return "applied" as const;
+    },
+    [clearPrivateCache],
+  );
+
+  useEffect(() => {
+    if (callbackPending && session.state === "authenticated") {
+      AccessibilityInfo.announceForAccessibility("Completing sign-in");
+    }
+  }, [callbackPending, session.state]);
 
   useEffect(() => {
     let active = true;
-    restore()
-      .then((next) => {
+    const transition = beginSessionTransition();
+    // Startup restoration can enforce the pending push-cleanup fence and
+    // sign out a conflicting identity. Keep it on the same operation queue as
+    // OTP, callback, retry and sign-out transitions so marker admission cannot
+    // race a callback cleanup.
+    void enqueueSessionOperation(async () => {
+      try {
+        const next = await restore();
         if (active) {
-          setSession(next);
+          await updateSession(next, transition);
         }
-      })
-      .catch((error: unknown) => {
+      } catch (error: unknown) {
         if (active) {
-          setSession(recoverySnapshot(error));
+          await updateSession(recoverySnapshot(error), transition);
         }
-      });
+      }
+    });
     return () => {
       active = false;
     };
-  }, [restore]);
+  }, [beginSessionTransition, enqueueSessionOperation, restore, updateSession]);
 
   useEffect(() => {
     if (linking === undefined) {
@@ -71,19 +156,69 @@ export function MobileAuthGate({
       if (!url.includes("auth/callback")) {
         return;
       }
-      actions
-        .completeCallback(url)
-        .then((next) => {
-          if (active) {
-            setSession(next);
+      if (callbackQueued.current) {
+        return;
+      }
+      callbackQueued.current = true;
+      setCallbackPending(true);
+      void enqueueSessionOperation(async () => {
+        const transition = beginSessionTransition();
+        let callbackExchangeSucceeded = false;
+        try {
+          actions.validateCallback(url);
+          const completeTransition = await beforeCompleteCallback?.();
+          let transitionCompletedBeforeCommit = false;
+          const beforeCommit = async (snapshot: AuthSessionSnapshot) => {
+            callbackExchangeSucceeded = true;
+            await completeTransition?.(snapshot);
+            transitionCompletedBeforeCommit = true;
+          };
+          const next =
+            completeTransition === undefined
+              ? await actions.completeCallback(url)
+              : await actions.completeCallback(url, beforeCommit);
+          // Lightweight test adapters and non-Supabase clients may complete
+          // callbacks without deferred persistence. Keep their established
+          // contract, while the production mobile adapter invokes this hook
+          // after exchange and before saving the new session.
+          if (!transitionCompletedBeforeCommit) {
+            callbackExchangeSucceeded = true;
+            await completeTransition?.(next);
           }
-        })
-        .catch((error: unknown) => {
-          if (active) {
-            setSession(recoverySnapshot(error));
+          await beforeAcceptAuthenticated?.(next);
+          const updateResult = await updateSession(next, transition);
+          if (updateResult === "cache-clear-failed") {
+            await clearFailedCallbackSession?.();
           }
-        });
+        } catch (error: unknown) {
+          if (callbackExchangeSucceeded) {
+            // The provider accepted the callback, but account-transition
+            // cleanup failed. Do not restore and accidentally accept the new
+            // account while the previous account's push registration remains.
+            await updateSession(recoverySnapshot(error), transition);
+            await clearFailedCallbackSession?.();
+            return;
+          }
+          let restored: AuthSessionSnapshot;
+          try {
+            restored = await restore();
+          } catch {
+            restored = recoverySnapshot(error);
+          }
+          if (restored.state !== "authenticated") {
+            restored = recoverySnapshot(error);
+          }
+          await afterCallbackRestore?.(restored);
+          await updateSession(restored, transition);
+        } finally {
+          if (active && transition === sessionTransition.current) {
+            callbackQueued.current = false;
+            setCallbackPending(false);
+          }
+        }
+      }).catch(() => undefined);
     };
+    const transitionAtLinkStart = sessionTransition.current;
     linking
       .getInitialUrl()
       .then((url) => {
@@ -92,8 +227,9 @@ export function MobileAuthGate({
         }
       })
       .catch((error: unknown) => {
-        if (active) {
-          setSession(recoverySnapshot(error));
+        if (active && sessionTransition.current === transitionAtLinkStart) {
+          const transition = beginSessionTransition();
+          void updateSession(recoverySnapshot(error), transition);
         }
       });
     const unsubscribe = linking.subscribe(accept);
@@ -101,7 +237,25 @@ export function MobileAuthGate({
       active = false;
       unsubscribe();
     };
-  }, [actions, linking]);
+  }, [
+    actions,
+    beforeCompleteCallback,
+    beforeAcceptAuthenticated,
+    beginSessionTransition,
+    clearFailedCallbackSession,
+    afterCallbackRestore,
+    enqueueSessionOperation,
+    linking,
+    updateSession,
+  ]);
+
+  if (callbackPending) {
+    return (
+      <View style={styles.app}>
+        <Text accessibilityRole="text">Completing sign-in…</Text>
+      </View>
+    );
+  }
 
   if (session.state === "authenticated") {
     return (
@@ -110,16 +264,29 @@ export function MobileAuthGate({
           accessibilityRole="button"
           accessibilityLabel="Sign out"
           onPress={() => {
-            void signOut()
-              .then(setSession)
-              .catch((error: unknown) => {
-                setSession(recoverySnapshot(error));
-              });
+            setSignOutFailed(false);
+            setCallbackPending(false);
+            void enqueueSessionOperation(async () => {
+              const transition = beginSessionTransition();
+              try {
+                const next = await signOut(session.principal.userId);
+                await updateSession(next, transition);
+              } catch {
+                if (transition === sessionTransition.current) {
+                  setSignOutFailed(true);
+                }
+              }
+            });
           }}
           style={styles.signOut}
         >
           <Text style={styles.signOutLabel}>Sign out</Text>
         </Pressable>
+        {signOutFailed ? (
+          <Text accessibilityRole="alert" style={styles.signOutError}>
+            Could not sign out. Your session is still active. Try again.
+          </Text>
+        ) : null}
         {authenticated(session.principal.userId)}
       </View>
     );
@@ -132,14 +299,19 @@ export function MobileAuthGate({
         actions={{
           requestPhone: actions.requestPhone,
           verifyPhone: async (phone, token) => {
-            setSession(await actions.verifyPhone(phone, token));
+            await enqueueSessionOperation(async () => {
+              const transition = beginSessionTransition();
+              const next = await actions.verifyPhone(phone, token);
+              await beforeAcceptAuthenticated?.(next);
+              await updateSession(next, transition);
+            });
           },
           requestEmail: actions.requestEmail,
-          verifyEmail: async (email, token) => {
-            setSession(await actions.verifyEmail(email, token));
-          },
           retry: async () => {
-            setSession(await restore());
+            await enqueueSessionOperation(async () => {
+              const transition = beginSessionTransition();
+              await updateSession(await restore(), transition);
+            });
           },
         }}
       />
@@ -188,5 +360,11 @@ const styles = StyleSheet.create({
     color: theme.color.brand.primary,
     fontSize: theme.typeScale.labelMd.fontSize,
     fontWeight: "700",
+  },
+  signOutError: {
+    color: theme.color.text.primary,
+    fontSize: theme.typeScale.bodyMd.fontSize,
+    lineHeight: theme.typeScale.bodyMd.lineHeight,
+    paddingHorizontal: theme.space[4],
   },
 });

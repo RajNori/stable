@@ -6,6 +6,7 @@ import {
   commitDutyAllocation,
   createOpenGameDuty,
   previewDutyAllocation,
+  readTeamManagerGameDayOperations,
   type DutyAllocationWriter,
 } from "./duty-commands.js";
 
@@ -62,6 +63,59 @@ function writer(): DutyAllocationWriter & { calls: string[] } {
 }
 
 describe("duty commands", () => {
+  it("reads an aggregate operations summary for a manager without exposing it to a coach", async () => {
+    const calls: string[] = [];
+    const reader = {
+      readTeamManagerGameDayOperations: (requestedEventId: string) => {
+        calls.push(requestedEventId);
+        return Promise.resolve({
+          unassignedDutyCount: 1,
+          assignedDutyCount: 2,
+          acknowledgedDutyCount: 1,
+          pendingDutyAcknowledgementCount: 1,
+          openDutySwapCount: 1,
+          openFillInRequestCount: 1,
+          openFillInResponseCount: 2,
+          confirmedFillInCount: 0,
+        });
+      },
+    };
+    await expect(
+      readTeamManagerGameDayOperations({
+        ...manager(),
+        clubId,
+        teamId,
+        eventId,
+        reader,
+      }),
+    ).resolves.toMatchObject({
+      unassignedDutyCount: 1,
+      openDutySwapCount: 1,
+      openFillInResponseCount: 2,
+    });
+    expect(calls).toEqual([eventId]);
+
+    await expect(
+      readTeamManagerGameDayOperations({
+        ...manager(),
+        teamMemberships: [
+          {
+            clubId,
+            teamId,
+            role: "HEAD_COACH",
+            active: true,
+            teamActive: true,
+          },
+        ],
+        clubId,
+        teamId,
+        eventId,
+        reader,
+      }),
+    ).rejects.toMatchObject({ code: "FORBIDDEN" });
+    expect(calls).toEqual([eventId]);
+  });
+
   it("previews from history and denies a head coach the commit", async () => {
     const calls = writer();
     await createOpenGameDuty({

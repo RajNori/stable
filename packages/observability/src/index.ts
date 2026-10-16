@@ -3,6 +3,11 @@ export {
   captureProductEvent,
   configureObservability,
 } from "./capture.js";
+export {
+  safeSentryEvent,
+  type SafeSentryEvent,
+  type SafeSentryEventContext,
+} from "./sentry-event.js";
 export type {
   ExceptionSink,
   ObservabilityConfig,

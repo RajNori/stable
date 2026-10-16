@@ -30,6 +30,10 @@ export const gameDayProjectionSchema = z.strictObject({
   teamId: idSchema,
   opponentName: z.string(),
   roundLabel: z.string().nullable(),
+  fixtureSource: z.enum(["MANUAL", "IMPORT"]).optional(),
+  fixtureStatus: z
+    .enum(["SCHEDULED", "POSTPONED", "CANCELLED", "COMPLETED"])
+    .optional(),
   officialStartAt: instantSchema,
   arrivalAt: instantSchema.nullable(),
   venueText: z.string().nullable(),
@@ -38,7 +42,7 @@ export const gameDayProjectionSchema = z.strictObject({
   coachFocus: z.string().nullable(),
   ownRsvp: z.enum(RSVP_STATUSES),
   ownDutyLabel: z.string().nullable(),
-  ownDutyStatus: z.literal("ASSIGNED").nullable(),
+  ownDutyStatus: z.enum(["ASSIGNED", "ACKNOWLEDGED"]).nullable(),
   fillInLabel: z.string().nullable(),
   attendingCount: countSchema,
   unavailableCount: countSchema,
@@ -131,6 +135,27 @@ function withoutStaffCounts(projection: GameDayProjection): GameDayProjection {
   };
 }
 
+function withoutCoachFields(projection: GameDayProjection): GameDayProjection {
+  return { ...projection, coachFocus: null };
+}
+
+function canReadCoachFields(
+  input: GameDayAccess,
+  clubId: string,
+  teamId: string,
+): boolean {
+  return (
+    evaluateCapability({
+      clubMemberships: input.clubMemberships,
+      teamMemberships: input.teamMemberships,
+      guardianLinks: input.guardianLinks,
+      registrations: input.registrations,
+      resource: { clubId, teamId, teamActive: input.teamActive },
+      capability: "coaching_stats.read",
+    }) === "allow"
+  );
+}
+
 export async function readGameDay(
   input: GameDayAccess & {
     clubId: string;
@@ -150,10 +175,12 @@ export async function readGameDay(
   if (projection.clubId !== clubId.data || projection.teamId !== teamId.data) {
     throw new ApplicationError("NOT_FOUND", gameDayMessages.notFound);
   }
-  if (!canReadTeamAttendance(input, clubId.data, teamId.data)) {
-    return withoutStaffCounts(projection);
-  }
-  return projection;
+  const scoped = canReadCoachFields(input, clubId.data, teamId.data)
+    ? projection
+    : withoutCoachFields(projection);
+  return canReadTeamAttendance(input, clubId.data, teamId.data)
+    ? scoped
+    : withoutStaffCounts(scoped);
 }
 
 export async function assignGameDuty(

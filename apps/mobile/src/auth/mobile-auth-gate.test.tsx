@@ -1,20 +1,49 @@
 import { ApplicationError, AUTH_ERROR_MESSAGES } from "@stable/contracts";
 import type { AuthSessionSnapshot } from "@stable/contracts";
+import { QueryClient } from "@tanstack/react-query";
 import {
+  act,
+  fireEvent,
   render,
   screen,
   userEvent,
   waitFor,
 } from "@testing-library/react-native";
 import React from "react";
-import { Text } from "react-native";
+import { AccessibilityInfo, Text } from "react-native";
 
+import { memoryGameDaySnapshotStore } from "../game-day-snapshot";
+import {
+  clearStoredOfflineGameDay,
+  readOfflineContextPointer,
+  saveOfflineContextPointer,
+} from "../offline-context";
 import { MobileAuthGate } from "./mobile-auth-gate";
+
+declare const jest: {
+  mock: (moduleName: string, factory: () => unknown) => void;
+  fn: <T extends (...args: never[]) => unknown>(
+    implementation: T,
+  ) => T & { mock: { calls: unknown[][] } };
+  spyOn: (
+    object: typeof AccessibilityInfo,
+    method: "announceForAccessibility",
+  ) => {
+    mockImplementation: (implementation: (message: string) => void) => unknown;
+    mockRestore: () => void;
+    mock: { calls: unknown[][] };
+  };
+};
 
 const userId = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
 const authenticated = {
   state: "authenticated",
   principal: { userId },
+} as const satisfies AuthSessionSnapshot;
+const secondUserId = "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb";
+const secondAuthenticated = {
+  state: "authenticated",
+  principal: { userId: secondUserId },
 } as const satisfies AuthSessionSnapshot;
 
 describe("mobile auth gate", () => {
@@ -36,7 +65,7 @@ describe("mobile auth gate", () => {
       await screen.findByText("Know what's next. Show up ready."),
     ).toBeTruthy();
     expect(renders).toBe(0);
-  });
+  }, 15_000);
 
   it("opens the app after restore and signs out locally", async () => {
     const scopes: string[] = [];
@@ -59,6 +88,338 @@ describe("mobile auth gate", () => {
       await screen.findByText("Know what's next. Show up ready."),
     ).toBeTruthy();
     expect(scopes).toEqual(["local"]);
+  });
+
+  it("clears private cached data on sign-out and account switch", async () => {
+    let receive: ((url: string) => void) | undefined;
+    const queryClient = new QueryClient();
+    const clearPrivateCache = jest.fn(() => {
+      void queryClient.cancelQueries();
+      queryClient.clear();
+    });
+    const accountTransition: string[] = [];
+    await render(
+      <MobileAuthGate
+        restore={async () => authenticated}
+        signOut={async () => ({ state: "unauthenticated" })}
+        actions={idleActions({
+          async completeCallback() {
+            accountTransition.push("callback");
+            return secondAuthenticated;
+          },
+        })}
+        beforeCompleteCallback={async () => {
+          return async () => {
+            accountTransition.push("push-cleanup");
+          };
+        }}
+        clearPrivateCache={clearPrivateCache}
+        linking={{
+          async getInitialUrl() {
+            return null;
+          },
+          subscribe(listener) {
+            receive = listener;
+            return () => {
+              receive = undefined;
+            };
+          },
+        }}
+        authenticated={(id) => <Text>Signed in as {id}</Text>}
+      />,
+    );
+
+    expect(await screen.findByText(`Signed in as ${userId}`)).toBeTruthy();
+    queryClient.setQueryData(["current-club-context"], {
+      displayName: "first account private club",
+    });
+    queryClient.setQueryData(["team-roster", "first-team"], ["private roster"]);
+    receive?.("stable://auth/callback?code=account-switch");
+    expect(
+      await screen.findByText(`Signed in as ${secondUserId}`),
+    ).toBeTruthy();
+    expect(accountTransition).toEqual(["callback", "push-cleanup"]);
+    expect(queryClient.getQueryCache().getAll()).toEqual([]);
+
+    queryClient.setQueryData(["current-club-context"], {
+      displayName: "second account private club",
+    });
+    await userEvent.press(screen.getByLabelText("Sign out"));
+    expect(
+      await screen.findByText("Know what's next. Show up ready."),
+    ).toBeTruthy();
+    expect(queryClient.getQueryCache().getAll()).toEqual([]);
+    expect(clearPrivateCache.mock.calls.length).toBeGreaterThanOrEqual(3);
+  });
+
+  it("clears only the prior user's offline data on callback account switch", async () => {
+    let receive: ((url: string) => void) | undefined;
+    const store = memoryGameDaySnapshotStore();
+    const previousTeamId = "previous-team";
+    const nextTeamId = "next-team";
+    await store.setItem(
+      `stable.game-day.v1.${userId}.${previousTeamId}`,
+      "previous-user snapshot",
+    );
+    await store.setItem(
+      `stable.game-day.v1.${userId}`,
+      JSON.stringify({ teams: [previousTeamId] }),
+    );
+    await store.setItem(
+      `stable.game-day.v1.${secondUserId}.${nextTeamId}`,
+      "next-user snapshot",
+    );
+    await store.setItem(
+      `stable.game-day.v1.${secondUserId}`,
+      JSON.stringify({ teams: [nextTeamId] }),
+    );
+    await saveOfflineContextPointer(store, {
+      version: 1,
+      userId,
+      teamId: previousTeamId,
+    });
+    await saveOfflineContextPointer(store, {
+      version: 1,
+      userId: secondUserId,
+      teamId: nextTeamId,
+    });
+
+    const clearPrivateCache = jest.fn(async (previousUserId: string | null) => {
+      if (previousUserId !== null) {
+        await clearStoredOfflineGameDay(store, previousUserId);
+      }
+    });
+    await render(
+      <MobileAuthGate
+        restore={async () => authenticated}
+        signOut={async () => ({ state: "unauthenticated" })}
+        actions={idleActions({
+          async completeCallback() {
+            return secondAuthenticated;
+          },
+        })}
+        clearPrivateCache={clearPrivateCache}
+        linking={{
+          async getInitialUrl() {
+            return null;
+          },
+          subscribe(listener) {
+            receive = listener;
+            return () => {
+              receive = undefined;
+            };
+          },
+        }}
+        authenticated={(id) => <Text>Signed in as {id}</Text>}
+      />,
+    );
+
+    expect(await screen.findByText(`Signed in as ${userId}`)).toBeTruthy();
+    await act(async () => {
+      receive?.("stable://auth/callback?code=account-switch");
+      await new Promise<void>((resolve) => setTimeout(resolve, 0));
+    });
+    expect(
+      await screen.findByText(`Signed in as ${secondUserId}`),
+    ).toBeTruthy();
+
+    expect(
+      clearPrivateCache.mock.calls.some(([previousUserId]) =>
+        Object.is(previousUserId, userId),
+      ),
+    ).toBe(true);
+    expect(
+      await store.getItem(`stable.game-day.v1.${userId}.${previousTeamId}`),
+    ).toBeNull();
+    expect(await store.getItem(`stable.game-day.v1.${userId}`)).toBeNull();
+    expect(
+      await store.getItem(`stable.game-day.v1.${secondUserId}.${nextTeamId}`),
+    ).toBe("next-user snapshot");
+    expect(await store.getItem(`stable.game-day.v1.${secondUserId}`)).toBe(
+      JSON.stringify({ teams: [nextTeamId] }),
+    );
+    expect(await readOfflineContextPointer(store, userId)).toBeNull();
+    expect(await readOfflineContextPointer(store, secondUserId)).toEqual({
+      version: 1,
+      userId: secondUserId,
+      teamId: nextTeamId,
+    });
+  });
+
+  it("does not activate the next account when private cache cleanup fails", async () => {
+    let receive: ((url: string) => void) | undefined;
+    await render(
+      <MobileAuthGate
+        restore={async () => authenticated}
+        signOut={async () => ({ state: "unauthenticated" })}
+        actions={idleActions({
+          async completeCallback() {
+            return secondAuthenticated;
+          },
+        })}
+        clearPrivateCache={async (previousUserId) => {
+          if (previousUserId === userId) {
+            throw new Error("SecureStore cleanup failed");
+          }
+        }}
+        linking={{
+          async getInitialUrl() {
+            return null;
+          },
+          subscribe(listener) {
+            receive = listener;
+            return () => {
+              receive = undefined;
+            };
+          },
+        }}
+        authenticated={(id) => <Text>Signed in as {id}</Text>}
+      />,
+    );
+
+    expect(await screen.findByText(`Signed in as ${userId}`)).toBeTruthy();
+    receive?.("stable://auth/callback?code=account-switch");
+    expect(await screen.findByText(AUTH_ERROR_MESSAGES.INTERNAL)).toBeTruthy();
+    expect(screen.queryByText(`Signed in as ${secondUserId}`)).toBeNull();
+  });
+
+  it("fails closed when post-exchange prior-account push cleanup fails", async () => {
+    let receive: ((url: string) => void) | undefined;
+    let restoreCalls = 0;
+    let completeCallbackCalls = 0;
+    const clearFailedCallbackSession = jest.fn(async () => undefined);
+    await render(
+      <MobileAuthGate
+        restore={async () => {
+          restoreCalls += 1;
+          return authenticated;
+        }}
+        signOut={async () => ({ state: "unauthenticated" })}
+        actions={idleActions({
+          async completeCallback() {
+            completeCallbackCalls += 1;
+            return secondAuthenticated;
+          },
+        })}
+        beforeCompleteCallback={async () => async () => {
+          throw new Error("push cleanup failed");
+        }}
+        clearFailedCallbackSession={clearFailedCallbackSession}
+        linking={{
+          async getInitialUrl() {
+            return null;
+          },
+          subscribe(listener) {
+            receive = listener;
+            return () => {
+              receive = undefined;
+            };
+          },
+        }}
+        authenticated={(id) => <Text>Signed in as {id}</Text>}
+      />,
+    );
+
+    expect(await screen.findByText(`Signed in as ${userId}`)).toBeTruthy();
+    receive?.("stable://auth/callback?code=account-switch");
+
+    expect(await screen.findByText(AUTH_ERROR_MESSAGES.INTERNAL)).toBeTruthy();
+    expect(screen.queryByText(`Signed in as ${secondUserId}`)).toBeNull();
+    expect(completeCallbackCalls).toBe(1);
+    expect(restoreCalls).toBe(1);
+    expect(clearFailedCallbackSession.mock.calls.length).toBe(1);
+  });
+
+  it("cleans the callback endpoint when a same-account session commit fails", async () => {
+    let receive: ((url: string) => void) | undefined;
+    const clearFailedCallbackSession = jest.fn(async () => undefined);
+    await render(
+      <MobileAuthGate
+        restore={async () => authenticated}
+        signOut={async () => ({ state: "unauthenticated" })}
+        actions={idleActions({
+          async completeCallback(
+            _url: string,
+            beforeCommit?: (next: AuthSessionSnapshot) => Promise<void>,
+          ) {
+            await beforeCommit?.(authenticated);
+            throw new Error("session commit failed");
+          },
+        })}
+        beforeCompleteCallback={async () => async () => undefined}
+        clearFailedCallbackSession={clearFailedCallbackSession}
+        linking={{
+          async getInitialUrl() {
+            return null;
+          },
+          subscribe(listener) {
+            receive = listener;
+            return () => {
+              receive = undefined;
+            };
+          },
+        }}
+        authenticated={(id) => <Text>Signed in as {id}</Text>}
+      />,
+    );
+
+    expect(await screen.findByText(`Signed in as ${userId}`)).toBeTruthy();
+    receive?.("stable://auth/callback?code=same-account");
+
+    expect(await screen.findByText(AUTH_ERROR_MESSAGES.INTERNAL)).toBeTruthy();
+    expect(screen.queryByText(`Signed in as ${userId}`)).toBeNull();
+    expect(clearFailedCallbackSession.mock.calls.length).toBe(1);
+  });
+
+  it("clears the exchanged account if prior-account private-cache cleanup fails", async () => {
+    let receive: ((url: string) => void) | undefined;
+    let restoreCalls = 0;
+    let clearFailedSessionCalls = 0;
+    await render(
+      <MobileAuthGate
+        restore={async () => {
+          restoreCalls += 1;
+          return authenticated;
+        }}
+        signOut={async () => ({ state: "unauthenticated" })}
+        actions={idleActions({
+          async completeCallback() {
+            return secondAuthenticated;
+          },
+        })}
+        clearPrivateCache={async (previousUserId) => {
+          if (previousUserId === userId) {
+            throw new Error("SecureStore cleanup failed");
+          }
+        }}
+        clearFailedCallbackSession={async () => {
+          clearFailedSessionCalls += 1;
+        }}
+        linking={{
+          async getInitialUrl() {
+            return null;
+          },
+          subscribe(listener) {
+            receive = listener;
+            return () => {
+              receive = undefined;
+            };
+          },
+        }}
+        authenticated={(id) => <Text>Signed in as {id}</Text>}
+      />,
+    );
+
+    expect(await screen.findByText(`Signed in as ${userId}`)).toBeTruthy();
+    await act(async () => {
+      receive?.("stable://auth/callback?code=account-switch");
+      await new Promise<void>((resolve) => setTimeout(resolve, 0));
+    });
+
+    expect(await screen.findByText(AUTH_ERROR_MESSAGES.INTERNAL)).toBeTruthy();
+    expect(screen.queryByText(`Signed in as ${secondUserId}`)).toBeNull();
+    expect(clearFailedSessionCalls).toBe(1);
+    expect(restoreCalls).toBe(1);
   });
 
   it("shows expired and recovery without pretending the adult signed out", async () => {
@@ -128,6 +489,494 @@ describe("mobile auth gate", () => {
       );
     });
   });
+
+  it("validates a callback before removing the current push registration", async () => {
+    let receive: ((url: string) => void) | undefined;
+    const beforeCompleteCallback = jest.fn(async () => undefined);
+    const completeCallback = jest.fn(async () => authenticated);
+    const validateCallback = jest.fn(() => {
+      throw new ApplicationError(
+        "VALIDATION_FAILED",
+        AUTH_ERROR_MESSAGES.VALIDATION_FAILED,
+      );
+    });
+    await render(
+      <MobileAuthGate
+        restore={async () => authenticated}
+        signOut={async () => ({ state: "unauthenticated" })}
+        actions={idleActions({
+          validateCallback,
+          completeCallback,
+        })}
+        beforeCompleteCallback={beforeCompleteCallback}
+        linking={{
+          async getInitialUrl() {
+            return null;
+          },
+          subscribe(listener) {
+            receive = listener;
+            return () => {
+              receive = undefined;
+            };
+          },
+        }}
+        authenticated={() => <Text>Club home</Text>}
+      />,
+    );
+
+    expect(await screen.findByText("Club home")).toBeTruthy();
+    await act(async () => {
+      receive?.("https://attacker.example/auth/callback?code=bad");
+      await new Promise<void>((resolve) => setTimeout(() => resolve(), 0));
+    });
+    expect(validateCallback.mock.calls.length).toBe(1);
+    expect(beforeCompleteCallback.mock.calls.length).toBe(0);
+    expect(completeCallback.mock.calls.length).toBe(0);
+    expect(await screen.findByText("Club home")).toBeTruthy();
+  });
+
+  it("does not finalize account-transition cleanup when callback exchange fails", async () => {
+    let receive: ((url: string) => void) | undefined;
+    const finalize = jest.fn(async () => undefined);
+    const beforeCompleteCallback = jest.fn(async () => finalize);
+    const afterCallbackRestore = jest.fn(async () => undefined);
+    const completeCallback = jest.fn(async () => {
+      throw new Error("expired or invalid code");
+    });
+    await render(
+      <MobileAuthGate
+        restore={async () => authenticated}
+        signOut={async () => ({ state: "unauthenticated" })}
+        actions={idleActions({ completeCallback })}
+        beforeCompleteCallback={beforeCompleteCallback}
+        afterCallbackRestore={afterCallbackRestore}
+        linking={{
+          async getInitialUrl() {
+            return null;
+          },
+          subscribe(listener) {
+            receive = listener;
+            return () => {
+              receive = undefined;
+            };
+          },
+        }}
+        authenticated={() => <Text>Club home</Text>}
+      />,
+    );
+
+    expect(await screen.findByText("Club home")).toBeTruthy();
+    await act(async () => {
+      receive?.("stable://auth/callback?code=syntactically-valid-code");
+      await new Promise<void>((resolve) => setTimeout(resolve, 0));
+    });
+    await waitFor(() => expect(completeCallback.mock.calls.length).toBe(1));
+    expect(beforeCompleteCallback.mock.calls.length).toBe(1);
+    expect(finalize.mock.calls.length).toBe(0);
+    expect(afterCallbackRestore.mock.calls).toEqual([[authenticated]]);
+    expect(await screen.findByText("Club home")).toBeTruthy();
+  });
+
+  it("uses a successful initial auth callback to open the app", async () => {
+    const complete = jest.fn(async () => authenticated);
+    await render(
+      <MobileAuthGate
+        restore={async () => ({ state: "unauthenticated" })}
+        signOut={async () => ({ state: "unauthenticated" })}
+        actions={idleActions({ completeCallback: complete })}
+        linking={{
+          async getInitialUrl() {
+            return "stable://auth/callback?code=local-code";
+          },
+          subscribe() {
+            return () => undefined;
+          },
+        }}
+        authenticated={(id) => <Text>Signed in as {id}</Text>}
+      />,
+    );
+
+    expect(await screen.findByText(`Signed in as ${userId}`)).toBeTruthy();
+    expect(complete.mock.calls[0]).toEqual([
+      "stable://auth/callback?code=local-code",
+    ]);
+  });
+
+  it("serializes callback acceptance after pending startup restoration", async () => {
+    let resolveRestore: ((snapshot: AuthSessionSnapshot) => void) | undefined;
+    const restore = new Promise<AuthSessionSnapshot>((resolve) => {
+      resolveRestore = resolve;
+    });
+    let completeCallbackCalls = 0;
+    await render(
+      <MobileAuthGate
+        restore={() => restore}
+        signOut={async () => ({ state: "unauthenticated" })}
+        actions={idleActions({
+          async completeCallback() {
+            completeCallbackCalls += 1;
+            return secondAuthenticated;
+          },
+        })}
+        linking={{
+          async getInitialUrl() {
+            return "stable://auth/callback?code=account-b";
+          },
+          subscribe() {
+            return () => undefined;
+          },
+        }}
+        authenticated={(id) => <Text>Signed in as {id}</Text>}
+      />,
+    );
+
+    expect(await screen.findByText("Completing sign-in…")).toBeTruthy();
+    expect(completeCallbackCalls).toBe(0);
+    await act(async () => {
+      resolveRestore?.(authenticated);
+      await restore;
+      await Promise.resolve();
+    });
+
+    expect(
+      await screen.findByText(`Signed in as ${secondUserId}`),
+    ).toBeTruthy();
+    expect(completeCallbackCalls).toBe(1);
+    expect(screen.queryByText(`Signed in as ${userId}`)).toBeNull();
+  });
+
+  it("hides the previous account while an account-switch callback is pending", async () => {
+    let receive: ((url: string) => void) | undefined;
+    const announce = jest.spyOn(AccessibilityInfo, "announceForAccessibility");
+    announce.mockImplementation(() => undefined);
+    let resolveCallback: ((snapshot: AuthSessionSnapshot) => void) | undefined;
+    const callback = new Promise<AuthSessionSnapshot>((resolve) => {
+      resolveCallback = resolve;
+    });
+    await render(
+      <MobileAuthGate
+        restore={async () => authenticated}
+        signOut={async () => ({ state: "unauthenticated" })}
+        actions={idleActions({ completeCallback: () => callback })}
+        linking={{
+          async getInitialUrl() {
+            return null;
+          },
+          subscribe(listener) {
+            receive = listener;
+            return () => {
+              receive = undefined;
+            };
+          },
+        }}
+        authenticated={(id) => <Text>Signed in as {id}</Text>}
+      />,
+    );
+
+    expect(await screen.findByText(`Signed in as ${userId}`)).toBeTruthy();
+    receive?.("stable://auth/callback?code=account-b");
+    expect(await screen.findByText("Completing sign-in…")).toBeTruthy();
+    expect(
+      announce.mock.calls.some(([message]) => message === "Completing sign-in"),
+    ).toBe(true);
+    expect(screen.queryByText(`Signed in as ${userId}`)).toBeNull();
+
+    await act(async () => {
+      resolveCallback?.(secondAuthenticated);
+      await callback;
+      await Promise.resolve();
+    });
+    expect(
+      await screen.findByText(`Signed in as ${secondUserId}`),
+    ).toBeTruthy();
+    announce.mockRestore();
+  });
+
+  it("serializes an in-flight phone OTP before a queued auth callback", async () => {
+    let receive: ((url: string) => void) | undefined;
+    let callbackStarted: (() => void) | undefined;
+    let verifyStarted: (() => void) | undefined;
+    let resolveCallback: ((snapshot: AuthSessionSnapshot) => void) | undefined;
+    let resolveOtp: ((snapshot: AuthSessionSnapshot) => void) | undefined;
+    let sharedSupabaseUserId: string | null = null;
+    const authOrder: string[] = [];
+    const callback = new Promise<AuthSessionSnapshot>((resolve) => {
+      resolveCallback = resolve;
+    });
+    const otp = new Promise<AuthSessionSnapshot>((resolve) => {
+      resolveOtp = resolve;
+    });
+    await render(
+      <MobileAuthGate
+        restore={async () => ({ state: "unauthenticated" })}
+        signOut={async () => ({ state: "unauthenticated" })}
+        actions={idleActions({
+          completeCallback: () => {
+            authOrder.push("callback");
+            callbackStarted?.();
+            sharedSupabaseUserId = secondUserId;
+            return callback;
+          },
+          verifyPhone: () => {
+            verifyStarted?.();
+            return otp.then((snapshot) => {
+              authOrder.push("otp");
+              sharedSupabaseUserId = userId;
+              return snapshot;
+            });
+          },
+        })}
+        linking={{
+          async getInitialUrl() {
+            return null;
+          },
+          subscribe(listener) {
+            receive = listener;
+            return () => {
+              receive = undefined;
+            };
+          },
+        }}
+        authenticated={(id) => <Text>Signed in as {id}</Text>}
+      />,
+    );
+
+    expect(
+      await screen.findByText("Know what's next. Show up ready."),
+    ).toBeTruthy();
+    const callbackHasStarted = new Promise<void>((resolve) => {
+      callbackStarted = resolve;
+    });
+    const phoneVerificationStarted = new Promise<void>((resolve) => {
+      verifyStarted = resolve;
+    });
+    await userEvent.press(screen.getByLabelText("Continue with mobile"));
+    fireEvent.changeText(screen.getByLabelText("Mobile number"), "0412345678");
+    await userEvent.press(screen.getByLabelText("Continue"));
+    fireEvent.changeText(
+      await screen.findByLabelText("6-digit code"),
+      "123456",
+    );
+    await userEvent.press(screen.getByLabelText("Continue"));
+    await phoneVerificationStarted;
+
+    await act(async () => {
+      receive?.("stable://auth/callback?code=pending");
+      await Promise.resolve();
+    });
+    expect(await screen.findByText("Completing sign-in…")).toBeTruthy();
+    expect(screen.queryByLabelText("6-digit code")).toBeNull();
+
+    await act(async () => {
+      resolveOtp?.(authenticated);
+      await otp;
+      await callbackHasStarted;
+      expect(authOrder).toEqual(["otp", "callback"]);
+      resolveCallback?.(secondAuthenticated);
+      await callback;
+      await Promise.resolve();
+    });
+    expect(sharedSupabaseUserId).toBe(secondUserId);
+    expect(screen.getByText(`Signed in as ${secondUserId}`)).toBeTruthy();
+    expect(screen.queryByText("Completing sign-in…")).toBeNull();
+  });
+
+  it("uses safe recovery when both a callback and session restore fail", async () => {
+    let receive: ((url: string) => void) | undefined;
+    let restoreCount = 0;
+    await render(
+      <MobileAuthGate
+        restore={async () => {
+          restoreCount += 1;
+          if (restoreCount > 1) {
+            throw new Error("private provider details");
+          }
+          return authenticated;
+        }}
+        signOut={async () => ({ state: "unauthenticated" })}
+        actions={idleActions({
+          completeCallback: async () => {
+            throw new Error("private callback details");
+          },
+        })}
+        linking={{
+          async getInitialUrl() {
+            return null;
+          },
+          subscribe(listener) {
+            receive = listener;
+            return () => {
+              receive = undefined;
+            };
+          },
+        }}
+        authenticated={(id) => <Text>Signed in as {id}</Text>}
+      />,
+    );
+
+    expect(await screen.findByText(`Signed in as ${userId}`)).toBeTruthy();
+    receive?.("stable://auth/callback?code=private");
+    expect(await screen.findByText(AUTH_ERROR_MESSAGES.INTERNAL)).toBeTruthy();
+    expect(JSON.stringify(screen.toJSON())).not.toContain("private provider");
+    expect(JSON.stringify(screen.toJSON())).not.toContain("private callback");
+  });
+
+  it("ignores unrelated links and accepts a later callback once", async () => {
+    let receive: ((url: string) => void) | undefined;
+    const complete = jest.fn(async () => authenticated);
+    await render(
+      <MobileAuthGate
+        restore={async () => ({ state: "unauthenticated" })}
+        signOut={async () => ({ state: "unauthenticated" })}
+        actions={idleActions({ completeCallback: complete })}
+        linking={{
+          async getInitialUrl() {
+            return "stable://teams/current";
+          },
+          subscribe(listener) {
+            receive = listener;
+            return () => {
+              receive = undefined;
+            };
+          },
+        }}
+        authenticated={() => <Text>Club home</Text>}
+      />,
+    );
+
+    expect(screen.queryByText("Club home")).toBeNull();
+    expect(complete.mock.calls.length).toBe(0);
+    receive?.("stable://teams/current");
+    expect(complete.mock.calls.length).toBe(0);
+    receive?.("stable://auth/callback?code=local-code");
+    expect(await screen.findByText("Club home")).toBeTruthy();
+    expect(complete.mock.calls.length).toBe(1);
+  });
+
+  it("maps an unexpected restore failure to a safe recovery message", async () => {
+    await render(
+      <MobileAuthGate
+        restore={async () => {
+          throw new Error("provider returned private detail");
+        }}
+        signOut={async () => ({ state: "unauthenticated" })}
+        actions={idleActions()}
+        authenticated={() => <Text>Club home</Text>}
+      />,
+    );
+
+    expect(await screen.findByText(AUTH_ERROR_MESSAGES.INTERNAL)).toBeTruthy();
+    expect(screen.queryByText("provider returned private detail")).toBeNull();
+  });
+
+  it("keeps the active session visible if sign-out cannot reach the provider", async () => {
+    await render(
+      <MobileAuthGate
+        restore={async () => authenticated}
+        signOut={async () => {
+          throw new TypeError("network failed for private account");
+        }}
+        actions={idleActions()}
+        authenticated={() => <Text>Club home</Text>}
+      />,
+    );
+
+    await userEvent.press(await screen.findByLabelText("Sign out"));
+    expect(
+      await screen.findByText(
+        "Could not sign out. Your session is still active. Try again.",
+      ),
+    ).toBeTruthy();
+    expect(screen.getByText("Club home")).toBeTruthy();
+    expect(screen.queryByText("private account")).toBeNull();
+  });
+
+  it("surfaces a catalog callback error without exposing its URL", async () => {
+    await render(
+      <MobileAuthGate
+        restore={async () => ({ state: "unauthenticated" })}
+        signOut={async () => ({ state: "unauthenticated" })}
+        actions={idleActions({
+          async completeCallback() {
+            throw new ApplicationError(
+              "UPSTREAM_UNAVAILABLE",
+              AUTH_ERROR_MESSAGES.UPSTREAM_UNAVAILABLE,
+            );
+          },
+        })}
+        linking={{
+          async getInitialUrl() {
+            return null;
+          },
+          subscribe(listener) {
+            listener("stable://auth/callback?access_token=private");
+            return () => undefined;
+          },
+        }}
+        authenticated={() => <Text>Club home</Text>}
+      />,
+    );
+
+    expect(
+      await screen.findByText(AUTH_ERROR_MESSAGES.UPSTREAM_UNAVAILABLE),
+    ).toBeTruthy();
+    expect(JSON.stringify(screen.toJSON())).not.toContain("private");
+  });
+
+  it("does not trust an application error with a non-catalog message", async () => {
+    await render(
+      <MobileAuthGate
+        restore={async () => ({ state: "unauthenticated" })}
+        signOut={async () => ({ state: "unauthenticated" })}
+        actions={idleActions({
+          async completeCallback() {
+            throw new ApplicationError("VALIDATION_FAILED", "contains a token");
+          },
+        })}
+        linking={{
+          async getInitialUrl() {
+            return "stable://auth/callback?code=private";
+          },
+          subscribe() {
+            return () => undefined;
+          },
+        }}
+        authenticated={() => <Text>Club home</Text>}
+      />,
+    );
+
+    expect(await screen.findByText(AUTH_ERROR_MESSAGES.INTERNAL)).toBeTruthy();
+    expect(JSON.stringify(screen.toJSON())).not.toContain("token");
+  });
+
+  it("maps a failed subscribed callback to a safe recovery message", async () => {
+    let receive: ((url: string) => void) | undefined;
+    await render(
+      <MobileAuthGate
+        restore={async () => ({ state: "unauthenticated" })}
+        signOut={async () => ({ state: "unauthenticated" })}
+        actions={idleActions({
+          async completeCallback() {
+            throw new Error("provider token=private");
+          },
+        })}
+        linking={{
+          async getInitialUrl() {
+            return null;
+          },
+          subscribe(listener) {
+            receive = listener;
+            return () => undefined;
+          },
+        }}
+        authenticated={() => <Text>Club home</Text>}
+      />,
+    );
+
+    receive?.("stable://auth/callback?code=private");
+    expect(await screen.findByText(AUTH_ERROR_MESSAGES.INTERNAL)).toBeTruthy();
+    expect(JSON.stringify(screen.toJSON())).not.toContain("private");
+  });
 });
 
 function idleActions(overrides: Record<string, unknown> = {}) {
@@ -141,8 +990,8 @@ function idleActions(overrides: Record<string, unknown> = {}) {
     async requestEmail() {
       return undefined;
     },
-    async verifyEmail(): Promise<AuthSessionSnapshot> {
-      return authenticated;
+    validateCallback() {
+      return undefined;
     },
     async completeCallback(): Promise<AuthSessionSnapshot> {
       return authenticated;

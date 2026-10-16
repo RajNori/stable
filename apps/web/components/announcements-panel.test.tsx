@@ -58,4 +58,35 @@ describe("announcements panel", () => {
     expect(html).not.toContain("Publish announcement");
     expect(html).not.toContain("Acknowledge");
   });
+
+  it("shows a normal, non-acknowledgement message without publisher controls", () => {
+    const html = renderToStaticMarkup(
+      <AnnouncementsPanel
+        clubId={announcement.clubId}
+        teamId={announcement.teamId}
+        announcements={[
+          {
+            ...announcement,
+            importance: "NORMAL",
+            acknowledgementRequired: false,
+            acknowledgedAt: null,
+          },
+        ]}
+        canPublish={false}
+        publish={() => Promise.resolve()}
+        acknowledge={() => Promise.resolve()}
+        markRead={() => Promise.resolve()}
+        archive={() => Promise.resolve()}
+        error="Announcements are temporarily unavailable."
+      />,
+    );
+
+    expect(html).toContain('role="alert"');
+    expect(html).toContain("Announcements are temporarily unavailable.");
+    expect(html).toContain("Canteen reminder");
+    expect(html).not.toContain("Important: Canteen reminder");
+    expect(html).toContain("Mark read");
+    expect(html).not.toContain("Acknowledge");
+    expect(html).not.toContain("Archive");
+  });
 });

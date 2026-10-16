@@ -7,6 +7,7 @@ export const ENV = {
   expoSupabaseUrl: "EXPO_PUBLIC_SUPABASE_URL",
   expoSupabasePublishableKey: "EXPO_PUBLIC_SUPABASE_PUBLISHABLE_KEY",
   nextAppEnv: "NEXT_PUBLIC_APP_ENV",
+  nextSiteUrl: "NEXT_PUBLIC_SITE_URL",
   nextSupabaseUrl: "NEXT_PUBLIC_SUPABASE_URL",
   nextSupabasePublishableKey: "NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY",
   supabaseUrl: "SUPABASE_URL",

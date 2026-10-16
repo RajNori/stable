@@ -104,10 +104,47 @@ select public.create_manual_fixture(
   null, null, 'HOME'
 );
 
+reset role;
+update public.game_team_overlay
+set uniform_note = 'Synthetic white kit',
+    coach_focus = 'Synthetic press focus'
+where game_event_id = (select event_id from issued_game);
+do $$ begin perform pg_temp.assume_user('4f4f4f4f-4f4f-44f4-84f4-4f4f4f4f4f3f'); end $$;
+set local role authenticated;
+
+select is(
+  (select uniform_note from public.read_game_day((select event_id from issued_game))),
+  'Synthetic white kit',
+  'Club Admin without active coaching membership can read common uniform logistics'
+);
+select is(
+  (select coach_focus from public.read_game_day((select event_id from issued_game))),
+  null,
+  'Club Admin without active coaching membership cannot read coach focus'
+);
+select is(
+  pg_temp.sqlstate_of(format(
+    'select public.read_game_day_unfiltered(%L)',
+    (select event_id from issued_game)
+  )),
+  '42501',
+  'the internal unfiltered Game Day projection is not executable by authenticated callers'
+);
+
 select is(
   (select own_rsvp from public.read_game_day((select event_id from issued_game))),
   'UNANSWERED',
   'a game day has no stored RSVP yet'
+);
+select is(
+  (select fixture_source from public.read_game_day((select event_id from issued_game))),
+  'MANUAL',
+  'fixture source is included as a safe Game Day fact'
+);
+select is(
+  (select fixture_status from public.read_game_day((select event_id from issued_game))),
+  'SCHEDULED',
+  'fixture status is included as a safe Game Day fact'
 );
 select is(
   (select unanswered_count from public.read_game_day((select event_id from issued_game))),
@@ -127,6 +164,16 @@ select is(
   'a guardian can read their own unanswered RSVP'
 );
 select is(
+  (select uniform_note from public.read_game_day((select event_id from issued_game))),
+  'Synthetic white kit',
+  'a guardian can read common uniform logistics'
+);
+select is(
+  (select coach_focus from public.read_game_day((select event_id from issued_game))),
+  null,
+  'a guardian cannot read coach focus'
+);
+select is(
   (select attending_count from public.read_game_day((select event_id from issued_game))),
   null,
   'a guardian does not receive staff attendance counts'
@@ -144,6 +191,16 @@ select is(
 
 do $$ begin perform pg_temp.assume_user('4f4f4f4f-4f4f-44f4-84f4-4f4f4f4f4f1a'); end $$;
 select is(
+  (select uniform_note from public.read_game_day((select event_id from issued_game))),
+  'Synthetic white kit',
+  'an active Head Coach for the exact team can read common uniform logistics'
+);
+select is(
+  (select coach_focus from public.read_game_day((select event_id from issued_game))),
+  'Synthetic press focus',
+  'an active Head Coach for the exact team can read coach focus'
+);
+select is(
   pg_temp.sqlstate_of(format(
     'select public.assign_game_duty(%L, %L, %L, %L)',
     (select event_id from issued_game),
@@ -156,6 +213,16 @@ select is(
 );
 
 do $$ begin perform pg_temp.assume_user('4f4f4f4f-4f4f-44f4-84f4-4f4f4f4f4f1c'); end $$;
+select is(
+  (select uniform_note from public.read_game_day((select event_id from issued_game))),
+  'Synthetic white kit',
+  'a Team Manager can read common uniform logistics'
+);
+select is(
+  (select coach_focus from public.read_game_day((select event_id from issued_game))),
+  null,
+  'a Team Manager cannot read coach focus'
+);
 select lives_ok(
   format(
     'select public.assign_game_duty(%L, %L, %L, %L)',
@@ -177,6 +244,24 @@ select is(
   (select own_duty_status from public.read_game_day((select event_id from issued_game))),
   'ASSIGNED',
   'the assigned duty is not acknowledged'
+);
+select is(
+  (
+    select public.acknowledge_own_game_duty((select event_id from issued_game))
+  ),
+  1,
+  'the assigned guardian acknowledges their duty'
+);
+select is(
+  (select own_duty_status from public.read_game_day((select event_id from issued_game))),
+  'ACKNOWLEDGED',
+  'the Game Day projection reports the guardian duty acknowledgement'
+);
+do $$ begin perform pg_temp.assume_user('4f4f4f4f-4f4f-44f4-84f4-4f4f4f4f4f1c'); end $$;
+select is(
+  (select own_duty_status from public.read_game_day((select event_id from issued_game))),
+  null,
+  'the duty acknowledgement is not shown to a different team member'
 );
 
 select throws_ok(

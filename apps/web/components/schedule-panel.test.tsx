@@ -32,6 +32,7 @@ describe("schedule panel", () => {
     render(
       <SchedulePanel
         teamName="U14 Boys"
+        timezone="Australia/Melbourne"
         entries={[entry("GAME"), entry("TRAINING")]}
       />,
     );
@@ -42,7 +43,37 @@ describe("schedule panel", () => {
   });
 
   it("shows an empty range", () => {
-    render(<SchedulePanel teamName="U14 Boys" entries={[]} />);
+    render(
+      <SchedulePanel
+        teamName="U14 Boys"
+        timezone="Australia/Melbourne"
+        entries={[]}
+      />,
+    );
     expect(screen.getByText("No events in this range.")).toBeTruthy();
+  });
+
+  it("uses safe labels for games with missing provider labels and shows load errors", () => {
+    render(
+      <SchedulePanel
+        teamName="U14 Boys"
+        timezone="Australia/Melbourne"
+        error="Schedule could not be refreshed."
+        entries={[
+          {
+            ...entry("GAME"),
+            opponentName: null,
+            roundLabel: null,
+          },
+        ]}
+      />,
+    );
+
+    expect(screen.getByRole("alert").textContent).toBe(
+      "Schedule could not be refreshed.",
+    );
+    expect(screen.getByRole("list", { name: "Agenda" }).textContent).toContain(
+      "Game: Opponent at",
+    );
   });
 });

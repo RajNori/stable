@@ -39,13 +39,14 @@ export type { OAuthLinkGateway } from "./oauth-link.js";
 export { createSupabaseOAuthLinkGateway } from "./oauth-link-gateway.js";
 export type { OAuthLinkApi } from "./oauth-link-gateway.js";
 export {
-  MOBILE_OAUTH_SIGN_IN,
+  OAUTH_SIGN_IN_PROVIDER_SETTINGS,
   appleRequestNonce,
   cancelOAuthSignIn,
   completeOAuthIdTokenSignIn,
   completeOAuthSignIn,
   issueOAuthNonce,
   requestOAuthSignIn,
+  startOAuthBrowserSignIn,
 } from "./oauth-sign-in.js";
 export type { OAuthSignInGateway } from "./oauth-sign-in.js";
 export { createSupabaseOAuthSignInGateway } from "./oauth-sign-in-gateway.js";

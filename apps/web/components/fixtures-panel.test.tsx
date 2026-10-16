@@ -74,4 +74,41 @@ describe("fixtures panel", () => {
     expect(screen.queryByRole("button", { name: "Add fixture" })).toBeNull();
     expect(screen.getByText("No fixtures yet.")).toBeTruthy();
   });
+
+  it("shows a safe fallback round while allowing only the team overlay", () => {
+    render(
+      <FixturesPanel
+        clubId={clubId}
+        teamId={teamId}
+        teamName="U14 Boys"
+        fixtures={[
+          {
+            ...fixture,
+            roundLabel: null,
+            uniformNote: null,
+            coachFocus: null,
+            teamNote: null,
+          },
+        ]}
+        canManageOfficial={false}
+        canManageOverlay
+        createAction={vi.fn()}
+        officialAction={vi.fn()}
+        overlayAction={vi.fn()}
+      />,
+    );
+
+    expect(screen.getByText(/Game: Visitors at/)).toBeTruthy();
+    expect(
+      screen.getByRole("button", { name: "Save team overlay" }),
+    ).toBeTruthy();
+    expect(
+      screen.queryByRole("button", { name: "Save official fixture" }),
+    ).toBeNull();
+    expect(screen.queryByRole("button", { name: "Add fixture" })).toBeNull();
+    expect(screen.getByLabelText("Uniform for Visitors")).toHaveProperty(
+      "value",
+      "",
+    );
+  });
 });

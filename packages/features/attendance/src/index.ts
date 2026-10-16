@@ -5,6 +5,7 @@ export {
 } from "./application/attendance-messages.js";
 export {
   listTeamAttendance,
+  listManagedAttendance,
   recordAttendance,
   recordAttendanceSchema,
   teamAttendanceSchema,
@@ -12,6 +13,7 @@ export {
 export type {
   AttendanceAccess,
   AttendanceWriter,
+  ManagedAttendance,
   RecordAttendance,
   TeamAttendance,
 } from "./application/attendance-commands.js";

@@ -2,12 +2,14 @@ import type {
   GameCoachingStats,
   GamePlayerStatCorrection,
 } from "@stable/game-day";
+import { formatScheduleDateTime } from "@stable/schedule";
 import { themeFor } from "@stable/design-tokens";
 
 type GameStatsPanelProps = {
   stats: GameCoachingStats;
   corrections: readonly GamePlayerStatCorrection[];
   teamId: string;
+  timezone: string;
   canWrite: boolean;
   scoreAction: (formData: FormData) => void | Promise<void>;
   playerStatAction: (formData: FormData) => void | Promise<void>;
@@ -17,6 +19,7 @@ export function GameStatsPanel({
   stats,
   corrections,
   teamId,
+  timezone,
   canWrite,
   scoreAction,
   playerStatAction,
@@ -90,7 +93,8 @@ export function GameStatsPanel({
               <li key={`${correction.eventId}-${correction.playerId}-${index}`}>
                 <p>
                   Event {correction.eventId} · Player {correction.playerId} ·
-                  Actor {correction.actorId} · {correction.occurredAt}
+                  Actor {correction.actorId} ·{" "}
+                  {formatScheduleDateTime(correction.occurredAt, timezone)}
                 </p>
                 <p>
                   Before: {Object.values(correction.before).join(", ")} → After:{" "}
