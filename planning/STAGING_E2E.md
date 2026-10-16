@@ -15,18 +15,15 @@ All writes use a run-unique `[E2E] <timestamp>` label. Future events are dated 6
 
 ## One-time setup (owner)
 
-GitHub → Settings → Environments → **staging**:
+GitHub → Settings → Environments → **New environment** `staging`:
 
-- **Required reviewers:** you. Every run then waits for your approval.
-- **Deployment branches:** `milestone/5b-pilot-journey-completion` and `main`.
-- **Variables**
-  - `STAGING_SUPABASE_URL` = `https://rporaeagbsfmgbmhyett.supabase.co`
-  - `STAGING_PUBLISHABLE_KEY` = the staging publishable key (public)
-  - `STAGING_WEB_URL` = `https://web-git-milestone-5b-pilot-db8353-noriprototype-5577s-projects.vercel.app`
-  - `PRODUCTION_WEB_URL` = the production origin. The suite refuses to run against it.
-- **Secrets**
-  - `STAGING_SECRET_KEY`: a **staging-only** Supabase secret key. Create a dedicated one named `github-staging-e2e` so it can be revoked on its own.
-  - `VERCEL_AUTOMATION_BYPASS_SECRET`: Vercel → Project `web` → Settings → Deployment Protection → Protection Bypass for Automation. Previews use SSO protection.
+1. **Required reviewers:** add yourself. Every run then waits for your approval.
+2. **Environment secrets:**
+   - `STAGING_SECRET_KEY`: a **staging-only** Supabase secret key (Supabase → staging project → Settings → API Keys). Create a dedicated one named `github-staging-e2e` so it can be revoked on its own. If the seed rejects an `sb_secret_` key, use the legacy `service_role` key.
+   - `STAGING_PUBLISHABLE_KEY`: the staging publishable key, the same value as the Vercel Preview's `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY`.
+   - `VERCEL_AUTOMATION_BYPASS_SECRET`: Vercel → Project `web` → Settings → Deployment Protection → Protection Bypass for Automation → Add. Previews use SSO protection.
+
+The Supabase URL, the default Preview origin (the milestone branch alias) and the production origin it refuses are pinned in the workflow. Repository variables `STAGING_WEB_URL` and `PRODUCTION_WEB_URL` can override them.
 
 ## Run
 

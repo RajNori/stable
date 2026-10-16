@@ -31,10 +31,11 @@ jobs:
     timeout-minutes: 30
     environment: staging
     env:
-      STAGING_WEB_URL: ${{ inputs.web_url || vars.STAGING_WEB_URL }}
-      STAGING_SUPABASE_URL: ${{ vars.STAGING_SUPABASE_URL }}
-      STAGING_PUBLISHABLE_KEY: ${{ vars.STAGING_PUBLISHABLE_KEY }}
-      PRODUCTION_WEB_URL: ${{ vars.PRODUCTION_WEB_URL }}
+      # Non-secret targets are pinned here; vars can override them.
+      STAGING_WEB_URL: ${{ inputs.web_url || vars.STAGING_WEB_URL || 'https://web-git-milestone-5b-pilot-db8353-noriprototype-5577s-projects.vercel.app' }}
+      STAGING_SUPABASE_URL: https://rporaeagbsfmgbmhyett.supabase.co
+      PRODUCTION_WEB_URL: ${{ vars.PRODUCTION_WEB_URL || 'https://web-noriprototype-5577s-projects.vercel.app' }}
+      STAGING_PUBLISHABLE_KEY: ${{ secrets.STAGING_PUBLISHABLE_KEY }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -56,12 +57,23 @@ jobs:
       - name: Install
         run: pnpm install --frozen-lockfile
 
+      - name: Require staging secrets
+        env:
+          STAGING_SECRET_KEY: ${{ secrets.STAGING_SECRET_KEY }}
+          VERCEL_AUTOMATION_BYPASS_SECRET: ${{ secrets.VERCEL_AUTOMATION_BYPASS_SECRET }}
+        run: |
+          missing=0
+          for name in STAGING_PUBLISHABLE_KEY STAGING_SECRET_KEY VERCEL_AUTOMATION_BYPASS_SECRET; do
+            if [ -z "${!name}" ]; then echo "::error::Missing secret $name in the staging environment"; missing=1; fi
+          done
+          exit $missing
+
       - name: Seed staging and verify role access
         if: ${{ inputs.seed }}
         env:
           APP_ENV: staging
           TARGET_PROJECT_REF: rporaeagbsfmgbmhyett
-          SUPABASE_URL: ${{ vars.STAGING_SUPABASE_URL }}
+          SUPABASE_URL: https://rporaeagbsfmgbmhyett.supabase.co
           STAGING_KEY_SOURCE: env
           STAGING_SECRET_KEY: ${{ secrets.STAGING_SECRET_KEY }}
         run: node --experimental-strip-types scripts/staging/seed-pilot.ts --confirm-staging --verify-access
