@@ -207,12 +207,7 @@ jobs:
         run: pnpm --filter @stable/mobile exec expo config --type public
 
       - name: Expo Doctor
-        run: |
-          set -o pipefail
-          pnpm --filter @stable/mobile exec expo-doctor --verbose 2>&1 | tee /tmp/doctor.log || {
-            grep -vE '^\s*$|✔|Running 21|expo-doctor: v' /tmp/doctor.log | head -9 | tr '\n' ' ' | sed 's/^/::error::/'; echo
-            exit 1
-          }
+        run: pnpm --filter @stable/mobile exec expo-doctor
 
   playwright:
     name: playwright
