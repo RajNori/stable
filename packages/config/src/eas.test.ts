@@ -2,6 +2,7 @@ import { ApplicationError, ENV } from "@stable/contracts";
 import { describe, expect, it } from "vitest";
 
 import easFile from "../../../eas.json" with { type: "json" };
+import mobileEasFile from "../../../apps/mobile/eas.json" with { type: "json" };
 
 import { assertEasConfig } from "./index.js";
 
@@ -94,6 +95,10 @@ function expectEasFailure(config: unknown, pattern: RegExp): void {
 }
 
 describe("eas.json", () => {
+  it("keeps the mobile EAS CLI profiles aligned with release checks", () => {
+    expect(mobileEasFile).toEqual(easFile);
+  });
+
   it("parses the repo file and checks all mobile build profiles", () => {
     const config = readEasFile();
     expect(isRecord(config)).toBe(true);
