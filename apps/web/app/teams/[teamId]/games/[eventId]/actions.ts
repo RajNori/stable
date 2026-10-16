@@ -1,5 +1,6 @@
 "use server";
 
+import type { GameDayNotice } from "./notices";
 import { ApplicationError } from "@stable/contracts";
 import {
   attendanceMessages,
@@ -63,6 +64,10 @@ function destination(teamId: string, eventId: string): string {
 
 function withError(path: string, message: string): string {
   return `${path}?error=${encodeURIComponent(message)}`;
+}
+
+function withNotice(path: string, notice: GameDayNotice): string {
+  return `${path}?notice=${notice}`;
 }
 
 export async function recordAttendanceAction(
@@ -615,7 +620,9 @@ export async function acknowledgeDutyAction(formData: FormData): Promise<void> {
       caught instanceof Error ? caught.message : gameDayMessages.saveFailed;
     redirect(withError(destination(loaded.teamId, loaded.eventId), message));
   }
-  redirect(destination(loaded.teamId, loaded.eventId));
+  redirect(
+    withNotice(destination(loaded.teamId, loaded.eventId), "duty-acknowledged"),
+  );
 }
 
 export async function requestDutySwapAction(formData: FormData): Promise<void> {
@@ -635,7 +642,9 @@ export async function requestDutySwapAction(formData: FormData): Promise<void> {
       caught instanceof Error ? caught.message : gameDayMessages.saveFailed;
     redirect(withError(destination(loaded.teamId, loaded.eventId), message));
   }
-  redirect(destination(loaded.teamId, loaded.eventId));
+  redirect(
+    withNotice(destination(loaded.teamId, loaded.eventId), "duty-swap-offered"),
+  );
 }
 
 export async function acceptDutySwapAction(formData: FormData): Promise<void> {
@@ -662,7 +671,12 @@ export async function acceptDutySwapAction(formData: FormData): Promise<void> {
       caught instanceof Error ? caught.message : gameDayMessages.saveFailed;
     redirect(withError(destination(loaded.teamId, loaded.eventId), message));
   }
-  redirect(destination(loaded.teamId, loaded.eventId));
+  redirect(
+    withNotice(
+      destination(loaded.teamId, loaded.eventId),
+      "duty-swap-accepted",
+    ),
+  );
 }
 
 async function fillInAccess(formData: FormData) {

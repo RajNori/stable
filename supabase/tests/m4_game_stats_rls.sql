@@ -184,11 +184,13 @@ do $$ begin perform pg_temp.assume_user('71410000-0000-4000-8000-000000000004');
 set local role authenticated;
 select is(pg_temp.sqlerrm_of($$select * from public.read_game_player_stat_history('71410000-0000-4000-8000-000000000030')$$),'FORBIDDEN','team manager cannot read correction history');
 select is((select count(*) from public.audit_events where action='game_player_stats.corrected'),0::bigint,'team manager cannot read M4 stats audit metadata');
+select is(pg_temp.sqlerrm_of($$select * from public.read_game_coaching_stats('71410000-0000-4000-8000-000000000030')$$),'FORBIDDEN','team manager cannot read current coaching stats');
 reset role;
 
 do $$ begin perform pg_temp.assume_user('71410000-0000-4000-8000-000000000002'); end $$;
 set local role authenticated;
 select is(pg_temp.sqlerrm_of($$select * from public.read_game_player_stat_history('71410000-0000-4000-8000-000000000032')$$),'FORBIDDEN','coach cannot read another team game correction history');
+select is(pg_temp.sqlerrm_of($$select * from public.read_game_coaching_stats('71410000-0000-4000-8000-000000000032')$$),'FORBIDDEN','coach cannot read another team current coaching stats');
 select is((select count(*) from public.audit_events where action='game_player_stats.corrected' and team_id='71410000-0000-4000-8000-000000000013'),0::bigint,'coach cannot read another team M4 audit metadata');
 reset role;
 

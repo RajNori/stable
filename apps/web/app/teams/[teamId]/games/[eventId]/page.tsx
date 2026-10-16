@@ -35,6 +35,7 @@ import { loadLiveClubContext } from "../../../../../lib/load-live-club-context";
 import { principalFromSupabase } from "../../../../../lib/principal";
 import { createClubContextReader } from "../../../../../lib/reader";
 import { createSupabaseServerClient } from "../../../../../lib/supabase/server";
+import { gameDayNoticeFrom } from "./notices";
 import {
   acceptDutySwapAction,
   acknowledgeDutyAction,
@@ -108,6 +109,7 @@ export default async function GameDayPage({
   const query = await searchParams;
   const queryError = query["error"];
   const requestedError = Array.isArray(queryError) ? queryError[0] : queryError;
+  const notice = gameDayNoticeFrom(query["notice"]);
   const presentation = await loadLiveClubContext();
   if (presentation.status !== "member") {
     return <ClubAdminShell presentation={presentation} />;
@@ -385,6 +387,7 @@ export default async function GameDayPage({
         projection={projection}
         timezone={club.timezone}
         error={error}
+        notice={error === undefined ? notice : undefined}
         players={players}
         recordAction={recordAttendanceAction}
         {...(dutyProposal === undefined ? {} : { dutyProposal })}
