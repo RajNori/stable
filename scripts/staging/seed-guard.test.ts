@@ -5,6 +5,7 @@ import {
   classifySeedRow,
   STAGING_PROJECT_REF,
   STAGING_SUPABASE_URL,
+  stagingKeysFromEnv,
 } from "./seed-guard.ts";
 
 const approved = {
@@ -96,5 +97,60 @@ describe("staging seed rerun row classification", () => {
     expect(() =>
       classifySeedRow([expected, expected], expected, ["id", "value"]),
     ).toThrow(/refusing to overwrite/i);
+  });
+});
+
+describe("staging seed key source", () => {
+  const keys = {
+    STAGING_KEY_SOURCE: "env",
+    STAGING_SECRET_KEY: "sb_secret_synthetic",
+    STAGING_PUBLISHABLE_KEY: "sb_publishable_synthetic",
+  } as const;
+
+  it("defaults to the authenticated Supabase CLI when no source is set", () => {
+    expect(stagingKeysFromEnv({})).toBeNull();
+  });
+
+  it("returns environment keys only when explicitly selected", () => {
+    expect(stagingKeysFromEnv(keys)).toEqual({
+      serviceKey: "sb_secret_synthetic",
+      publicKey: "sb_publishable_synthetic",
+    });
+  });
+
+  it("rejects any other source value", () => {
+    expect(() =>
+      stagingKeysFromEnv({ ...keys, STAGING_KEY_SOURCE: "file" }),
+    ).toThrow("STAGING_KEY_SOURCE must be exactly env when set.");
+  });
+
+  it("requires both keys", () => {
+    expect(() =>
+      stagingKeysFromEnv({ ...keys, STAGING_SECRET_KEY: "" }),
+    ).toThrow("STAGING_SECRET_KEY is required");
+    expect(() =>
+      stagingKeysFromEnv({ ...keys, STAGING_PUBLISHABLE_KEY: undefined }),
+    ).toThrow("STAGING_PUBLISHABLE_KEY is required");
+  });
+
+  it("refuses a secret key in the publishable slot or a reused key", () => {
+    expect(() =>
+      stagingKeysFromEnv({
+        ...keys,
+        STAGING_PUBLISHABLE_KEY: "sb_secret_synthetic_two",
+      }),
+    ).toThrow("STAGING_PUBLISHABLE_KEY must not be a secret key.");
+    expect(() =>
+      stagingKeysFromEnv({
+        ...keys,
+        STAGING_PUBLISHABLE_KEY: "sb_secret_synthetic",
+      }),
+    ).toThrow();
+    expect(() =>
+      stagingKeysFromEnv({
+        ...keys,
+        STAGING_SECRET_KEY: "sb_publishable_synthetic",
+      }),
+    ).toThrow("STAGING_SECRET_KEY must differ from the publishable key.");
   });
 });

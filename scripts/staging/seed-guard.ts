@@ -59,3 +59,39 @@ export function assertStagingSeedTarget(target: StagingSeedTarget): void {
     );
   }
 }
+
+export type StagingKeys = Readonly<{ serviceKey: string; publicKey: string }>;
+
+/**
+ * Explicit, opt-in key source for the gated `staging-e2e` workflow. When
+ * STAGING_KEY_SOURCE is unset the seed keeps resolving keys from the
+ * operator's authenticated Supabase CLI. Values are never logged.
+ */
+export function stagingKeysFromEnv(
+  env: Readonly<Record<string, string | undefined>>,
+): StagingKeys | null {
+  const source = env["STAGING_KEY_SOURCE"];
+  if (source === undefined) return null;
+  if (source !== "env") {
+    throw new Error("STAGING_KEY_SOURCE must be exactly env when set.");
+  }
+  const serviceKey = env["STAGING_SECRET_KEY"];
+  const publicKey = env["STAGING_PUBLISHABLE_KEY"];
+  if (serviceKey === undefined || serviceKey.length === 0) {
+    throw new Error(
+      "STAGING_SECRET_KEY is required when STAGING_KEY_SOURCE=env.",
+    );
+  }
+  if (publicKey === undefined || publicKey.length === 0) {
+    throw new Error(
+      "STAGING_PUBLISHABLE_KEY is required when STAGING_KEY_SOURCE=env.",
+    );
+  }
+  if (publicKey.startsWith("sb_secret_")) {
+    throw new Error("STAGING_PUBLISHABLE_KEY must not be a secret key.");
+  }
+  if (serviceKey === publicKey) {
+    throw new Error("STAGING_SECRET_KEY must differ from the publishable key.");
+  }
+  return { serviceKey, publicKey };
+}

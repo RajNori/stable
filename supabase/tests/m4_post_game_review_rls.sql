@@ -127,6 +127,7 @@ reset role;
 do $$ begin perform pg_temp.assume_user('72410000-0000-4000-8000-000000000002'); end $$;
 set local role authenticated;
 select is(pg_temp.sqlerrm_of($$select * from public.read_post_game_review('72410000-0000-4000-8000-000000000031')$$),'FORBIDDEN','coach cannot read another team review');
+select is(pg_temp.sqlerrm_of($$select * from public.list_private_player_game_notes('72410000-0000-4000-8000-000000000031')$$),'FORBIDDEN','coach cannot list another team private notes');
 select is(pg_temp.sqlerrm_of($$select public.read_private_player_game_note('72410000-0000-4000-8000-000000000030','72410000-0000-4000-8000-000000000021')$$),'OK','team coach may read a team player note slot');
 reset role;
 

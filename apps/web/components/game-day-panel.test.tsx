@@ -204,4 +204,37 @@ describe("game day panel", () => {
       screen.queryByRole("button", { name: "Respond to fill-in" }),
     ).toBeNull();
   });
+
+  it("offers an open duty swap without asking for a raw user id", () => {
+    render(
+      <GameDayPanel
+        projection={{
+          ...projection,
+          ownDutyLabel: "Scorer",
+          ownDutyStatus: "ASSIGNED",
+        }}
+        timezone="Australia/Melbourne"
+        acknowledgeDuty={() => Promise.resolve()}
+        requestSwap={() => Promise.resolve()}
+      />,
+    );
+
+    expect(
+      screen.getByRole("button", { name: "Request duty swap" }),
+    ).toBeTruthy();
+    expect(screen.queryByRole("textbox", { name: /offer to/i })).toBeNull();
+    expect(document.querySelector('input[name="targetUserId"]')).toBeNull();
+  });
+
+  it("confirms a completed duty action with a status message", () => {
+    render(
+      <GameDayPanel
+        projection={projection}
+        timezone="Australia/Melbourne"
+        notice="Duty acknowledged."
+      />,
+    );
+
+    expect(screen.getByRole("status").textContent).toBe("Duty acknowledged.");
+  });
 });

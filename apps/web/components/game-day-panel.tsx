@@ -5,6 +5,7 @@ export function GameDayPanel({
   projection,
   timezone,
   error,
+  notice,
   players = [],
   recordAction,
   dutyProposal,
@@ -25,6 +26,7 @@ export function GameDayPanel({
   projection: GameDayProjection | null;
   timezone: string;
   error?: string | undefined;
+  notice?: string | undefined;
   players?: { playerId: string; label: string }[] | undefined;
   recordAction?: ((formData: FormData) => Promise<void>) | undefined;
   dutyProposal?: { fingerprint: string; lines: string[] } | undefined;
@@ -48,6 +50,7 @@ export function GameDayPanel({
     <section aria-label="Game day">
       <h2 style={{ margin: 0 }}>Game day</h2>
       {error !== undefined ? <p role="alert">{error}</p> : null}
+      {notice !== undefined ? <p role="status">{notice}</p> : null}
       {projection === null ? null : (
         <>
           <p>
@@ -160,10 +163,6 @@ export function GameDayPanel({
               <input type="hidden" name="clubId" value={projection.clubId} />
               <input type="hidden" name="teamId" value={projection.teamId} />
               <input type="hidden" name="eventId" value={projection.eventId} />
-              <label>
-                Offer to
-                <input name="targetUserId" />
-              </label>
               <button type="submit">Request duty swap</button>
             </form>
           ) : null}
