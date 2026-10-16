@@ -86,6 +86,7 @@ export const STAGING = {
   manager: "m5b-team-manager@stable.invalid",
   guardianOne: "m5b-guardian-one@stable.invalid",
   guardianTwo: "m5b-guardian-two@stable.invalid",
+  guardianThree: "m5b-guardian-three@stable.invalid",
   adminOnly: "m5b-admin-only@stable.invalid",
   otherTeamCoach: "m5b-other-team-coach@stable.invalid",
 } as const;

@@ -150,7 +150,11 @@ export function GameDayPanel({
                 </form>
               ))
             : null}
-          {acknowledgeDuty !== undefined && projection.ownDutyLabel !== null ? (
+          {projection.ownDutyLabel !== null &&
+          projection.ownDutyStatus === "ACKNOWLEDGED" ? (
+            <p>Duty acknowledged</p>
+          ) : acknowledgeDuty !== undefined &&
+            projection.ownDutyLabel !== null ? (
             <form action={acknowledgeDuty}>
               <input type="hidden" name="clubId" value={projection.clubId} />
               <input type="hidden" name="teamId" value={projection.teamId} />

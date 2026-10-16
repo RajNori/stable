@@ -96,6 +96,22 @@ describe("game day snapshot", () => {
     expect(await readGameDaySnapshot(store, userId, teamId)).toEqual(refreshed);
   });
 
+  it("keeps acknowledged duty state in the offline snapshot", async () => {
+    const store = memoryGameDaySnapshotStore();
+    const snapshot = gameDaySnapshotFromProjection({
+      userId,
+      teamName: "U14 Boys",
+      projection: { ...projection, ownDutyStatus: "ACKNOWLEDGED" },
+      savedAt,
+    });
+
+    await saveGameDaySnapshot(store, snapshot);
+
+    expect(await readGameDaySnapshot(store, userId, teamId)).toMatchObject({
+      ownDutyStatus: "ACKNOWLEDGED",
+    });
+  });
+
   it("marks an old snapshot stale", () => {
     expect(
       gameDaySnapshotFreshness(savedAt, Date.parse("2026-10-07T08:00:00.000Z")),

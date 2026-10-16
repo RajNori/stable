@@ -42,7 +42,7 @@ export const gameDayProjectionSchema = z.strictObject({
   coachFocus: z.string().nullable(),
   ownRsvp: z.enum(RSVP_STATUSES),
   ownDutyLabel: z.string().nullable(),
-  ownDutyStatus: z.literal("ASSIGNED").nullable(),
+  ownDutyStatus: z.enum(["ASSIGNED", "ACKNOWLEDGED"]).nullable(),
   fillInLabel: z.string().nullable(),
   attendingCount: countSchema,
   unavailableCount: countSchema,

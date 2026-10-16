@@ -17,7 +17,7 @@ export type GameDaySnapshot = {
   courtLabel: string | null;
   uniformNote: string | null;
   ownDutyLabel: string | null;
-  ownDutyStatus: "ASSIGNED" | null;
+  ownDutyStatus: "ASSIGNED" | "ACKNOWLEDGED" | null;
   fillInLabel: string | null;
   attendingCount: number | null;
   unavailableCount: number | null;
@@ -103,7 +103,8 @@ function isSnapshot(value: unknown): value is GameDaySnapshot {
     isNullableText(value["uniformNote"]) &&
     isNullableText(value["ownDutyLabel"]) &&
     (value["ownDutyStatus"] === null ||
-      value["ownDutyStatus"] === "ASSIGNED") &&
+      value["ownDutyStatus"] === "ASSIGNED" ||
+      value["ownDutyStatus"] === "ACKNOWLEDGED") &&
     isNullableText(value["fillInLabel"]) &&
     isCount(value["attendingCount"]) &&
     isCount(value["unavailableCount"]) &&

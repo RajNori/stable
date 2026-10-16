@@ -18,6 +18,35 @@ function localDateTime(daysFromNow: number, hour: number): string {
   return `${day}T${String(hour).padStart(2, "0")}:00`;
 }
 
+async function expectSecondSwapAcceptanceToConflict(
+  email: string,
+  requestId: string,
+): Promise<void> {
+  const admin = createClient(env.supabaseUrl, env.secretKey, {
+    auth: { autoRefreshToken: false, persistSession: false },
+  });
+  const link = await admin.auth.admin.generateLink({
+    type: "magiclink",
+    email,
+  });
+  const tokenHash = link.data.properties?.hashed_token;
+  if (link.error !== null || tokenHash === undefined) {
+    throw new Error("Staging Auth did not return the swap acceptance proof.");
+  }
+  const recipient = createClient(env.supabaseUrl, env.publishableKey, {
+    auth: { autoRefreshToken: false, persistSession: false },
+  });
+  const session = await recipient.auth.verifyOtp({
+    type: "magiclink",
+    token_hash: tokenHash,
+  });
+  expect(session.error).toBeNull();
+  const secondAcceptance = await recipient.rpc("accept_duty_swap", {
+    p_request_id: requestId,
+  });
+  expect(secondAcceptance.error?.message).toBe("CONFLICT");
+}
+
 test.describe.configure({ mode: "serial" });
 
 test("Admin configures a team: player, registration, guardian and staff invitations", async ({
@@ -79,10 +108,34 @@ test("Admin configures a team: player, registration, guardian and staff invitati
 test("Manager and Guardian complete the weekly loop: fixture, RSVP, availability, duty, announcement", async ({
   browser,
 }) => {
+  type HostedRoleSession = Awaited<ReturnType<typeof hostedRole>>;
   const manager = await hostedRole(browser, env, STAGING.manager);
   const guardian = await hostedRole(browser, env, STAGING.guardianTwo);
+  const adultSessions = new Map<string, HostedRoleSession>([
+    [STAGING.manager, manager],
+    [STAGING.guardianTwo, guardian],
+  ]);
+  const additionalSessions: HostedRoleSession[] = [];
+  const adult = async (email: string) => {
+    const existing = adultSessions.get(email);
+    if (existing !== undefined) return existing;
+    const created = await hostedRole(browser, env, email);
+    adultSessions.set(email, created);
+    additionalSessions.push(created);
+    return created;
+  };
+  const eligibleAdults = [
+    STAGING.adminCoach,
+    STAGING.assistantCoach,
+    STAGING.manager,
+    STAGING.guardianOne,
+    STAGING.guardianTwo,
+    STAGING.guardianThree,
+    STAGING.adminOnly,
+  ];
   const opponent = `${RUN} Opponent`;
   const title = `${RUN} Notice`;
+  const dutyLabel = `${RUN} Scoreboard`;
   try {
     // Manager creates a fixture well beyond the seeded pilot week.
     await manager.page.goto(`/teams/${STAGING.primaryTeam}/fixtures`);
@@ -128,7 +181,7 @@ test("Manager and Guardian complete the weekly loop: fixture, RSVP, availability
     ).toBeVisible();
 
     // Manager creates and allocates a duty.
-    await manager.page.getByLabel("Label").fill(`${RUN} Scoreboard`);
+    await manager.page.getByLabel("Label").fill(dutyLabel);
     await manager.page.getByRole("button", { name: "Add open duty" }).click();
     await manager.page
       .getByRole("button", { name: "Commit allocation" })
@@ -136,6 +189,99 @@ test("Manager and Guardian complete the weekly loop: fixture, RSVP, availability
     await expect(
       manager.page.getByRole("button", { name: "Commit allocation" }),
     ).toHaveCount(0);
+
+    // A guardian responds for one of their own players; the manager confirms
+    // that response so the run does not leave an open fill-in request behind.
+    await manager.page.getByRole("button", { name: "Request fill-in" }).click();
+    await guardian.page.goto(gameHref);
+    const guardianResponse = guardian.page
+      .getByRole("region", { name: "Game day" })
+      .locator("form")
+      .filter({
+        has: guardian.page.getByRole("button", {
+          name: "Respond to fill-in",
+        }),
+      })
+      .first();
+    await expect(guardianResponse).toBeVisible();
+    await guardianResponse
+      .getByRole("button", { name: "Respond to fill-in" })
+      .click();
+    await manager.page.goto(gameHref);
+    const confirmation = manager.page
+      .getByRole("region", { name: "Game day" })
+      .locator("form")
+      .filter({
+        has: manager.page.getByRole("button", { name: "Confirm fill-in" }),
+      })
+      .first();
+    await expect(confirmation).toBeVisible();
+    await confirmation.getByRole("button", { name: "Confirm fill-in" }).click();
+    await expect(
+      manager.page.getByRole("region", { name: "Game day" }),
+    ).not.toContainText("Fill-in None");
+
+    // Find the adult selected by the balanced allocator, then have a different
+    // eligible adult accept. The second acceptance must fail as a conflict.
+    let requesterEmail: string | undefined;
+    for (const email of eligibleAdults) {
+      const session = await adult(email);
+      await session.page.goto(gameHref);
+      if (
+        (await session.page
+          .getByText(`Duty ${dutyLabel}`, { exact: true })
+          .count()) > 0 &&
+        (await session.page
+          .getByRole("button", { name: "Request duty swap" })
+          .count()) > 0
+      ) {
+        requesterEmail = email;
+        await session.page
+          .getByRole("button", { name: "Request duty swap" })
+          .click();
+        await expect(session.page.getByRole("status")).toHaveText(
+          "Swap offered. Eligible adults on this team can now take this duty.",
+        );
+        break;
+      }
+    }
+    if (requesterEmail === undefined) {
+      throw new Error("No eligible synthetic adult received the E2E duty.");
+    }
+
+    let accepterEmail: string | undefined;
+    let swapRequestId: string | undefined;
+    for (const email of eligibleAdults) {
+      if (email === requesterEmail) continue;
+      const session = await adult(email);
+      await session.page.goto(gameHref);
+      const acceptForm = session.page
+        .getByRole("region", { name: "Game day" })
+        .locator("form")
+        .filter({
+          has: session.page.getByRole("button", { name: "Accept swap" }),
+        })
+        .first();
+      if ((await acceptForm.count()) === 0) continue;
+      swapRequestId = await acceptForm
+        .locator('input[name="requestId"]')
+        .inputValue();
+      await acceptForm.getByRole("button", { name: "Accept swap" }).click();
+      await expect(session.page.getByRole("status")).toHaveText(
+        "You have taken this duty.",
+      );
+      await expect(
+        session.page.getByRole("button", { name: "Accept swap" }),
+      ).toHaveCount(0);
+      accepterEmail = email;
+      break;
+    }
+    if (accepterEmail === undefined || swapRequestId === undefined) {
+      throw new Error(
+        "A second eligible adult could not accept the duty swap.",
+      );
+    }
+    await expectSecondSwapAcceptanceToConflict(accepterEmail, swapRequestId);
 
     // Manager publishes an acknowledgement-required update.
     await manager.page.goto(`/teams/${STAGING.primaryTeam}/announcements`);
@@ -166,6 +312,19 @@ test("Manager and Guardian complete the weekly loop: fixture, RSVP, availability
       manager.page.getByRole("listitem").filter({ hasText: title }),
     ).toContainText("1 acknowledgements");
   } finally {
+    // Hide the run-unique fixture from the pilot schedule after the journey.
+    await manager.page.goto(`/teams/${STAGING.primaryTeam}/fixtures`);
+    const runFixture = manager.page
+      .getByRole("listitem")
+      .filter({ hasText: opponent });
+    if ((await runFixture.count()) > 0) {
+      await runFixture
+        .getByLabel(`Status for ${opponent}`)
+        .selectOption("CANCELLED");
+      await runFixture
+        .getByRole("button", { name: "Save official fixture" })
+        .click();
+    }
     // Archive the synthetic update so it never becomes the pilot's
     // "latest team update".
     await manager.page.goto(`/teams/${STAGING.primaryTeam}/announcements`);
@@ -174,6 +333,9 @@ test("Manager and Guardian complete the weekly loop: fixture, RSVP, availability
     if ((await archive.count()) > 0) await archive.click();
     await manager.context.close();
     await guardian.context.close();
+    await Promise.all(
+      additionalSessions.map((session) => session.context.close()),
+    );
   }
 });
 

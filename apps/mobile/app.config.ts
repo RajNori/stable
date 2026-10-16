@@ -91,6 +91,11 @@ const config = {
   version: "0.0.0",
   orientation: "portrait",
   userInterfaceStyle: "light",
+  extra: {
+    eas: {
+      projectId: "6c278b8d-ef3a-40b0-bf28-5a8261db2407",
+    },
+  },
   ios: {
     bundleIdentifier: "app.stable.mobile",
     supportsTablet: true,

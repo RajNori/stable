@@ -1,7 +1,7 @@
 import { render } from "@testing-library/react-native";
 import React from "react";
 
-import RootLayout from "./_layout";
+import RootLayout from "../app/_layout";
 
 declare const jest: {
   mock: (moduleName: string, factory: () => unknown) => void;
@@ -17,13 +17,13 @@ jest.mock("@sentry/react-native", () => ({
 jest.mock("react-native-safe-area-context", () => ({
   SafeAreaProvider: ({ children }: { children: React.ReactNode }) => children,
 }));
-jest.mock("../src/auth-refresh-lifecycle", () => ({
+jest.mock("./auth-refresh-lifecycle", () => ({
   bindMobileAuthRefreshLifecycle: () => undefined,
 }));
-jest.mock("../src/boot-env", () => ({
+jest.mock("./boot-env", () => ({
   loadMobileBootEnv: () => ({ appEnv: "local", sentryDsn: undefined }),
 }));
-jest.mock("../src/supabase-client", () => ({
+jest.mock("./supabase-client", () => ({
   getMobileSupabaseClient: () => ({ auth: {} }),
 }));
 

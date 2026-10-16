@@ -237,4 +237,23 @@ describe("game day panel", () => {
 
     expect(screen.getByRole("status").textContent).toBe("Duty acknowledged.");
   });
+
+  it("shows acknowledged duty and hides the acknowledgement action", () => {
+    render(
+      <GameDayPanel
+        projection={{
+          ...projection,
+          ownDutyLabel: "Scorer",
+          ownDutyStatus: "ACKNOWLEDGED",
+        }}
+        timezone="Australia/Melbourne"
+        acknowledgeDuty={() => Promise.resolve()}
+      />,
+    );
+
+    expect(screen.getByText("Duty acknowledged")).toBeTruthy();
+    expect(
+      screen.queryByRole("button", { name: "Acknowledge duty" }),
+    ).toBeNull();
+  });
 });

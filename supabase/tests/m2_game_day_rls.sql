@@ -245,6 +245,24 @@ select is(
   'ASSIGNED',
   'the assigned duty is not acknowledged'
 );
+select is(
+  (
+    select public.acknowledge_own_game_duty((select event_id from issued_game))
+  ),
+  1,
+  'the assigned guardian acknowledges their duty'
+);
+select is(
+  (select own_duty_status from public.read_game_day((select event_id from issued_game))),
+  'ACKNOWLEDGED',
+  'the Game Day projection reports the guardian duty acknowledgement'
+);
+do $$ begin perform pg_temp.assume_user('4f4f4f4f-4f4f-44f4-84f4-4f4f4f4f4f1c'); end $$;
+select is(
+  (select own_duty_status from public.read_game_day((select event_id from issued_game))),
+  null,
+  'the duty acknowledgement is not shown to a different team member'
+);
 
 select throws_ok(
   'select id from public.duties',

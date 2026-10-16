@@ -351,6 +351,20 @@ describe("team game day screen", () => {
     expect(screen.queryByText(swap.requesterUserId)).toBeNull();
   });
 
+  it("shows an acknowledged duty without offering the acknowledgement action", async () => {
+    await renderScreen({
+      loadContext: () => Promise.resolve(context),
+      loadGameDay: () =>
+        Promise.resolve({ ...projection, ownDutyStatus: "ACKNOWLEDGED" }),
+      acknowledgeDuty: () => Promise.resolve(1),
+    });
+
+    expect(await screen.findByText("Duty acknowledged")).toBeTruthy();
+    expect(
+      screen.queryByRole("button", { name: "Acknowledge my duty" }),
+    ).toBeNull();
+  });
+
   it("shows fallbacks for omitted game labels and a guardian-safe count summary", async () => {
     const nextGame: GameDayProjection = {
       ...projection,

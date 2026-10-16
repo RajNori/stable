@@ -617,7 +617,9 @@ export function TeamGameDayScreen({
       loadDutySwaps === undefined ? null : (
         <View style={styles.dutyCard}>
           <Text style={styles.body}>Your game duty</Text>
-          {projection.ownDutyStatus === "ASSIGNED" ? (
+          {projection.ownDutyStatus === "ACKNOWLEDGED" ? (
+            <Text style={styles.body}>Duty acknowledged</Text>
+          ) : projection.ownDutyStatus === "ASSIGNED" ? (
             <>
               {acknowledgeDuty === undefined ? null : (
                 <Pressable
