@@ -6,6 +6,8 @@
  * Required: APP_ENV=staging TARGET_PROJECT_REF=<approved ref>
  *           SUPABASE_URL=<approved URL>
  * Run:      node --experimental-strip-types scripts/staging/seed-pilot.ts --confirm-staging
+ * CI:       STAGING_KEY_SOURCE=env with STAGING_SECRET_KEY and
+ *           STAGING_PUBLISHABLE_KEY, only from the gated staging-e2e workflow.
  */
 import { execFileSync } from "node:child_process";
 import { randomBytes } from "node:crypto";
@@ -16,6 +18,7 @@ import {
   classifySeedRow,
   STAGING_PROJECT_REF,
   STAGING_SUPABASE_URL,
+  stagingKeysFromEnv,
 } from "./seed-guard.ts";
 
 const CLUB = "11111111-1111-4111-8111-111111111111";
@@ -408,7 +411,10 @@ async function seed(): Promise<void> {
     supabaseUrl: process.env.SUPABASE_URL,
     args: process.argv.slice(2),
   });
-  if (readLinkedRef() !== STAGING_PROJECT_REF) {
+  // The gated CI workflow supplies keys explicitly; the operator path keeps
+  // requiring a CLI link to the approved project.
+  const envKeys = stagingKeysFromEnv(process.env);
+  if (envKeys === null && readLinkedRef() !== STAGING_PROJECT_REF) {
     throw new Error("Supabase CLI is linked to an unapproved project.");
   }
   if (process.argv.slice(2).includes("--dry-run")) {
@@ -420,7 +426,7 @@ async function seed(): Promise<void> {
 
   // Resolve the secret only in memory from the authenticated CLI session. It
   // is never logged, written to disk, or placed in a client/public variable.
-  const { serviceKey, publicKey } = readApiKeys();
+  const { serviceKey, publicKey } = envKeys ?? readApiKeys();
   for (const user of USERS) await ensureAuthUser(serviceKey, user);
   const sessions = new Map<string, string>();
   const coach = USERS.find((user) => user.id === USER.adminCoach);
