@@ -210,7 +210,7 @@ jobs:
         run: |
           set -o pipefail
           pnpm --filter @stable/mobile exec expo-doctor --verbose 2>&1 | tee /tmp/doctor.log || {
-            grep -vE '^\s*$' /tmp/doctor.log | tail -60 | sed 's/^/::error::/'
+            grep -vE '^\s*$|✔|Running 21|expo-doctor: v' /tmp/doctor.log | head -9 | tr '\n' ' ' | sed 's/^/::error::/'; echo
             exit 1
           }
 
