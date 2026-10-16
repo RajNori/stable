@@ -1,0 +1,131 @@
+{
+  "audit": {
+    "repository": "RajNori/stable",
+    "pr": 3,
+    "head_sha": "5b8a7462a4b1d299421d6ed2c21e2a72ec714454",
+    "product_review_sha": "3dbed1557d73afee4e95f28eeb4cc4ad12b76fbb"
+  },
+  "target_auth": {
+    "dashboard": [
+      "google_sso",
+      "facebook_sso",
+      "email_password",
+      "password_recovery_link"
+    ],
+    "mobile": ["sms_otp_primary", "email_magic_link_alternative"],
+    "identity_authority": "supabase_auth",
+    "sms_provider": "twilio",
+    "email_provider": "sendgrid"
+  },
+  "roles": {
+    "CLUB_ADMIN": {
+      "strong": [
+        "players",
+        "staff_assignment",
+        "invitations",
+        "roster_security",
+        "club_structure_domain"
+      ],
+      "gaps_p0": [
+        "target_dashboard_auth",
+        "operational_admin_home",
+        "hosted_staging",
+        "realistic_staging_seed"
+      ],
+      "gaps_p1": [
+        "competition_ui",
+        "venue_ui",
+        "full_team_lifecycle_ui",
+        "audit_browser"
+      ]
+    },
+    "HEAD_COACH": {
+      "strong": [
+        "m4_authorization",
+        "stats",
+        "review",
+        "private_notes",
+        "recognition",
+        "practice_planner"
+      ],
+      "gaps_p0": ["coach_home", "hosted_staging", "team_context_ux"],
+      "decision": ["primary_channel_for_dense_coaching_commands"]
+    },
+    "ASSISTANT_COACH": {
+      "strong": [
+        "m4_coach_capabilities",
+        "private_note_boundary",
+        "revocation"
+      ],
+      "gaps_p0": [
+        "coach_home",
+        "hosted_revocation_proof",
+        "permission_document_normalization"
+      ]
+    },
+    "TEAM_MANAGER": {
+      "strong": [
+        "manual_fixtures",
+        "roster_manage",
+        "announcements",
+        "duties",
+        "duty_swaps",
+        "fill_ins"
+      ],
+      "gaps_p0": [
+        "manager_home",
+        "guardian_mobile_response_actions",
+        "real_push",
+        "hosted_staging"
+      ]
+    },
+    "GUARDIAN": {
+      "strong": [
+        "secure_session",
+        "offline_game_day",
+        "masked_roster",
+        "announcement_read_ack",
+        "schedule_read"
+      ],
+      "gaps_p0": [
+        "parent_home",
+        "context_switch",
+        "native_rsvp",
+        "hosted_twilio"
+      ],
+      "gaps_p1": [
+        "native_duty_actions",
+        "native_fill_in_response",
+        "real_push",
+        "profile",
+        "sendgrid_magic_link"
+      ]
+    },
+    "PLAYER": {
+      "strong": [
+        "no_auth_boundary",
+        "privacy",
+        "registration",
+        "coaching_privacy"
+      ],
+      "future": [
+        "season_rollover",
+        "wave2_media_consent",
+        "goals_challenges_achievements"
+      ]
+    }
+  },
+  "systemic_gaps": [
+    "hosted_staging_not_primary_acceptance_environment",
+    "auth_contract_drift",
+    "role_home_surfaces_missing",
+    "guardian_mobile_action_gap",
+    "real_push_missing",
+    "realistic_staging_seed_missing",
+    "club_structure_domain_ui_gap",
+    "playhq_not_live",
+    "sentry_not_runtime_connected",
+    "release_sequence_ahead_of_product_acceptance"
+  ],
+  "recommended_milestone": "M5B \u2014 Cloud Pilot Journey Completion"
+}

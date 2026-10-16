@@ -3,6 +3,7 @@
 begin;
 
 create extension if not exists pgtap with schema extensions;
+create extension if not exists dblink with schema extensions;
 
 create or replace function pg_temp.sqlerrm_of(command text)
 returns text
@@ -83,8 +84,26 @@ select no_plan();
 
 create temp table issued_announcement (announcement_id uuid);
 create temp table issued_request (recipient_user_id uuid, request_id uuid);
+create temp table dispatch_claim (
+  request_id uuid,
+  claim_id uuid,
+  endpoint_id uuid,
+  push_token text
+);
+create temp table dispatch_announcement (announcement_id uuid);
+create temp table invalid_dispatch_endpoint (endpoint_id uuid);
+create temp table dispatch_test_endpoints (endpoint_id uuid);
+create temp table inactive_team_notification_claims (
+  request_id uuid,
+  claim_id uuid
+);
 grant all on table issued_announcement to authenticated;
 grant all on table issued_request to authenticated;
+grant all on table dispatch_claim to service_role;
+grant all on table dispatch_announcement to authenticated, service_role;
+grant all on table invalid_dispatch_endpoint to service_role;
+grant all on table dispatch_test_endpoints to authenticated, service_role;
+grant all on table inactive_team_notification_claims to service_role;
 
 do $$ begin perform pg_temp.assume_user('8f8f8f8f-8f8f-48f8-88f8-8f8f8f8f8f01'); end $$;
 set local role authenticated;
@@ -343,6 +362,671 @@ select throws_ok(
   '42501',
   'permission denied for function apply_notification_provider_result',
   'authenticated callers cannot apply provider results'
+);
+
+reset role;
+update public.team_memberships
+set active = true
+where user_id = '8f8f8f8f-8f8f-48f8-88f8-8f8f8f8f8f01';
+
+do $$ begin perform pg_temp.assume_user('8f8f8f8f-8f8f-48f8-88f8-8f8f8f8f8f01'); end $$;
+set local role authenticated;
+
+insert into dispatch_test_endpoints (endpoint_id)
+values
+  (public.register_device_endpoint('ExponentPushToken[dispatch-one]', 'IOS')),
+  (public.register_device_endpoint('ExponentPushToken[dispatch-two]', 'IOS'));
+select is(
+  (select count(*)::integer from dispatch_test_endpoints),
+  2,
+  'manager registers two dispatcher test endpoints'
+);
+
+insert into dispatch_announcement (announcement_id)
+values (
+  public.publish_announcement(
+    '8a8a8a8a-8a8a-48a8-88a8-8a8a8a8a8a8a',
+    '8d8d8d8d-8d8d-48d8-88d8-8d8d8d8d8d8d',
+    'GENERAL',
+    'NORMAL',
+    'Dispatch test',
+    'Synthetic dispatcher test.',
+    false
+  )
+);
+select public.enqueue_announcement_published(
+  (select announcement_id from dispatch_announcement)
+);
+
+reset role;
+
+-- Other earlier notification checks may have registered active endpoints for
+-- this user. Make the intended dispatch test endpoint unambiguously newest so
+-- the claim exercises the endpoint set asserted below, regardless of random
+-- UUID ordering or transaction timestamp ties.
+update public.device_endpoints
+set last_seen_at = now() + interval '1 second'
+where id = (
+  select endpoint_id
+  from dispatch_test_endpoints
+  order by endpoint_id
+  limit 1
+);
+
+set local role service_role;
+insert into dispatch_claim (request_id, claim_id)
+select request_id, claim_id
+from public.claim_notification_dispatches(25)
+where request_id = (
+  select request.id
+  from public.notification_requests as request
+  join dispatch_announcement as announcement
+    on announcement.announcement_id = request.source_id
+  where request.recipient_user_id = '8f8f8f8f-8f8f-48f8-88f8-8f8f8f8f8f01'
+  order by request.created_at desc
+  limit 1
+);
+
+select is(
+  (select count(*)::integer from dispatch_claim),
+  1,
+  'the trusted worker atomically claims the pending manager notice'
+);
+select is(
+  (
+    select count(*)::integer
+    from public.claim_notification_dispatches(25) as second_claim
+    where second_claim.request_id = (select request_id from dispatch_claim)
+  ),
+  0,
+  'a second claim cannot claim the same in-flight notice'
+);
+
+update dispatch_claim as claim
+set endpoint_id = started.endpoint_id,
+    push_token = started.expo_push_token
+from public.begin_notification_dispatch(
+  (select request_id from dispatch_claim),
+  (select claim_id from dispatch_claim)
+) as started;
+
+select ok(
+  (select endpoint_id is not null and push_token is not null from dispatch_claim),
+  'the send phase rechecks eligibility before returning an endpoint token'
+);
+select ok(
+  (select endpoint_id in (select endpoint_id from dispatch_test_endpoints) from dispatch_claim),
+  'dispatch selects one of the endpoints created for this test'
+);
+insert into invalid_dispatch_endpoint (endpoint_id)
+select endpoint_id from dispatch_claim;
+
+select is(
+  public.apply_expo_notification_result(
+    (select request_id from dispatch_claim),
+    (select claim_id from dispatch_claim),
+    (select endpoint_id from dispatch_claim),
+    'INVALID',
+    null,
+    'DeviceNotRegistered'
+  ),
+  'PENDING',
+  'an invalid endpoint is disabled and work remains pending for another device'
+);
+
+select is(
+  (
+    select count(*)::integer
+    from public.device_endpoints as endpoint
+    where endpoint.user_id = '8f8f8f8f-8f8f-48f8-88f8-8f8f8f8f8f01'
+      and endpoint.id in (select endpoint_id from dispatch_test_endpoints)
+      and endpoint.active
+  ),
+  1,
+  'invalid endpoint feedback disables only that device'
+);
+
+delete from dispatch_claim;
+insert into dispatch_claim (request_id, claim_id)
+select request_id, claim_id
+from public.claim_notification_dispatches(25)
+where request_id = (
+  select request.id
+  from public.notification_requests as request
+  join dispatch_announcement as announcement
+    on announcement.announcement_id = request.source_id
+  where request.recipient_user_id = '8f8f8f8f-8f8f-48f8-88f8-8f8f8f8f8f01'
+    and request.notification_type = 'ANNOUNCEMENT_PUBLISHED'
+  limit 1
+);
+
+update dispatch_claim as claim
+set endpoint_id = started.endpoint_id,
+    push_token = started.expo_push_token
+from public.begin_notification_dispatch(
+  (select request_id from dispatch_claim),
+  (select claim_id from dispatch_claim)
+) as started;
+
+select isnt(
+  (select endpoint_id from dispatch_claim),
+  (select endpoint_id from invalid_dispatch_endpoint),
+  'retry selects the remaining active device, not the invalid endpoint'
+);
+
+select throws_ok(
+  $sql$
+    select public.apply_expo_notification_result(
+      (select request_id from dispatch_claim),
+      (select claim_id from dispatch_claim),
+      (select endpoint_id from dispatch_claim),
+      null,
+      'null-result-must-not-send',
+      null
+    )
+  $sql$,
+  '23514',
+  'VALIDATION_FAILED',
+  'a NULL provider result is rejected'
+);
+select throws_ok(
+  $sql$
+    select public.apply_expo_notification_result(
+      (select request_id from dispatch_claim),
+      (select claim_id from dispatch_claim),
+      (select endpoint_id from dispatch_claim),
+      'OK',
+      '   ',
+      null
+    )
+  $sql$,
+  '23514',
+  'VALIDATION_FAILED',
+  'an empty provider receipt is rejected'
+);
+select is(
+  (
+    select status
+    from public.notification_requests
+    where id = (select request_id from dispatch_claim)
+  ),
+  'PENDING',
+  'invalid provider results leave the notification pending'
+);
+
+select is(
+  public.apply_expo_notification_result(
+    (select request_id from dispatch_claim),
+    (select claim_id from dispatch_claim),
+    (select endpoint_id from dispatch_claim),
+    'OK',
+    'expo-receipt-dispatch-test',
+    null
+  ),
+  'SENT',
+  'successful Expo acceptance is recorded once'
+);
+select is(
+  (
+    select provider_message_id
+    from public.notification_deliveries
+    where request_id = (select request_id from dispatch_claim)
+  ),
+  'expo-receipt-dispatch-test',
+  'the provider receipt id is retained without message content'
+);
+select is(
+  public.apply_expo_notification_result(
+    (select request_id from dispatch_claim),
+    (select claim_id from dispatch_claim),
+    (select endpoint_id from dispatch_claim),
+    'OK',
+    'duplicate-receipt',
+    null
+  ),
+  'SENT',
+  'a repeated worker completion cannot create another delivery'
+);
+
+create temporary table claimed_provider_receipt on commit drop as
+select *
+from public.claim_notification_provider_receipts(100)
+where provider_receipt_id = 'expo-receipt-dispatch-test';
+
+select is(
+  (select count(*)::integer from claimed_provider_receipt),
+  1,
+  'a successful ticket is claimed for provider receipt polling'
+);
+select is(
+  (
+    select count(*)::integer
+    from public.claim_notification_provider_receipts(100) as receipt
+    where receipt.provider_receipt_id = 'expo-receipt-dispatch-test'
+  ),
+  0,
+  'a concurrent receipt collector cannot claim an in-flight receipt'
+);
+select is(
+  public.apply_notification_provider_receipt(
+    'expo-receipt-dispatch-test',
+    'ERROR',
+    'DeviceNotRegistered'
+  ),
+  'STALE',
+  'the legacy receipt RPC cannot apply an unfenced provider result'
+);
+select throws_ok(
+  $sql$
+    select public.apply_notification_provider_receipt(
+      'expo-receipt-dispatch-test',
+      (select claim_id from claimed_provider_receipt),
+      null,
+      null
+    )
+  $sql$,
+  '23514',
+  'VALIDATION_FAILED',
+  'a NULL receipt status is rejected'
+);
+update public.notification_provider_receipts
+set claimed_at = now() - interval '11 minutes'
+where provider_receipt_id = 'expo-receipt-dispatch-test';
+
+create temporary table reclaimed_provider_receipt on commit drop as
+select *
+from public.claim_notification_provider_receipts(100)
+where provider_receipt_id = 'expo-receipt-dispatch-test';
+
+select is(
+  (select count(*)::integer from reclaimed_provider_receipt),
+  1,
+  'an expired provider receipt lease can be reclaimed'
+);
+select isnt(
+  (select claim_id from reclaimed_provider_receipt),
+  (select claim_id from claimed_provider_receipt),
+  'reclaiming a receipt issues a new fencing claim'
+);
+select is(
+  public.apply_notification_provider_receipt(
+    'expo-receipt-dispatch-test',
+    (select claim_id from claimed_provider_receipt),
+    'ERROR',
+    'DeviceNotRegistered'
+  ),
+  'STALE',
+  'a stale collector cannot apply a result after lease takeover'
+);
+select is(
+  public.apply_notification_provider_receipt(
+    'expo-receipt-dispatch-test',
+    (select claim_id from reclaimed_provider_receipt),
+    'ERROR',
+    'DeviceNotRegistered'
+  ),
+  'ERROR',
+  'the current receipt claim can apply a sanitized provider error'
+);
+
+create or replace function pg_temp.notification_race_db_link()
+returns text
+language sql
+as $$
+  select format(
+    'host=%s port=5432 dbname=postgres user=postgres password=postgres',
+    host(inet_server_addr())
+  );
+$$;
+
+select extensions.dblink_connect(
+  'receipt_fixture_setup',
+  pg_temp.notification_race_db_link()
+);
+select extensions.dblink_exec(
+  'receipt_fixture_setup',
+  $setup$
+    do $body$
+    begin
+      if exists (
+        select 1 from public.clubs
+        where id = 'adadadad-adad-4dad-8dad-adadadadad01'
+      ) or exists (
+        select 1 from public.seasons
+        where id = 'adadadad-adad-4dad-8dad-adadadadad02'
+      ) or exists (
+        select 1 from public.teams
+        where id = 'adadadad-adad-4dad-8dad-adadadadad03'
+      ) or exists (
+        select 1 from auth.users
+        where id = '9f9f9f9f-9f9f-49f9-89f9-9f9f9f9f9f01'
+      ) or exists (
+        select 1 from public.profiles
+        where user_id = '9f9f9f9f-9f9f-49f9-89f9-9f9f9f9f9f01'
+      ) or exists (
+        select 1 from public.device_endpoints
+        where id = '9f9f9f9f-9f9f-49f9-89f9-9f9f9f9f9f02'
+      ) or exists (
+        select 1 from public.notification_requests
+        where id = '9f9f9f9f-9f9f-49f9-89f9-9f9f9f9f9f03'
+      ) or exists (
+        select 1 from public.notification_deliveries
+        where event_key = 'receipt-parallel-claim-test'
+      ) or exists (
+        select 1 from public.notification_provider_receipts
+        where provider_receipt_id = 'expo-receipt-parallel-claim-test'
+      ) then
+        raise exception 'RECEIPT_RACE_FIXTURE_ID_COLLISION';
+      end if;
+
+      insert into public.clubs (id, name, slug, timezone, theme_key)
+      values (
+        'adadadad-adad-4dad-8dad-adadadadad01',
+        'Receipt Race Club', 'receipt-race-club', 'Australia/Melbourne', 'mustangs'
+      );
+      insert into public.seasons (id, club_id, name)
+      values (
+        'adadadad-adad-4dad-8dad-adadadadad02',
+        'adadadad-adad-4dad-8dad-adadadadad01',
+        'Receipt Race Season'
+      );
+      insert into public.teams (id, club_id, season_id, name)
+      values (
+        'adadadad-adad-4dad-8dad-adadadadad03',
+        'adadadad-adad-4dad-8dad-adadadadad01',
+        'adadadad-adad-4dad-8dad-adadadadad02',
+        'Receipt Race Team'
+      );
+      insert into auth.users (
+        instance_id, id, aud, role, email, encrypted_password,
+        email_confirmed_at, raw_app_meta_data, raw_user_meta_data,
+        created_at, updated_at, confirmation_token, email_change,
+        email_change_token_new, recovery_token
+      ) values (
+        '00000000-0000-0000-0000-000000000000',
+        '9f9f9f9f-9f9f-49f9-89f9-9f9f9f9f9f01',
+        'authenticated', 'authenticated', 'receipt-race@local.stable.test', '',
+        now(), '{"provider":"email","providers":["email"]}', '{}',
+        now(), now(), '', '', '', ''
+      );
+      insert into public.profiles (user_id, display_name, first_name, last_name)
+      values (
+        '9f9f9f9f-9f9f-49f9-89f9-9f9f9f9f9f01',
+        'Receipt Race', 'Receipt', 'Race'
+      );
+      insert into public.device_endpoints (id, user_id, platform, expo_push_token)
+      values (
+        '9f9f9f9f-9f9f-49f9-89f9-9f9f9f9f9f02',
+        '9f9f9f9f-9f9f-49f9-89f9-9f9f9f9f9f01',
+        'IOS', 'ExponentPushToken[receipt-parallel-claim-test]'
+      );
+      insert into public.notification_requests (
+        id, club_id, team_id, notification_type, source_id,
+        recipient_user_id, payload, status
+      ) values (
+        '9f9f9f9f-9f9f-49f9-89f9-9f9f9f9f9f03',
+        'adadadad-adad-4dad-8dad-adadadadad01',
+        'adadadad-adad-4dad-8dad-adadadadad03',
+        'GAME_REMINDER', '9f9f9f9f-9f9f-49f9-89f9-9f9f9f9f9f04',
+        '9f9f9f9f-9f9f-49f9-89f9-9f9f9f9f9f01', '{}', 'SENT'
+      );
+      insert into public.notification_deliveries (
+        request_id, user_id, event_key, notification_type, status,
+        provider_message_id, sent_at
+      ) values (
+        '9f9f9f9f-9f9f-49f9-89f9-9f9f9f9f9f03',
+        '9f9f9f9f-9f9f-49f9-89f9-9f9f9f9f9f01',
+        'receipt-parallel-claim-test', 'GAME_REMINDER', 'SENT',
+        'expo-ticket-parallel-claim-test', now()
+      );
+      insert into public.notification_provider_receipts (
+        delivery_id, endpoint_id, provider_receipt_id
+      ) values (
+        (
+          select delivery.id from public.notification_deliveries as delivery
+          where delivery.event_key = 'receipt-parallel-claim-test'
+        ),
+        '9f9f9f9f-9f9f-49f9-89f9-9f9f9f9f9f02',
+        'expo-receipt-parallel-claim-test'
+      );
+    end
+    $body$;
+  $setup$
+);
+
+select extensions.dblink_connect(
+  'receipt_race_a',
+  pg_temp.notification_race_db_link()
+);
+select extensions.dblink_connect(
+  'receipt_race_b',
+  pg_temp.notification_race_db_link()
+);
+select extensions.dblink_send_query(
+  'receipt_race_a',
+  $race$
+    select count(*)::integer, min(claim_id::text)
+    from public.claim_notification_provider_receipts(10)
+    where provider_receipt_id = 'expo-receipt-parallel-claim-test'
+  $race$
+);
+select extensions.dblink_send_query(
+  'receipt_race_b',
+  $race$
+    select count(*)::integer, min(claim_id::text)
+    from public.claim_notification_provider_receipts(10)
+    where provider_receipt_id = 'expo-receipt-parallel-claim-test'
+  $race$
+);
+
+create temporary table parallel_receipt_claims (
+  collector text primary key,
+  claimed_count integer not null,
+  claim_id text
+);
+insert into parallel_receipt_claims (collector, claimed_count, claim_id)
+select 'a', result.claimed_count, result.claim_id
+from extensions.dblink_get_result('receipt_race_a') as result(
+  claimed_count integer,
+  claim_id text
+);
+insert into parallel_receipt_claims (collector, claimed_count, claim_id)
+select 'b', result.claimed_count, result.claim_id
+from extensions.dblink_get_result('receipt_race_b') as result(
+  claimed_count integer,
+  claim_id text
+);
+select is(
+  (select sum(claimed_count)::integer from parallel_receipt_claims),
+  1,
+  'two concurrent receipt collectors claim a receipt at most once'
+);
+select is(
+  (select count(*)::integer from parallel_receipt_claims where claim_id is not null),
+  1,
+  'exactly one concurrent receipt collector receives the active claim id'
+);
+
+select extensions.dblink_exec(
+  'receipt_fixture_setup',
+  $cleanup$
+    do $body$
+    begin
+      delete from public.notification_provider_receipts
+      where provider_receipt_id = 'expo-receipt-parallel-claim-test';
+      delete from public.notification_deliveries
+      where event_key = 'receipt-parallel-claim-test';
+      delete from public.notification_requests
+      where id = '9f9f9f9f-9f9f-49f9-89f9-9f9f9f9f9f03';
+      delete from public.teams
+      where id = 'adadadad-adad-4dad-8dad-adadadadad03';
+      delete from public.seasons
+      where id = 'adadadad-adad-4dad-8dad-adadadadad02';
+      delete from public.clubs
+      where id = 'adadadad-adad-4dad-8dad-adadadadad01';
+      delete from public.device_endpoints
+      where id = '9f9f9f9f-9f9f-49f9-89f9-9f9f9f9f9f02';
+      delete from public.profiles
+      where user_id = '9f9f9f9f-9f9f-49f9-89f9-9f9f9f9f9f01';
+      delete from auth.users
+      where id = '9f9f9f9f-9f9f-49f9-89f9-9f9f9f9f9f01';
+    end
+    $body$;
+  $cleanup$
+);
+select extensions.dblink_disconnect('receipt_race_a');
+select extensions.dblink_disconnect('receipt_race_b');
+select extensions.dblink_disconnect('receipt_fixture_setup');
+select is(
+  (
+    select active
+    from public.device_endpoints
+    where id = (select endpoint_id from dispatch_claim)
+  ),
+  false,
+  'an invalid-device receipt deactivates only its endpoint'
+);
+
+delete from dispatch_announcement;
+reset role;
+do $$ begin perform pg_temp.assume_user('8f8f8f8f-8f8f-48f8-88f8-8f8f8f8f8f01'); end $$;
+set local role authenticated;
+select lives_ok(
+  $sql$select public.register_device_endpoint('ExponentPushToken[dispatch-three]', 'IOS')$sql$,
+  'manager registers a fresh endpoint for revocation acceptance'
+);
+
+delete from dispatch_announcement;
+insert into dispatch_announcement (announcement_id)
+values (
+  public.publish_announcement(
+    '8a8a8a8a-8a8a-48a8-88a8-8a8a8a8a8a8a',
+    '8d8d8d8d-8d8d-48d8-88d8-8d8d8d8d8d8d',
+    'GENERAL',
+    'NORMAL',
+    'Revocation test',
+    'Synthetic revocation test.',
+    false
+  )
+);
+select public.enqueue_announcement_published(
+  (select announcement_id from dispatch_announcement)
+);
+reset role;
+
+set local role service_role;
+delete from dispatch_claim;
+insert into dispatch_claim (request_id, claim_id)
+select request_id, claim_id
+from public.claim_notification_dispatches(25)
+where request_id = (
+  select request.id
+  from public.notification_requests as request
+  join dispatch_announcement as announcement
+    on announcement.announcement_id = request.source_id
+  where request.recipient_user_id = '8f8f8f8f-8f8f-48f8-88f8-8f8f8f8f8f01'
+  order by request.created_at desc
+  limit 1
+);
+reset role;
+
+update public.team_memberships
+set active = false
+where user_id = '8f8f8f8f-8f8f-48f8-88f8-8f8f8f8f8f01';
+
+set local role service_role;
+select is(
+  (
+    select count(*)::integer
+    from public.begin_notification_dispatch(
+      (select request_id from dispatch_claim),
+      (select claim_id from dispatch_claim)
+    )
+  ),
+  0,
+  'send-time authorization prevents delivery after membership revocation'
+);
+select is(
+  (
+    select status
+    from public.notification_requests
+    where id = (select request_id from dispatch_claim)
+  ),
+  'SKIPPED',
+  'revoked work is explicitly marked skipped'
+);
+
+-- Active teams remain eligible for duty and coach check-in notices. Once the
+-- team is deactivated after claim, begin_notification_dispatch must suppress
+-- all four pending notices before returning any provider token.
+update public.team_memberships
+set active = true
+where user_id = '8f8f8f8f-8f8f-48f8-88f8-8f8f8f8f8f01';
+insert into public.notification_requests (
+  club_id, team_id, notification_type, source_id, recipient_user_id, payload
+)
+values
+  ('8a8a8a8a-8a8a-48a8-88a8-8a8a8a8a8a8a', '8d8d8d8d-8d8d-48d8-88d8-8d8d8d8d8d8d', 'DUTY_ASSIGNED', '9a9a9a9a-9a9a-49a9-89a9-9a9a9a9a9a01', '8f8f8f8f-8f8f-48f8-88f8-8f8f8f8f8f01', '{}'),
+  ('8a8a8a8a-8a8a-48a8-88a8-8a8a8a8a8a8a', '8d8d8d8d-8d8d-48d8-88d8-8d8d8d8d8d8d', 'DUTY_SWAP_REQUESTED', '9a9a9a9a-9a9a-49a9-89a9-9a9a9a9a9a02', '8f8f8f8f-8f8f-48f8-88f8-8f8f8f8f8f01', '{}'),
+  ('8a8a8a8a-8a8a-48a8-88a8-8a8a8a8a8a8a', '8d8d8d8d-8d8d-48d8-88d8-8d8d8d8d8d8d', 'DUTY_SWAP_ACCEPTED', '9a9a9a9a-9a9a-49a9-89a9-9a9a9a9a9a03', '8f8f8f8f-8f8f-48f8-88f8-8f8f8f8f8f01', '{}'),
+  ('8a8a8a8a-8a8a-48a8-88a8-8a8a8a8a8a8a', '8d8d8d8d-8d8d-48d8-88d8-8d8d8d8d8d8d', 'COACH_CHECKED_IN', '9a9a9a9a-9a9a-49a9-89a9-9a9a9a9a9a04', '8f8f8f8f-8f8f-48f8-88f8-8f8f8f8f8f03', '{}');
+
+set local role service_role;
+insert into inactive_team_notification_claims (request_id, claim_id)
+select request.id, claim.claim_id
+from public.claim_notification_dispatches(50) as claim
+join public.notification_requests as request
+  on request.id = claim.request_id
+where request.source_id in (
+  '9a9a9a9a-9a9a-49a9-89a9-9a9a9a9a9a01',
+  '9a9a9a9a-9a9a-49a9-89a9-9a9a9a9a9a02',
+  '9a9a9a9a-9a9a-49a9-89a9-9a9a9a9a9a03',
+  '9a9a9a9a-9a9a-49a9-89a9-9a9a9a9a9a04'
+);
+reset role;
+select is(
+  (select count(*)::integer from inactive_team_notification_claims),
+  4,
+  'active team accepts duty and coach check-in notices for dispatch'
+);
+
+update public.teams
+set active = false
+where id = '8d8d8d8d-8d8d-48d8-88d8-8d8d8d8d8d8d';
+set local role service_role;
+select is(
+  (
+    select count(*)::integer
+    from inactive_team_notification_claims as claim
+    cross join lateral public.begin_notification_dispatch(
+      claim.request_id,
+      claim.claim_id
+    )
+  ),
+  0,
+  'deactivated teams do not expose provider tokens for claimed duty or coach notices'
+);
+select is(
+  (
+    select count(*)::integer
+    from public.notification_requests as request
+    join inactive_team_notification_claims as claim
+      on claim.request_id = request.id
+    where request.status = 'SKIPPED'
+  ),
+  4,
+  'all duty and coach notices claimed before deactivation are skipped'
+);
+reset role;
+
+reset role;
+do $$ begin perform pg_temp.assume_user('8f8f8f8f-8f8f-48f8-88f8-8f8f8f8f8f03'); end $$;
+set local role authenticated;
+select throws_ok(
+  $sql$select * from public.claim_notification_dispatches(1)$sql$,
+  '42501',
+  'permission denied for function claim_notification_dispatches',
+  'authenticated callers cannot claim trusted delivery work'
 );
 
 select * from finish();

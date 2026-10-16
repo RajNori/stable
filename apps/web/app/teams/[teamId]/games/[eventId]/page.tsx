@@ -33,8 +33,9 @@ import { PostGameReviewPanel } from "../../../../../components/post-game-review-
 import { fixtureAccessFrom } from "../../../../../lib/fixture-access";
 import { loadLiveClubContext } from "../../../../../lib/load-live-club-context";
 import { principalFromSupabase } from "../../../../../lib/principal";
-import { createRuntimeClubContextReader } from "../../../../../lib/runtime-club-context-reader";
+import { createClubContextReader } from "../../../../../lib/reader";
 import { createSupabaseServerClient } from "../../../../../lib/supabase/server";
+import { gameDayNoticeFrom } from "./notices";
 import {
   acceptDutySwapAction,
   acknowledgeDutyAction,
@@ -108,6 +109,7 @@ export default async function GameDayPage({
   const query = await searchParams;
   const queryError = query["error"];
   const requestedError = Array.isArray(queryError) ? queryError[0] : queryError;
+  const notice = gameDayNoticeFrom(query["notice"]);
   const presentation = await loadLiveClubContext();
   if (presentation.status !== "member") {
     return <ClubAdminShell presentation={presentation} />;
@@ -115,7 +117,7 @@ export default async function GameDayPage({
 
   const supabase = await createSupabaseServerClient();
   const principal = await principalFromSupabase(supabase);
-  const reader = await createRuntimeClubContextReader(supabase);
+  const reader = await createClubContextReader(supabase);
   const context = await getCurrentClubContext({ principal, reader });
   const club = context.club;
   if (club === null || principal === null) {
@@ -383,7 +385,9 @@ export default async function GameDayPage({
     <ClubAdminShell presentation={presentation}>
       <GameDayPanel
         projection={projection}
+        timezone={club.timezone}
         error={error}
+        notice={error === undefined ? notice : undefined}
         players={players}
         recordAction={recordAttendanceAction}
         {...(dutyProposal === undefined ? {} : { dutyProposal })}
@@ -419,6 +423,7 @@ export default async function GameDayPage({
           stats={coachingStats}
           corrections={statCorrections}
           teamId={team.id}
+          timezone={club.timezone}
           canWrite={canWriteCoachingStats}
           scoreAction={saveManualGameResultAction}
           playerStatAction={saveGamePlayerStatAction}
@@ -427,6 +432,7 @@ export default async function GameDayPage({
       {postGameReview !== null ? (
         <PostGameReviewPanel
           review={postGameReview}
+          timezone={club.timezone}
           players={reviewPlayers}
           privateNotes={privateNotes}
           canWrite={canWriteReview}

@@ -198,6 +198,20 @@ describe("club structure commands", () => {
     expect(fake.calls).toEqual([]);
   });
 
+  it("does not treat team-scoped staff membership as club administration", async () => {
+    const fake = writer();
+    await expect(
+      createSeason({
+        principal,
+        memberships: [],
+        clubId,
+        name: "Spring",
+        writer: fake.writer,
+      }),
+    ).rejects.toMatchObject({ code: "FORBIDDEN" });
+    expect(fake.calls).toEqual([]);
+  });
+
   it("rejects an empty name before any write", async () => {
     const fake = writer();
     await expect(

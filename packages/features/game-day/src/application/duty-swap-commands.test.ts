@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 
 import {
   acceptDutySwap,
+  listOpenDutySwaps,
   requestDutySwap,
   type DutySwapWriter,
 } from "./duty-swap-commands.js";
@@ -67,6 +68,9 @@ describe("duty swaps", () => {
       writer,
     });
     await expect(
+      listOpenDutySwaps({ ...guardian(), clubId, teamId, eventId, writer }),
+    ).resolves.toEqual([]);
+    await expect(
       acceptDutySwap({
         ...guardian(),
         clubId,
@@ -116,6 +120,17 @@ describe("duty swaps", () => {
         teamId,
         eventId,
         targetUserId: null,
+        writer,
+      }),
+    ).rejects.toMatchObject({ code: "FORBIDDEN" });
+    await expect(
+      listOpenDutySwaps({
+        ...guardian(),
+        guardianLinks: [],
+        registrations: [],
+        clubId,
+        teamId,
+        eventId,
         writer,
       }),
     ).rejects.toMatchObject({ code: "FORBIDDEN" });

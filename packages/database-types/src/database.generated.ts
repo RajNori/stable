@@ -205,28 +205,31 @@ export type Database = {
           action: string;
           actor_user_id: string;
           club_id: string;
+          context_event_id: string | null;
           created_at: string;
           id: string;
-          team_id: string | null;
           target_id: string;
+          team_id: string | null;
         };
         Insert: {
           action: string;
           actor_user_id: string;
           club_id: string;
+          context_event_id?: string | null;
           created_at?: string;
           id?: string;
-          team_id?: string | null;
           target_id: string;
+          team_id?: string | null;
         };
         Update: {
           action?: string;
           actor_user_id?: string;
           club_id?: string;
+          context_event_id?: string | null;
           created_at?: string;
           id?: string;
-          team_id?: string | null;
           target_id?: string;
+          team_id?: string | null;
         };
         Relationships: [
           {
@@ -234,6 +237,13 @@ export type Database = {
             columns: ["club_id"];
             isOneToOne: false;
             referencedRelation: "clubs";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "audit_events_context_event_id_fkey";
+            columns: ["context_event_id"];
+            isOneToOne: false;
+            referencedRelation: "events";
             referencedColumns: ["id"];
           },
         ];
@@ -1282,10 +1292,68 @@ export type Database = {
           },
         ];
       };
+      notification_provider_receipts: {
+        Row: {
+          checked_at: string | null;
+          claim_id: string | null;
+          claimed_at: string | null;
+          created_at: string;
+          delivery_id: string;
+          endpoint_id: string;
+          error_code: string | null;
+          id: string;
+          provider_receipt_id: string;
+          status: string;
+        };
+        Insert: {
+          checked_at?: string | null;
+          claim_id?: string | null;
+          claimed_at?: string | null;
+          created_at?: string;
+          delivery_id: string;
+          endpoint_id: string;
+          error_code?: string | null;
+          id?: string;
+          provider_receipt_id: string;
+          status?: string;
+        };
+        Update: {
+          checked_at?: string | null;
+          claim_id?: string | null;
+          claimed_at?: string | null;
+          created_at?: string;
+          delivery_id?: string;
+          endpoint_id?: string;
+          error_code?: string | null;
+          id?: string;
+          provider_receipt_id?: string;
+          status?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "notification_provider_receipts_delivery_id_fkey";
+            columns: ["delivery_id"];
+            isOneToOne: true;
+            referencedRelation: "notification_deliveries";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "notification_provider_receipts_endpoint_id_fkey";
+            columns: ["endpoint_id"];
+            isOneToOne: false;
+            referencedRelation: "device_endpoints";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
       notification_requests: {
         Row: {
           club_id: string;
           created_at: string;
+          dispatch_claim_id: string | null;
+          dispatch_claimed_at: string | null;
+          dispatch_endpoint_id: string | null;
+          dispatch_started_at: string | null;
           id: string;
           notification_type: string;
           payload: NonNullable<Json>;
@@ -1297,6 +1365,10 @@ export type Database = {
         Insert: {
           club_id: string;
           created_at?: string;
+          dispatch_claim_id?: string | null;
+          dispatch_claimed_at?: string | null;
+          dispatch_endpoint_id?: string | null;
+          dispatch_started_at?: string | null;
           id?: string;
           notification_type: string;
           payload: NonNullable<Json>;
@@ -1308,6 +1380,10 @@ export type Database = {
         Update: {
           club_id?: string;
           created_at?: string;
+          dispatch_claim_id?: string | null;
+          dispatch_claimed_at?: string | null;
+          dispatch_endpoint_id?: string | null;
+          dispatch_started_at?: string | null;
           id?: string;
           notification_type?: string;
           payload?: NonNullable<Json>;
@@ -1322,6 +1398,13 @@ export type Database = {
             columns: ["club_id"];
             isOneToOne: false;
             referencedRelation: "clubs";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "notification_requests_dispatch_endpoint_id_fkey";
+            columns: ["dispatch_endpoint_id"];
+            isOneToOne: false;
+            referencedRelation: "device_endpoints";
             referencedColumns: ["id"];
           },
           {
@@ -2187,6 +2270,26 @@ export type Database = {
         Args: { p_request_id: string; p_result: string; p_token: string };
         Returns: string;
       };
+      apply_expo_notification_result: {
+        Args: {
+          p_claim_id: string;
+          p_endpoint_id: string;
+          p_error_code?: string;
+          p_provider_receipt_id?: string;
+          p_request_id: string;
+          p_result: string;
+        };
+        Returns: string;
+      };
+      apply_notification_provider_receipt: {
+        Args: {
+          p_claim_id: string;
+          p_error_code?: string;
+          p_provider_receipt_id: string;
+          p_status: string;
+        };
+        Returns: string;
+      };
       archive_announcement: {
         Args: { p_announcement_id: string };
         Returns: string;
@@ -2210,6 +2313,30 @@ export type Database = {
           isOneToOne: true;
           isSetofReturn: false;
         };
+      };
+      begin_notification_dispatch: {
+        Args: { p_claim_id: string; p_request_id: string };
+        Returns: {
+          endpoint_id: string;
+          expo_push_token: string;
+          notification_type: string;
+        }[];
+      };
+      claim_notification_dispatches: {
+        Args: { p_limit?: number };
+        Returns: {
+          claim_id: string;
+          notification_type: string;
+          request_id: string;
+        }[];
+      };
+      claim_notification_provider_receipts: {
+        Args: { p_limit?: number };
+        Returns: {
+          claim_id: string;
+          endpoint_id: string;
+          provider_receipt_id: string;
+        }[];
       };
       assert_club_structure_admin: {
         Args: { p_club_id: string };
@@ -2799,12 +2926,27 @@ export type Database = {
           player_id: string;
         }[];
       };
+      list_managed_attendance: {
+        Args: { p_event_id: string };
+        Returns: {
+          player_id: string;
+          status: string;
+        }[];
+      };
       list_notification_preferences: {
         Args: Record<PropertyKey, never>;
         Returns: {
           category: string;
           push_enabled: boolean;
         }[];
+      };
+      notification_request_is_current: {
+        Args: { p_request_id: string };
+        Returns: boolean;
+      };
+      notification_request_push_enabled: {
+        Args: { p_category: string; p_user_id: string };
+        Returns: boolean;
       };
       list_open_duty_swaps: {
         Args: { p_event_id: string };
@@ -2914,6 +3056,18 @@ export type Database = {
           round_label: string;
           starts_at: string;
           team_id: string;
+        }[];
+      };
+      list_team_training_edit_metadata: {
+        Args: { p_event_ids: string[]; p_team_id: string };
+        Returns: {
+          ends_on: string;
+          event_id: string;
+          lead_coach_user_id: string;
+          local_time: string;
+          recurrence_series_id: string;
+          timezone: string;
+          weekday: number;
         }[];
       };
       lock_administered_player: {
@@ -3089,6 +3243,8 @@ export type Database = {
           court_label: string;
           event_id: string;
           fill_in_label: string;
+          fixture_source: string;
+          fixture_status: string;
           official_start_at: string;
           opponent_name: string;
           own_duty_label: string;
@@ -3124,6 +3280,19 @@ export type Database = {
           player_id: string;
         }[];
       };
+      read_team_manager_game_day_operations: {
+        Args: { p_event_id: string };
+        Returns: {
+          acknowledged_duty_count: number;
+          assigned_duty_count: number;
+          confirmed_fill_in_count: number;
+          open_duty_swap_count: number;
+          open_fill_in_request_count: number;
+          open_fill_in_response_count: number;
+          pending_duty_acknowledgement_count: number;
+          unassigned_duty_count: number;
+        }[];
+      };
       read_post_game_review: {
         Args: { p_event_id: string };
         Returns: {
@@ -3142,6 +3311,10 @@ export type Database = {
       read_private_player_game_note: {
         Args: { p_event_id: string; p_player_id: string };
         Returns: string;
+      };
+      record_notification_dispatch_skip: {
+        Args: { p_reason: string; p_request_id: string };
+        Returns: undefined;
       };
       record_attendance: {
         Args: {

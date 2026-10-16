@@ -28,6 +28,20 @@ describe("auth callback resolution", () => {
     expect(calls).toEqual(["abcdefgh"]);
   });
 
+  it("exchanges a hosted code only at the configured staging callback", async () => {
+    const calls: string[] = [];
+    const webOrigin = "https://staging.stable.example";
+    const result = await resolveAuthCallback(otp({ calls }), {
+      callbackUrl: callbackUrlFromCode("abcdefgh", webOrigin),
+      appEnv: "staging",
+      webOrigin,
+      returnTo: "/club-structure",
+    });
+
+    expect(result).toEqual({ status: "redirect", to: "/club-structure" });
+    expect(calls).toEqual(["abcdefgh"]);
+  });
+
   it("rejects an unsafe return path before exchange", async () => {
     const calls: string[] = [];
     const result = await resolveAuthCallback(otp({ calls }), {

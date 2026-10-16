@@ -1,8 +1,15 @@
 import { ApplicationError } from "@stable/contracts";
 import type { CurrentClubContext } from "@stable/contracts";
 import type { GameDayProjection } from "@stable/game-day";
+import type { DutySwapRecord } from "@stable/game-day";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { render, screen, waitFor } from "@testing-library/react-native";
+import {
+  fireEvent,
+  render,
+  screen,
+  userEvent,
+  waitFor,
+} from "@testing-library/react-native";
 import React from "react";
 
 import {
@@ -18,6 +25,8 @@ import {
   readOfflineGameDay,
 } from "./offline-context";
 import { TeamGameDayScreen } from "./team-game-day-screen";
+import type { MobileRsvpChoice } from "./load-mobile-rsvp";
+import type { MobileFillInProjection } from "./load-mobile-fill-in";
 
 const teamId = "99999999-9999-4999-8999-999999999999";
 
@@ -43,6 +52,8 @@ const projection: GameDayProjection = {
   teamId,
   opponentName: "Visitors",
   roundLabel: "Round 1",
+  fixtureSource: "MANUAL",
+  fixtureStatus: "SCHEDULED",
   officialStartAt: "2026-10-10T07:30:00.000Z",
   arrivalAt: null,
   venueText: null,
@@ -62,7 +73,10 @@ const projection: GameDayProjection = {
 describe("team game day screen", () => {
   it("shows the caller's RSVP and duty without staff counts", async () => {
     const queryClient = new QueryClient({
-      defaultOptions: { queries: { retry: false, gcTime: 0 } },
+      defaultOptions: {
+        queries: { retry: false, gcTime: 0 },
+        mutations: { retry: false, gcTime: 0 },
+      },
     });
     await render(
       <QueryClientProvider client={queryClient}>
@@ -76,9 +90,279 @@ describe("team game day screen", () => {
     expect(
       await screen.findByRole("header", { name: "Round 1: Visitors" }),
     ).toBeTruthy();
-    expect(screen.getByText("RSVP UNANSWERED")).toBeTruthy();
+    expect(screen.getByText("Your RSVP UNANSWERED")).toBeTruthy();
     expect(screen.getByText("Duty Scorebook")).toBeTruthy();
+    expect(screen.queryByText("Fixture Manual · scheduled")).toBeNull();
     expect(screen.queryByText(/Attending/)).toBeNull();
+  });
+
+  it("shows focus, uniform, and readiness after the exact-team coach check", async () => {
+    await renderScreen({
+      loadContext: () => Promise.resolve(context),
+      loadGameDay: () =>
+        Promise.resolve({
+          ...projection,
+          uniformNote: "White",
+          coachFocus: "Protect the paint",
+          fixtureSource: "IMPORT",
+          fixtureStatus: "POSTPONED",
+          attendingCount: 8,
+          unavailableCount: 1,
+          unsureCount: 2,
+          unansweredCount: 3,
+        }),
+      canReadCoachGameDay: (requestedTeamId) =>
+        Promise.resolve(requestedTeamId === teamId),
+    });
+
+    expect(
+      await screen.findByRole("header", { name: "Coach game context" }),
+    ).toBeTruthy();
+    expect(screen.getByText("Team focus Protect the paint")).toBeTruthy();
+    expect(screen.getByText("Fixture Imported · postponed")).toBeTruthy();
+    expect(screen.getByText("Uniform White")).toBeTruthy();
+    expect(
+      screen.getByText(
+        "Team readiness: attending 8, unavailable 1, unsure 2, unanswered 3",
+      ),
+    ).toBeTruthy();
+  });
+
+  it("hides the coach view when exact-team authorization is denied", async () => {
+    await renderScreen({
+      loadContext: () => Promise.resolve(context),
+      loadGameDay: () =>
+        Promise.resolve({
+          ...projection,
+          coachFocus: "Protect the paint",
+          attendingCount: 8,
+        }),
+      canReadCoachGameDay: () => Promise.resolve(false),
+    });
+
+    await screen.findByRole("header", { name: "Round 1: Visitors" });
+    expect(
+      screen.queryByRole("header", { name: "Coach game context" }),
+    ).toBeNull();
+    expect(screen.queryByText("Team focus Protect the paint")).toBeNull();
+  });
+
+  it("submits the selected managed player's RSVP only after online reads land", async () => {
+    const saved: Array<{
+      teamId: string;
+      eventId: string;
+      playerId: string;
+      status: string;
+    }> = [];
+    const choice: MobileRsvpChoice = {
+      playerId: "88888888-8888-4888-8888-888888888888",
+      name: "Jamie S.",
+      status: "UNANSWERED",
+    };
+    await renderScreen({
+      loadContext: () => Promise.resolve(context),
+      loadGameDay: () => Promise.resolve(projection),
+      loadRsvpChoices: () => Promise.resolve([choice]),
+      saveRsvp: (input) => {
+        saved.push(input);
+        return Promise.resolve();
+      },
+    });
+
+    fireEvent.press(
+      await screen.findByRole("button", { name: "Jamie S.: attending" }),
+    );
+    await waitFor(() =>
+      expect(saved).toEqual([
+        {
+          teamId,
+          eventId: projection.eventId,
+          playerId: choice.playerId,
+          status: "ATTENDING",
+        },
+      ]),
+    );
+    expect(screen.getAllByText("RSVP UNANSWERED").length).toBe(1);
+  });
+
+  it("retries a failed RSVP-choice read without refreshing unrelated data", async () => {
+    let attempts = 0;
+    await renderScreen({
+      loadContext: () => Promise.resolve(context),
+      loadGameDay: () => Promise.resolve(projection),
+      loadRsvpChoices: () => {
+        attempts += 1;
+        return attempts === 1
+          ? Promise.reject(new Error("private attendance detail"))
+          : Promise.resolve([]);
+      },
+    });
+
+    expect(
+      await screen.findByText(
+        "Your RSVP options could not be loaded. Reconnect and try again.",
+      ),
+    ).toBeTruthy();
+    await userEvent
+      .setup()
+      .press(screen.getByRole("button", { name: "Try again" }));
+    await waitFor(() => expect(attempts).toBe(2));
+    expect(
+      screen.queryByText(
+        "Your RSVP options could not be loaded. Reconnect and try again.",
+      ),
+    ).toBeNull();
+  });
+
+  it("retries a failed fill-in read", async () => {
+    let attempts = 0;
+    await renderScreen({
+      loadContext: () => Promise.resolve(context),
+      loadGameDay: () => Promise.resolve(projection),
+      loadFillInOptions: () => {
+        attempts += 1;
+        return attempts === 1
+          ? Promise.reject(new Error("private fill-in detail"))
+          : Promise.resolve({ request: null, players: [] });
+      },
+    });
+
+    expect(
+      await screen.findByText(
+        "Fill-in options could not be loaded. Refresh and try again.",
+      ),
+    ).toBeTruthy();
+    await userEvent
+      .setup()
+      .press(screen.getByRole("button", { name: "Try again" }));
+    expect(await screen.findByText("No open request")).toBeTruthy();
+    expect(attempts).toBe(2);
+  });
+
+  it("retries a failed duty-swap read", async () => {
+    let attempts = 0;
+    await renderScreen({
+      loadContext: () => Promise.resolve(context),
+      loadGameDay: () => Promise.resolve(projection),
+      loadDutySwaps: () => {
+        attempts += 1;
+        return attempts === 1
+          ? Promise.reject(new Error("private swap detail"))
+          : Promise.resolve([]);
+      },
+    });
+
+    expect(
+      await screen.findByText(
+        "Open swaps could not be loaded. Refresh and try again.",
+      ),
+    ).toBeTruthy();
+    await userEvent
+      .setup()
+      .press(screen.getByRole("button", { name: "Try again" }));
+    expect(await screen.findByText("No open swaps")).toBeTruthy();
+    expect(attempts).toBe(2);
+  });
+
+  it("lets a Guardian respond to an open fill-in request for a managed player", async () => {
+    const response: Array<{
+      teamId: string;
+      requestId: string;
+      playerId: string;
+    }> = [];
+    const player = {
+      playerId: "88888888-8888-4888-8888-888888888888",
+      displayName: "Jamie S.",
+    };
+    const options: MobileFillInProjection = {
+      request: { id: "77777777-7777-4777-8777-777777777777", status: "OPEN" },
+      players: [player],
+    };
+    await renderScreen({
+      loadContext: () => Promise.resolve(context),
+      loadGameDay: () => Promise.resolve(projection),
+      loadFillInOptions: () => Promise.resolve(options),
+      respondFillIn: (input) => {
+        response.push(input);
+        return Promise.resolve();
+      },
+    });
+
+    fireEvent.press(
+      await screen.findByRole("button", { name: "Respond for Jamie S." }),
+    );
+    await waitFor(() =>
+      expect(response).toEqual([
+        {
+          teamId,
+          requestId: options.request?.id,
+          playerId: player.playerId,
+        },
+      ]),
+    );
+    expect(
+      await screen.findByText("Response saved. Team staff will confirm."),
+    ).toBeTruthy();
+  });
+
+  it("acknowledges an assigned duty and accepts an eligible open swap", async () => {
+    const acknowledged: Array<{ teamId: string; eventId: string }> = [];
+    const requested: Array<{ teamId: string; eventId: string }> = [];
+    const accepted: Array<{ teamId: string; requestId: string }> = [];
+    const swap = {
+      id: "77777777-7777-4777-8777-777777777777",
+      label: "Scorebook",
+      requesterUserId: "29292929-2929-4929-8929-292929292929",
+      targetUserId: null,
+    };
+    await renderScreen({
+      loadContext: () => Promise.resolve(context),
+      loadGameDay: () => Promise.resolve(projection),
+      loadDutySwaps: () => Promise.resolve([swap]),
+      acknowledgeDuty: (input) => {
+        acknowledged.push(input);
+        return Promise.resolve(1);
+      },
+      requestDutySwap: (input) => {
+        requested.push(input);
+        return Promise.resolve({ requestId: swap.id });
+      },
+      acceptDutySwap: (input) => {
+        accepted.push(input);
+        return Promise.resolve({ requestId: input.requestId });
+      },
+    });
+
+    fireEvent.press(
+      await screen.findByRole("button", { name: "Acknowledge my duty" }),
+    );
+    fireEvent.press(
+      await screen.findByRole("button", { name: "Request an open duty swap" }),
+    );
+    fireEvent.press(
+      await screen.findByRole("button", { name: "Accept swap for Scorebook" }),
+    );
+
+    await waitFor(() => {
+      expect(acknowledged).toEqual([{ teamId, eventId: projection.eventId }]);
+      expect(requested).toEqual([{ teamId, eventId: projection.eventId }]);
+      expect(accepted).toEqual([{ teamId, requestId: swap.id }]);
+    });
+    expect(screen.queryByText(swap.requesterUserId)).toBeNull();
+  });
+
+  it("shows an acknowledged duty without offering the acknowledgement action", async () => {
+    await renderScreen({
+      loadContext: () => Promise.resolve(context),
+      loadGameDay: () =>
+        Promise.resolve({ ...projection, ownDutyStatus: "ACKNOWLEDGED" }),
+      acknowledgeDuty: () => Promise.resolve(1),
+    });
+
+    expect(await screen.findByText("Duty acknowledged")).toBeTruthy();
+    expect(
+      screen.queryByRole("button", { name: "Acknowledge my duty" }),
+    ).toBeNull();
   });
 
   it("shows fallbacks for omitted game labels and a guardian-safe count summary", async () => {
@@ -112,10 +396,43 @@ describe("team game day screen", () => {
     expect(await screen.findByText("No game day yet.")).toBeTruthy();
   });
 
+  it("clears a previous offline snapshot after an authoritative empty refresh", async () => {
+    const store = memoryGameDaySnapshotStore();
+    await persistOfflineGameDay(
+      store,
+      gameDaySnapshotFromProjection({
+        userId: context.userId,
+        teamName: "U14 Boys",
+        projection,
+        savedAt: "2026-10-07T01:00:00.000Z",
+      }),
+    );
+
+    await renderScreen({
+      store,
+      localUserId: context.userId,
+      online: true,
+      loadContext: () => Promise.resolve(context),
+      loadGameDay: () => Promise.resolve(null),
+    });
+
+    expect(await screen.findByText("No game day yet.")).toBeTruthy();
+    await waitFor(async () => {
+      expect(
+        await readGameDaySnapshot(store, context.userId, teamId),
+      ).toBeNull();
+      expect(await readOfflineContextPointer(store, context.userId)).toBeNull();
+    });
+    expect(screen.queryByText(/Visitors/)).toBeNull();
+  });
+
   it("saves the online read and shows that snapshot when offline", async () => {
     const store = memoryGameDaySnapshotStore();
     const queryClient = new QueryClient({
-      defaultOptions: { queries: { retry: false, gcTime: 0 } },
+      defaultOptions: {
+        queries: { retry: false, gcTime: 0 },
+        mutations: { retry: false, gcTime: 0 },
+      },
     });
     await render(
       <QueryClientProvider client={queryClient}>
@@ -142,9 +459,14 @@ describe("team game day screen", () => {
     });
 
     const offlineClient = new QueryClient({
-      defaultOptions: { queries: { retry: false, gcTime: 0 } },
+      defaultOptions: {
+        queries: { retry: false, gcTime: 0 },
+        mutations: { retry: false, gcTime: 0 },
+      },
     });
     let contextCalls = 0;
+    let loadOfflineRsvpCalled = false;
+    let saveOfflineRsvpCalled = false;
     await render(
       <QueryClientProvider client={offlineClient}>
         <TeamGameDayScreen
@@ -156,19 +478,29 @@ describe("team game day screen", () => {
           snapshotStore={store}
           localUserId={context.userId}
           online={false}
+          loadRsvpChoices={() => {
+            loadOfflineRsvpCalled = true;
+            return Promise.resolve([]);
+          }}
+          saveRsvp={() => {
+            saveOfflineRsvpCalled = true;
+            return Promise.resolve();
+          }}
           now={Date.parse("2026-10-07T01:30:00.000Z")}
         />
       </QueryClientProvider>,
     );
     expect(
       await screen.findByText(
-        "Offline · Last updated 2026-10-07T01:00:00.000Z",
+        "Offline · Last updated Wednesday 7 October at 12:00 pm",
       ),
     ).toBeTruthy();
     expect(screen.getByText("Save RSVP").props.accessibilityState).toEqual({
       disabled: true,
     });
     expect(contextCalls).toBe(0);
+    expect(loadOfflineRsvpCalled).toBe(false);
+    expect(saveOfflineRsvpCalled).toBe(false);
   });
 
   it("opens the saved snapshot on a cold offline launch without a context request", async () => {
@@ -180,6 +512,7 @@ describe("team game day screen", () => {
       gameDaySnapshotFromProjection({
         userId: context.userId,
         teamName: "U14 Boys",
+        timezone: "Australia/Melbourne",
         projection,
         savedAt: "2026-10-07T01:00:00.000Z",
       }),
@@ -199,7 +532,7 @@ describe("team game day screen", () => {
 
     expect(
       await screen.findByText(
-        "Offline · Last updated 2026-10-07T01:00:00.000Z",
+        "Offline · Last updated Wednesday 7 October at 12:00 pm",
       ),
     ).toBeTruthy();
     expect(screen.getByText("U14 Boys: Visitors")).toBeTruthy();
@@ -211,16 +544,64 @@ describe("team game day screen", () => {
     expect(writes).toEqual([]);
   });
 
+  it("shows only the explicitly selected team's offline snapshot", async () => {
+    const store = memoryGameDaySnapshotStore();
+    await persistOfflineGameDay(
+      store,
+      gameDaySnapshotFromProjection({
+        userId: context.userId,
+        teamName: "U14 Boys",
+        projection,
+        savedAt: "2026-10-07T01:00:00.000Z",
+      }),
+    );
+    const otherTeamProjection = {
+      ...projection,
+      eventId: "66666666-6666-4666-8666-666666666666",
+      teamId: otherTeamId,
+      opponentName: "Other Visitors",
+    };
+    await persistOfflineGameDay(
+      store,
+      gameDaySnapshotFromProjection({
+        userId: context.userId,
+        teamName: "U16 Boys",
+        timezone: "Australia/Melbourne",
+        projection: otherTeamProjection,
+        savedAt: "2026-10-07T01:00:00.000Z",
+      }),
+    );
+
+    await renderScreen({
+      store,
+      localUserId: context.userId,
+      selectedTeamId: otherTeamId,
+      online: false,
+    });
+
+    expect(
+      await screen.findByText(
+        "Offline · Last updated Wednesday 7 October at 12:00 pm",
+      ),
+    ).toBeTruthy();
+    expect(screen.getByText("U16 Boys: Other Visitors")).toBeTruthy();
+    expect(screen.queryByText("U14 Boys: Visitors")).toBeNull();
+  });
+
   it("keeps the stale snapshot read-only until reconnect refresh succeeds", async () => {
     const store = memoryGameDaySnapshotStore();
     const client = new QueryClient({
-      defaultOptions: { queries: { retry: false, gcTime: 0 } },
+      defaultOptions: {
+        queries: { retry: false, gcTime: 0 },
+        mutations: { retry: false, gcTime: 0 },
+      },
     });
     await persistOfflineGameDay(
       store,
       gameDaySnapshotFromProjection({
         userId: context.userId,
         teamName: "U14 Boys",
+        timezone: "Australia/Melbourne",
         projection,
         savedAt: "2026-10-07T01:00:00.000Z",
       }),
@@ -299,6 +680,7 @@ describe("team game day screen", () => {
       gameDaySnapshotFromProjection({
         userId: context.userId,
         teamName: "U14 Boys",
+        timezone: "Australia/Melbourne",
         projection,
         savedAt: "2026-10-07T01:00:00.000Z",
       }),
@@ -318,6 +700,7 @@ describe("team game day screen", () => {
       gameDaySnapshotFromProjection({
         userId: context.userId,
         teamName: "U14 Boys",
+        timezone: "Australia/Melbourne",
         projection,
         savedAt: "2026-10-07T01:00:00.000Z",
       }),
@@ -348,6 +731,7 @@ describe("team game day screen", () => {
       gameDaySnapshotFromProjection({
         userId: context.userId,
         teamName: "U14 Boys",
+        timezone: "Australia/Melbourne",
         projection,
         savedAt: "2026-10-07T01:00:00.000Z",
       }),
@@ -407,6 +791,7 @@ describe("team game day screen", () => {
       gameDaySnapshotFromProjection({
         userId: context.userId,
         teamName: "U14 Boys",
+        timezone: "Australia/Melbourne",
         projection,
         savedAt: "2026-10-07T01:00:00.000Z",
       }),
@@ -439,6 +824,61 @@ describe("team game day screen", () => {
     expect(screen.queryByText("database detail")).toBeNull();
   });
 
+  it("allows a failed Game Day read to be retried", async () => {
+    let attempts = 0;
+    await renderScreen({
+      loadContext: () => Promise.resolve(context),
+      loadGameDay: () => {
+        attempts += 1;
+        return attempts === 1
+          ? Promise.reject(new Error("temporary transport failure"))
+          : Promise.resolve(projection);
+      },
+    });
+
+    expect(await screen.findByText("Game day could not be read.")).toBeTruthy();
+    await userEvent.press(screen.getByRole("button", { name: "Try again" }));
+    expect(
+      await screen.findByRole("header", { name: "Round 1: Visitors" }),
+    ).toBeTruthy();
+    expect(attempts).toBe(2);
+  });
+
+  it("offers a refresh when the online Game Day read falls back to a snapshot", async () => {
+    const store = memoryGameDaySnapshotStore();
+    await persistOfflineGameDay(
+      store,
+      gameDaySnapshotFromProjection({
+        userId: context.userId,
+        teamName: "U14 Boys",
+        timezone: "Australia/Melbourne",
+        projection,
+        savedAt: "2026-10-07T01:00:00.000Z",
+      }),
+    );
+    let attempts = 0;
+    await renderScreen({
+      store,
+      localUserId: context.userId,
+      selectedTeamId: teamId,
+      online: true,
+      loadContext: () => Promise.resolve(context),
+      loadGameDay: () => {
+        attempts += 1;
+        return attempts === 1
+          ? Promise.reject(new Error("temporary transport failure"))
+          : Promise.resolve(projection);
+      },
+    });
+
+    expect(await screen.findByText("U14 Boys: Visitors")).toBeTruthy();
+    await userEvent.press(screen.getByRole("button", { name: "Try again" }));
+    expect(
+      await screen.findByRole("header", { name: "Round 1: Visitors" }),
+    ).toBeTruthy();
+    expect(attempts).toBe(2);
+  });
+
   it("does not open user A's game day for user B after sign-out cleanup", async () => {
     const store = memoryGameDaySnapshotStore();
     await persistOfflineGameDay(
@@ -446,6 +886,7 @@ describe("team game day screen", () => {
       gameDaySnapshotFromProjection({
         userId: context.userId,
         teamName: "U14 Boys",
+        timezone: "Australia/Melbourne",
         projection,
         savedAt: "2026-10-07T01:00:00.000Z",
       }),
@@ -471,6 +912,7 @@ describe("team game day screen", () => {
       gameDaySnapshotFromProjection({
         userId: context.userId,
         teamName: "U14 Boys",
+        timezone: "Australia/Melbourne",
         projection,
         savedAt: "2026-10-07T01:00:00.000Z",
       }),
@@ -484,7 +926,10 @@ describe("team game day screen", () => {
       roundLabel: "Round 2",
     };
     const client = new QueryClient({
-      defaultOptions: { queries: { retry: false, gcTime: 0 } },
+      defaultOptions: {
+        queries: { retry: false, gcTime: 0 },
+        mutations: { retry: false, gcTime: 0 },
+      },
     });
     const view = await renderScreen({
       client,
@@ -508,7 +953,7 @@ describe("team game day screen", () => {
 
     expect(
       await screen.findByText(
-        "Offline · Last updated 2026-10-07T01:00:00.000Z",
+        "Offline · Last updated Wednesday 7 October at 12:00 pm",
       ),
     ).toBeTruthy();
     expect(calls.context).toBe(0);
@@ -564,6 +1009,7 @@ describe("team game day screen", () => {
       gameDaySnapshotFromProjection({
         userId: context.userId,
         teamName: "U14 Boys",
+        timezone: "Australia/Melbourne",
         projection,
         savedAt: "2026-10-07T01:00:00.000Z",
       }),
@@ -577,7 +1023,7 @@ describe("team game day screen", () => {
     });
     expect(
       await screen.findByText(
-        "Offline · Last updated 2026-10-07T01:00:00.000Z",
+        "Offline · Last updated Wednesday 7 October at 12:00 pm",
       ),
     ).toBeTruthy();
     expect(screen.getByText("Save RSVP").props.accessibilityState).toEqual({
@@ -597,6 +1043,7 @@ describe("team game day screen", () => {
       gameDaySnapshotFromProjection({
         userId: context.userId,
         teamName: "U14 Boys",
+        timezone: "Australia/Melbourne",
         projection,
         savedAt: "2026-10-07T01:00:00.000Z",
       }),
@@ -610,7 +1057,7 @@ describe("team game day screen", () => {
     });
     expect(
       await screen.findByText(
-        "Offline · Last updated 2026-10-07T01:00:00.000Z",
+        "Offline · Last updated Wednesday 7 October at 12:00 pm",
       ),
     ).toBeTruthy();
     expect(screen.getByText("Save RSVP").props.accessibilityState).toEqual({
@@ -628,6 +1075,7 @@ describe("team game day screen", () => {
       gameDaySnapshotFromProjection({
         userId: context.userId,
         teamName: "U14 Boys",
+        timezone: "Australia/Melbourne",
         projection,
         savedAt: "2026-10-07T01:00:00.000Z",
       }),
@@ -667,6 +1115,7 @@ describe("team game day screen", () => {
       gameDaySnapshotFromProjection({
         userId: context.userId,
         teamName: "U14 Boys",
+        timezone: "Australia/Melbourne",
         projection,
         savedAt: "2026-10-07T01:00:00.000Z",
       }),
@@ -686,6 +1135,40 @@ describe("team game day screen", () => {
     expect(screen.queryByText(/Visitors/)).toBeNull();
     expect(screen.queryByText("Save RSVP")).toBeNull();
     await waitFor(async () => {
+      expect(await readOfflineContextPointer(store, context.userId)).toBeNull();
+    });
+  });
+
+  it("does not fall back to cached data when the Game Day read is forbidden", async () => {
+    const store = memoryGameDaySnapshotStore();
+    await persistOfflineGameDay(
+      store,
+      gameDaySnapshotFromProjection({
+        userId: context.userId,
+        teamName: "U14 Boys",
+        projection,
+        savedAt: "2026-10-07T01:00:00.000Z",
+      }),
+    );
+    await renderScreen({
+      store,
+      localUserId: context.userId,
+      online: true,
+      loadContext: () => Promise.resolve(context),
+      loadGameDay: () =>
+        Promise.reject(
+          new ApplicationError("FORBIDDEN", "This game day is not available."),
+        ),
+    });
+
+    expect(
+      await screen.findByText("This game day is not available."),
+    ).toBeTruthy();
+    expect(screen.queryByText(/Visitors/)).toBeNull();
+    await waitFor(async () => {
+      expect(
+        await readGameDaySnapshot(store, context.userId, teamId),
+      ).toBeNull();
       expect(await readOfflineContextPointer(store, context.userId)).toBeNull();
     });
   });
@@ -723,11 +1206,24 @@ function screenTree({
   now,
   loadContext,
   loadGameDay,
+  selectedTeamId,
+  canReadCoachGameDay,
+  loadRsvpChoices,
+  saveRsvp,
+  loadFillInOptions,
+  respondFillIn,
+  loadDutySwaps,
+  acknowledgeDuty,
+  requestDutySwap,
+  acceptDutySwap,
 }: ScreenInput) {
   const queryClient =
     client ??
     new QueryClient({
-      defaultOptions: { queries: { retry: false, gcTime: 0 } },
+      defaultOptions: {
+        queries: { retry: false, gcTime: 0 },
+        mutations: { retry: false, gcTime: 0 },
+      },
     });
   return (
     <QueryClientProvider client={queryClient}>
@@ -738,8 +1234,18 @@ function screenTree({
         loadGameDay={
           loadGameDay ?? (() => Promise.reject(new Error("offline")))
         }
+        {...(canReadCoachGameDay === undefined ? {} : { canReadCoachGameDay })}
+        {...(loadRsvpChoices === undefined ? {} : { loadRsvpChoices })}
+        {...(saveRsvp === undefined ? {} : { saveRsvp })}
+        {...(loadFillInOptions === undefined ? {} : { loadFillInOptions })}
+        {...(respondFillIn === undefined ? {} : { respondFillIn })}
+        {...(loadDutySwaps === undefined ? {} : { loadDutySwaps })}
+        {...(acknowledgeDuty === undefined ? {} : { acknowledgeDuty })}
+        {...(requestDutySwap === undefined ? {} : { requestDutySwap })}
+        {...(acceptDutySwap === undefined ? {} : { acceptDutySwap })}
         {...(store === undefined ? {} : { snapshotStore: store })}
         {...(localUserId === undefined ? {} : { localUserId })}
+        {...(selectedTeamId === undefined ? {} : { selectedTeamId })}
         {...(online === undefined ? {} : { online })}
         now={now ?? Date.parse("2026-10-07T01:30:00.000Z")}
       />
@@ -751,8 +1257,45 @@ type ScreenInput = {
   client?: QueryClient;
   store?: GameDaySnapshotStore;
   localUserId?: string;
+  selectedTeamId?: string | null;
   online?: boolean | null;
   now?: number;
   loadContext?: () => Promise<CurrentClubContext>;
   loadGameDay?: (teamId: string) => Promise<GameDayProjection | null>;
+  canReadCoachGameDay?: (teamId: string) => Promise<boolean>;
+  loadRsvpChoices?: (
+    teamId: string,
+    eventId: string,
+  ) => Promise<readonly MobileRsvpChoice[]>;
+  saveRsvp?: (input: {
+    teamId: string;
+    eventId: string;
+    playerId: string;
+    status: "ATTENDING" | "UNAVAILABLE" | "UNSURE";
+  }) => Promise<void>;
+  loadFillInOptions?: (
+    teamId: string,
+    eventId: string,
+  ) => Promise<MobileFillInProjection>;
+  respondFillIn?: (input: {
+    teamId: string;
+    requestId: string;
+    playerId: string;
+  }) => Promise<void>;
+  loadDutySwaps?: (
+    teamId: string,
+    eventId: string,
+  ) => Promise<readonly DutySwapRecord[]>;
+  acknowledgeDuty?: (input: {
+    teamId: string;
+    eventId: string;
+  }) => Promise<number>;
+  requestDutySwap?: (input: {
+    teamId: string;
+    eventId: string;
+  }) => Promise<unknown>;
+  acceptDutySwap?: (input: {
+    teamId: string;
+    requestId: string;
+  }) => Promise<unknown>;
 };

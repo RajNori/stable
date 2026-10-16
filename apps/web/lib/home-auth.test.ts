@@ -34,6 +34,12 @@ describe("home auth routing", () => {
     expect(callbackNotice({ auth: "internal" })).toBe(
       AUTH_ERROR_MESSAGES.INTERNAL,
     );
+    expect(callbackNotice({ auth: "recovered" })).toBe(
+      "Your password has been updated. Sign in with your new password.",
+    );
+    expect(callbackNotice({ auth: "recovery-expired" })).toContain(
+      "recovery link is no longer valid",
+    );
   });
 
   it("only returns explicit safe flags and defaults other messages to internal", () => {
@@ -47,5 +53,10 @@ describe("home auth routing", () => {
     expect(authQueryFlag("provider raw text containing credentials")).toBe(
       "internal",
     );
+    expect(
+      authQueryFlag(
+        "Your password has been updated. Sign in with your new password.",
+      ),
+    ).toBe("recovered");
   });
 });

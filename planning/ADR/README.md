@@ -14,5 +14,6 @@ Accepted:
 - 0011 Coaching Loop MVP
 - 0012 Environment Separation
 - 0013 Approved V1 Design System
+- 0014 M5B Cloud Pilot Journey Contract
 
 Any agent proposing a material reversal creates a new ADR; do not edit history to hide a decision change.

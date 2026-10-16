@@ -19,6 +19,14 @@ test("member session resolves the seeded club and club.read", async ({
   ).toBeVisible();
   await expect(page.getByText("Local Member")).toBeVisible();
   await expect(page.getByText("club.read")).toBeVisible();
+  await expect(
+    page.getByRole("heading", { name: "Club overview" }),
+  ).toBeVisible();
+  await expect(
+    page
+      .getByRole("region", { name: "Club overview" })
+      .getByRole("heading", { name: "Needs attention" }),
+  ).toBeVisible();
   await expect(page.getByLabel("Club context")).toHaveAttribute(
     "data-state",
     "member",

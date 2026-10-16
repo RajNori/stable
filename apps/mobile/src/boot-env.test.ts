@@ -2,6 +2,16 @@ import { ENV } from "@stable/contracts";
 
 import { loadMobileBootEnv } from "./boot-env";
 
+declare const jest: {
+  mock: (moduleName: string, factory: () => unknown) => void;
+};
+
+jest.mock("@sentry/react-native", () => ({
+  captureException: () => undefined,
+  init: () => undefined,
+  wrap: (component: unknown) => component,
+}));
+
 declare function require(moduleName: string): { default: unknown };
 
 const publishableKey = "sb_publishable_test";

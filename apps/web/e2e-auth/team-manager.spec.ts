@@ -42,6 +42,32 @@ test("a non-admin team manager maintains fixtures and team operations", async ({
   await expect(manager).toHaveURL(/\/invitations\/accept\?result=/);
   await manager.waitForLoadState("networkidle");
 
+  await manager.goto("/club-structure");
+  await expect(
+    manager.getByRole("button", { name: "Create season and team" }),
+  ).toHaveCount(0);
+  await expect(
+    manager.getByRole("button", { name: "Create competition" }),
+  ).toHaveCount(0);
+  await expect(
+    manager.getByRole("button", { name: "Create venue" }),
+  ).toHaveCount(0);
+  await expect(
+    manager.getByRole("button", { name: "Create team" }),
+  ).toHaveCount(0);
+  await expect(
+    manager.getByRole("button", { name: "Save season" }),
+  ).toHaveCount(0);
+  await expect(
+    manager.getByRole("button", { name: "Save competition" }),
+  ).toHaveCount(0);
+  await expect(manager.getByRole("button", { name: "Save venue" })).toHaveCount(
+    0,
+  );
+  await expect(manager.getByRole("button", { name: "Save team" })).toHaveCount(
+    0,
+  );
+
   // A manager may create and update manual fixture metadata, but receives no
   // Milestone 4 coaching projection or score/stat controls.
   await manager.goto(`/teams/${TEAM_ID}/fixtures`);
@@ -116,16 +142,49 @@ test("a non-admin team manager maintains fixtures and team operations", async ({
     gameDay.getByText("RSVP ATTENDING", { exact: true }),
   ).toBeVisible();
 
+  // Acceptance (Manager): the manager sees who is available for the game.
+  await manager.goto(gameHref);
+  await expect(
+    manager
+      .getByRole("region", { name: "Game day" })
+      .getByText(
+        /^Attending [1-9]\d*, unavailable \d+, unsure \d+, unanswered \d+$/,
+      ),
+  ).toBeVisible();
+
   // Confirm the staff-facing announcement was persisted through the UI.
   await manager.goto(`/teams/${TEAM_ID}/announcements`);
   const message = `Synthetic manager message ${suffix}`;
   await manager.getByLabel("Title").fill(announcementTitle);
   await manager.getByLabel("Message").fill(message);
+  await manager.getByLabel("Acknowledgement required").check();
   await manager.getByRole("button", { name: "Publish announcement" }).click();
   const announcement = manager
     .getByRole("listitem")
     .filter({ hasText: announcementTitle });
   await expect(announcement).toContainText(message);
+  await expect(announcement).toContainText("0 acknowledgements");
+
+  // Acceptance (Guardian): the guardian reads and acknowledges the update,
+  // and the manager can see that it was received.
+  await guardian.goto(`/teams/${TEAM_ID}/announcements`);
+  const guardianAnnouncement = guardian
+    .getByRole("listitem")
+    .filter({ hasText: announcementTitle });
+  await expect(guardianAnnouncement).toContainText(message);
+  await guardianAnnouncement
+    .getByRole("button", { name: "Acknowledge" })
+    .click();
+  await expect(
+    guardian
+      .getByRole("listitem")
+      .filter({ hasText: announcementTitle })
+      .getByRole("button", { name: "Acknowledge" }),
+  ).toHaveCount(0);
+  await manager.reload();
+  await expect(
+    manager.getByRole("listitem").filter({ hasText: announcementTitle }),
+  ).toContainText("1 acknowledgements");
 
   // A manager can open a fill-in request and commit a duty allocation. The
   // allocation chooses from eligible staff/admin/guardian candidates, so read

@@ -64,9 +64,22 @@ test("a Team A coach keeps fixture visibility but is denied Team B coaching data
   ).toContainText("Head coach");
 
   await page.goto("/club-structure");
-  await page.getByLabel("Season name").fill(seasonName);
-  await page.getByLabel("Team name").fill(teamBName);
+  const createSeasonForm = page
+    .getByRole("region", { name: "Club structure" })
+    .locator("form")
+    .filter({
+      has: page.getByRole("button", { name: "Create season and team" }),
+    });
+  await createSeasonForm
+    .getByRole("textbox", { name: "Season name" })
+    .fill(seasonName);
+  await createSeasonForm
+    .getByRole("textbox", { name: "First team name" })
+    .fill(teamBName);
   await page.getByRole("button", { name: "Create season and team" }).click();
+  await expect(
+    page.getByRole("region", { name: "Club structure" }).getByRole("alert"),
+  ).toHaveCount(0);
   const teamBLink = page.getByRole("link", { name: teamBName });
   await expect(teamBLink).toBeVisible();
   const teamBHref = await teamBLink.getAttribute("href");

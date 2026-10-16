@@ -16,7 +16,7 @@ import {
   requestOAuthIdentityLink,
 } from "./oauth-link.js";
 import {
-  MOBILE_OAUTH_SIGN_IN,
+  OAUTH_SIGN_IN_PROVIDER_SETTINGS,
   appleRequestNonce,
   cancelOAuthSignIn,
   completeOAuthIdTokenSignIn,
@@ -41,10 +41,11 @@ const idToken = "eyJhbGciOiJIUzI1NiJ9.payload.signature";
 const leakedEmail = "person@example.com";
 
 describe("oauth sign-in", () => {
-  it("keeps mobile Apple native and mobile Google on the browser path", () => {
-    expect(MOBILE_OAUTH_SIGN_IN).toEqual({
-      apple: "native_id_token",
-      google: "browser_oauth",
+  it("keeps web social provider configuration disabled by default", () => {
+    expect(OAUTH_SIGN_IN_PROVIDER_SETTINGS).toEqual({
+      google: { enabled: false, clientId: null },
+      apple: { enabled: false, clientId: null },
+      facebook: { enabled: false, clientId: null },
     });
     expect(MANUAL_LINKING_IS_ENABLED).toBe(false);
   });
@@ -110,6 +111,46 @@ describe("oauth sign-in", () => {
       { provider: "apple", redirectTo: "stable://auth/callback" },
     ]);
     expect(google.links).toBe(0);
+  });
+
+  it("accepts the exact configured hosted web callback origin", async () => {
+    const gateway = fakeGateway({ authorizationUrl: hostedAuthorizeUrl });
+    const webOrigin = "https://staging.stable.example";
+    const hostedRedirect = `${webOrigin}/auth/callback`;
+
+    await expect(
+      startOAuthBrowserSignIn(gateway.gateway, {
+        provider: "google",
+        redirectTo: hostedRedirect,
+        appEnv: "staging",
+        authOrigin: hostedOrigin,
+        webOrigin,
+        settings: ready,
+      }),
+    ).resolves.toMatchObject({
+      status: "redirect_required",
+      provider: "google",
+      authorizationUrl: hostedAuthorizeUrl,
+    });
+    expect(gateway.browser).toEqual([
+      { provider: "google", redirectTo: hostedRedirect },
+    ]);
+  });
+
+  it("rejects a hosted callback that does not match the configured origin", async () => {
+    const gateway = fakeGateway({ authorizationUrl: hostedAuthorizeUrl });
+
+    await expect(
+      startOAuthBrowserSignIn(gateway.gateway, {
+        provider: "google",
+        redirectTo: "https://evil.example/auth/callback",
+        appEnv: "staging",
+        authOrigin: hostedOrigin,
+        webOrigin: "https://staging.stable.example",
+        settings: ready,
+      }),
+    ).rejects.toMatchObject({ code: "VALIDATION_FAILED" });
+    expect(gateway.browser).toEqual([]);
   });
 
   it("fails a disabled provider and an unsafe redirect before the provider call", async () => {
@@ -184,7 +225,7 @@ describe("oauth sign-in", () => {
 
   it("exchanges a safe callback into an AuthSessionSnapshot", async () => {
     const gateway = fakeGateway();
-    const readyProviders = { google: ready, apple: ready };
+    const readyProviders = { google: ready, apple: ready, facebook: ready };
 
     await expect(
       finishOAuthBrowserSignIn(gateway.gateway, {
@@ -213,7 +254,7 @@ describe("oauth sign-in", () => {
 
   it("rejects an unsafe callback, a cancellation, and a bad code", async () => {
     const gateway = fakeGateway();
-    const settings = { google: ready, apple: ready };
+    const settings = { google: ready, apple: ready, facebook: ready };
 
     await expect(
       finishOAuthBrowserSignIn(gateway.gateway, {
@@ -254,7 +295,7 @@ describe("oauth sign-in", () => {
   });
 
   it("maps collision, upstream failure, and a missing session without provider text", async () => {
-    const settings = { google: ready, apple: ready };
+    const settings = { google: ready, apple: ready, facebook: ready };
     const collision = fakeGateway({
       exchangeError: {
         code: "identity_already_exists",
@@ -369,14 +410,14 @@ describe("oauth sign-in", () => {
       finishOAuthBrowserSignIn(gateway.gateway, {
         callbackUrl: redirectTo,
         appEnv: "local",
-        settings: { google: ready, apple: ready },
+        settings: { google: ready, apple: ready, facebook: ready },
       }),
     ).rejects.toMatchObject({ code: "VALIDATION_FAILED" });
     await expect(
       finishOAuthBrowserSignIn(gateway.gateway, {
         callbackUrl: `${redirectTo}?error=%`,
         appEnv: "local",
-        settings: { google: ready, apple: ready },
+        settings: { google: ready, apple: ready, facebook: ready },
       }),
     ).rejects.toMatchObject({ code: "VALIDATION_FAILED" });
     await expect(
@@ -452,6 +493,7 @@ describe("oauth sign-in", () => {
     ).rejects.toMatchObject({ code: "CONFLICT" });
     expect(OAUTH_PROVIDER_SETTINGS.google.enabled).toBe(false);
     expect(OAUTH_PROVIDER_SETTINGS.apple.clientId).toBeNull();
+    expect(OAUTH_SIGN_IN_PROVIDER_SETTINGS.facebook.enabled).toBe(false);
   });
 });
 
@@ -476,7 +518,10 @@ function fakeGateway(input?: {
   browserError?: unknown;
 }): {
   gateway: OAuthSignInGateway;
-  browser: Array<{ provider: "google" | "apple"; redirectTo: string }>;
+  browser: Array<{
+    provider: "google" | "apple" | "facebook";
+    redirectTo: string;
+  }>;
   codes: string[];
   idTokens: Array<{
     provider: "google" | "apple";
@@ -486,7 +531,10 @@ function fakeGateway(input?: {
   links: number;
 } {
   const state = {
-    browser: [] as Array<{ provider: "google" | "apple"; redirectTo: string }>,
+    browser: [] as Array<{
+      provider: "google" | "apple" | "facebook";
+      redirectTo: string;
+    }>,
     codes: [] as string[],
     idTokens: [] as Array<{
       provider: "google" | "apple";

@@ -1,13 +1,15 @@
-import type { ScheduleEntry } from "@stable/schedule";
+import { formatScheduleDateTime, type ScheduleEntry } from "@stable/schedule";
 
 type SchedulePanelProps = {
   teamName: string;
+  timezone: string;
   entries: readonly ScheduleEntry[];
   error?: string | undefined;
 };
 
 export function SchedulePanel({
   teamName,
+  timezone,
   entries,
   error,
 }: SchedulePanelProps) {
@@ -20,8 +22,8 @@ export function SchedulePanel({
         {entries.map((entry) => (
           <li key={entry.eventId}>
             {entry.eventType === "TRAINING"
-              ? `Training at ${entry.startsAt}`
-              : `${entry.roundLabel ?? "Game"}: ${entry.opponentName ?? "Opponent"} at ${entry.startsAt}`}
+              ? `Training at ${formatScheduleDateTime(entry.startsAt, timezone)}`
+              : `${entry.roundLabel ?? "Game"}: ${entry.opponentName ?? "Opponent"} at ${formatScheduleDateTime(entry.startsAt, timezone)}`}
           </li>
         ))}
       </ul>

@@ -181,8 +181,10 @@ describe("mobile auth screen", () => {
       screen.getByLabelText("Email address"),
       "adult@example.com",
     );
-    await userEvent.press(screen.getByLabelText("Send code"));
-    expect(screen.getByRole("header", { name: "Enter the code" })).toBeTruthy();
+    await userEvent.press(screen.getByLabelText("Send sign-in link"));
+    expect(
+      screen.getByRole("header", { name: "Check your email" }),
+    ).toBeTruthy();
   });
 
   it("announces each auth step when advancing and returning", async () => {
@@ -194,7 +196,11 @@ describe("mobile auth screen", () => {
       });
     const actions = idleActions();
     const { rerender } = await render(
-      <AuthScreen session={unauthenticated} actions={actions} />,
+      <AuthScreen
+        session={unauthenticated}
+        actions={actions}
+        resendCooldownSeconds={0}
+      />,
     );
 
     await userEvent.press(screen.getByLabelText("Continue with mobile"));
@@ -215,9 +221,9 @@ describe("mobile auth screen", () => {
       screen.getByLabelText("Email address"),
       "adult@example.com",
     );
-    await userEvent.press(screen.getByLabelText("Send code"));
-    await screen.findByLabelText("6-digit code");
-    expect(announced.at(-1)).toBe("Enter the code. Sent to adult@example.com");
+    await userEvent.press(screen.getByLabelText("Send sign-in link"));
+    await screen.findByLabelText("Resend link");
+    expect(announced.at(-1)).toBe("Sign-in link sent to adult@example.com");
     await userEvent.press(screen.getByLabelText("Change email"));
     expect(announced.at(-1)).toBe("Your email");
 
@@ -265,6 +271,7 @@ describe("mobile auth screen", () => {
         session={unauthenticated}
         actions={actions}
         accessibilityFocusTarget={accessibilityFocusTarget}
+        resendCooldownSeconds={0}
       />,
     );
 
@@ -310,9 +317,9 @@ describe("mobile auth screen", () => {
       screen.getByLabelText("Email address"),
       "adult@example.com",
     );
-    await userEvent.press(screen.getByLabelText("Send code"));
-    await screen.findByLabelText("6-digit code");
-    await expectHeadingFocus("Enter the code");
+    await userEvent.press(screen.getByLabelText("Send sign-in link"));
+    await screen.findByLabelText("Resend link");
+    await expectHeadingFocus("Check your email");
     await userEvent.press(screen.getByLabelText("Change email"));
     await expectHeadingFocus("Your email");
 
@@ -345,7 +352,11 @@ describe("mobile auth screen", () => {
       .spyOn(AccessibilityInfo, "announceForAccessibility")
       .mockImplementation(() => undefined);
     await render(
-      <AuthScreen session={unauthenticated} actions={idleActions()} />,
+      <AuthScreen
+        session={unauthenticated}
+        actions={idleActions()}
+        resendCooldownSeconds={0}
+      />,
     );
     await userEvent.press(screen.getByLabelText("Continue with email"));
     await waitFor(() => {
@@ -469,7 +480,7 @@ describe("mobile auth screen", () => {
     expect(screen.queryByText(/\+614/)).toBeNull();
   });
 
-  it("accepts an email and verifies the code", async () => {
+  it("sends an email magic link for the mobile callback", async () => {
     const emails: string[] = [];
     await render(
       <AuthScreen
@@ -477,9 +488,6 @@ describe("mobile auth screen", () => {
         actions={idleActions({
           async requestEmail(email) {
             emails.push(email);
-          },
-          async verifyEmail(email, token) {
-            emails.push(`${email}:${token}`);
           },
         })}
       />,
@@ -490,18 +498,18 @@ describe("mobile auth screen", () => {
       screen.getByLabelText("Email address"),
       "  adult@example.com",
     );
-    await userEvent.press(screen.getByLabelText("Send code"));
-    fireEvent.changeText(
-      await screen.findByLabelText("6-digit code"),
-      "123456",
-    );
-    await userEvent.press(screen.getByLabelText("Continue"));
+    await userEvent.press(screen.getByLabelText("Send sign-in link"));
 
-    expect(await screen.findByText("Sent to adult@example.com")).toBeTruthy();
-    expect(emails).toEqual(["adult@example.com", "adult@example.com:123456"]);
+    expect(
+      await screen.findByText(
+        "We sent a sign-in link to adult@example.com. Open it on this device to continue.",
+      ),
+    ).toBeTruthy();
+    expect(screen.queryByLabelText("6-digit code")).toBeNull();
+    expect(emails).toEqual(["adult@example.com"]);
   });
 
-  it("changes and resends an email code without retaining the previous code", async () => {
+  it("allows a sent magic link to be resent or its email changed", async () => {
     const requests: string[] = [];
     await render(
       <AuthScreen
@@ -520,14 +528,10 @@ describe("mobile auth screen", () => {
       screen.getByLabelText("Email address"),
       "adult@example.com",
     );
-    await userEvent.press(screen.getByLabelText("Send code"));
-    fireEvent.changeText(
-      await screen.findByLabelText("6-digit code"),
-      "123456",
-    );
+    await userEvent.press(screen.getByLabelText("Send sign-in link"));
+    await screen.findByLabelText("Resend link");
     await userEvent.press(screen.getByLabelText("Change email"));
     expect(screen.getByLabelText("Email address")).toBeTruthy();
-    expect(screen.queryByLabelText("6-digit code")).toBeNull();
     await userEvent.press(screen.getByLabelText("Back"));
     expect(screen.getByLabelText("Continue with email")).toBeTruthy();
 
@@ -536,9 +540,9 @@ describe("mobile auth screen", () => {
       screen.getByLabelText("Email address"),
       "adult@example.com",
     );
-    await userEvent.press(screen.getByLabelText("Send code"));
-    await screen.findByLabelText("6-digit code");
-    await userEvent.press(screen.getByLabelText("Resend code"));
+    await userEvent.press(screen.getByLabelText("Send sign-in link"));
+    await screen.findByLabelText("Resend link");
+    await userEvent.press(screen.getByLabelText("Resend link"));
     expect(requests).toEqual([
       "adult@example.com",
       "adult@example.com",
@@ -566,7 +570,7 @@ describe("mobile auth screen", () => {
       screen.getByLabelText("Email address"),
       "not-an-email",
     );
-    await userEvent.press(screen.getByLabelText("Send code"));
+    await userEvent.press(screen.getByLabelText("Send sign-in link"));
 
     expect(
       await screen.findByText(AUTH_ERROR_MESSAGES.VALIDATION_FAILED),
@@ -677,9 +681,6 @@ function idleActions(overrides: Partial<AuthActions> = {}): AuthActions {
       return undefined;
     },
     async requestEmail() {
-      return undefined;
-    },
-    async verifyEmail() {
       return undefined;
     },
     async retry() {

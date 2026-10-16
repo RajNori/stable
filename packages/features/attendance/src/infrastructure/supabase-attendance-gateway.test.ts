@@ -49,6 +49,11 @@ describe("attendance gateway", () => {
     ).listTeamAttendance(eventId);
     expect(rows[0]?.privateNote).toBe("Fever");
     expect(rows[0]?.absenceCategory).toBe("SICK");
+    await expect(
+      createSupabaseAttendanceGateway(
+        client([{ player_id: playerId, status: "UNAVAILABLE" }]),
+      ).listManagedAttendance(eventId),
+    ).resolves.toEqual([{ playerId, status: "UNAVAILABLE" }]);
   });
 
   it("maps database failures and malformed rows", async () => {
@@ -91,6 +96,13 @@ describe("attendance gateway", () => {
       createSupabaseAttendanceGateway(
         client([{ ...row(), status: "MAYBE" }]),
       ).listTeamAttendance(eventId),
+    ).rejects.toMatchObject({ code: "INTERNAL" });
+    await expect(
+      createSupabaseAttendanceGateway(
+        client([
+          { player_id: playerId, status: "ATTENDING", private_note: "secret" },
+        ]),
+      ).listManagedAttendance(eventId),
     ).rejects.toMatchObject({ code: "INTERNAL" });
   });
 });

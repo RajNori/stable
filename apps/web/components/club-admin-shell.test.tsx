@@ -1,7 +1,8 @@
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { ENV } from "@stable/contracts";
-import { cleanup, render, screen } from "@testing-library/react";
+import type { SupabaseClient } from "@supabase/supabase-js";
+import { cleanup, render, screen, within } from "@testing-library/react";
 import { afterEach, describe, expect, it } from "vitest";
 
 import { ClubAdminShell } from "./club-admin-shell";
@@ -11,7 +12,7 @@ import {
 } from "../lib/fixtures";
 import { loadClubContext } from "../lib/load-club-context";
 import { readPublicSupabaseConfig } from "../lib/public-supabase-env";
-import { createRuntimeClubContextReader } from "../lib/runtime-club-context-reader";
+import { createClubContextReader } from "../lib/reader";
 
 afterEach(() => {
   cleanup();
@@ -69,6 +70,54 @@ describe("current club context shell", () => {
     expect(
       screen.getByRole("heading", { name: "Needs attention" }),
     ).toBeTruthy();
+    const navigation = screen.getByRole("navigation", {
+      name: "Admin sections",
+    });
+    expect(
+      within(navigation)
+        .getByRole("link", { name: "Overview" })
+        .getAttribute("href"),
+    ).toBe("/");
+    expect(within(navigation).queryByText("Needs attention")).toBeNull();
+  });
+
+  it("does not show Club Admin navigation to a team-only member", () => {
+    render(
+      <ClubAdminShell
+        presentation={{
+          status: "member",
+          clubName: "Mentone Mustangs",
+          displayName: "Taylor Coach",
+          capabilities: ["club.read"],
+        }}
+      />,
+    );
+
+    expect(screen.queryByRole("link", { name: "Club structure" })).toBeNull();
+    expect(screen.queryByRole("link", { name: "Players" })).toBeNull();
+    expect(screen.queryByRole("link", { name: "Notifications" })).toBeNull();
+    expect(
+      screen.queryByRole("link", { name: "Operational audit" }),
+    ).toBeNull();
+  });
+
+  it("shows the audit route only when audit.read is present", () => {
+    render(
+      <ClubAdminShell
+        presentation={{
+          status: "member",
+          clubName: "Mentone Mustangs",
+          displayName: "Club Admin",
+          capabilities: ["club.read", "audit.read"],
+        }}
+      />,
+    );
+
+    expect(
+      screen
+        .getByRole("link", { name: "Operational audit" })
+        .getAttribute("href"),
+    ).toBe("/audit");
   });
 
   it("shows a sign-in next step when the principal is missing", async () => {
@@ -189,7 +238,7 @@ describe("public supabase configuration", () => {
 
 describe("supabase reader boundary", () => {
   it("uses the exported club context reader", async () => {
-    const reader = await createRuntimeClubContextReader({});
+    const reader = await createClubContextReader({} as SupabaseClient);
     expect(typeof reader.read).toBe("function");
   });
 });

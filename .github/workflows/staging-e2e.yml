@@ -1,0 +1,96 @@
+# Hosted pilot acceptance: Vercel Preview + approved staging Supabase.
+# Manual only, behind the `staging` GitHub Environment (required reviewer).
+# PR CI (ci.yml) keeps refusing hosted credentials; this is the one exception.
+# No production project, no migrations, no deploy. Synthetic data only.
+name: staging-e2e
+
+on:
+  workflow_dispatch:
+    inputs:
+      web_url:
+        description: "Preview origin to test (defaults to vars.STAGING_WEB_URL)"
+        required: false
+        type: string
+      seed:
+        description: "Run the idempotent staging seed + access smoke first"
+        required: false
+        type: boolean
+        default: true
+
+permissions:
+  contents: read
+
+concurrency:
+  group: staging-e2e
+  cancel-in-progress: false
+
+jobs:
+  hosted-acceptance:
+    name: hosted-acceptance
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    environment: staging
+    env:
+      # Non-secret targets are pinned here; vars can override them.
+      STAGING_WEB_URL: ${{ inputs.web_url || vars.STAGING_WEB_URL || 'https://web-git-milestone-5b-pilot-db8353-noriprototype-5577s-projects.vercel.app' }}
+      STAGING_SUPABASE_URL: https://rporaeagbsfmgbmhyett.supabase.co
+      PRODUCTION_WEB_URL: ${{ vars.PRODUCTION_WEB_URL || 'https://web-noriprototype-5577s-projects.vercel.app' }}
+      STAGING_PUBLISHABLE_KEY: ${{ secrets.STAGING_PUBLISHABLE_KEY }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+
+      - name: Check toolchain pins
+        run: bash .github/workflows/check-toolchain.sh
+
+      - name: Install
+        run: pnpm install --frozen-lockfile
+
+      - name: Require staging secrets
+        env:
+          STAGING_SECRET_KEY: ${{ secrets.STAGING_SECRET_KEY }}
+          VERCEL_AUTOMATION_BYPASS_SECRET: ${{ secrets.VERCEL_AUTOMATION_BYPASS_SECRET }}
+        run: |
+          missing=0
+          for name in STAGING_PUBLISHABLE_KEY STAGING_SECRET_KEY VERCEL_AUTOMATION_BYPASS_SECRET; do
+            if [ -z "${!name}" ]; then echo "::error::Missing secret $name in the staging environment"; missing=1; fi
+          done
+          exit $missing
+
+      - name: Seed staging and verify role access
+        if: ${{ inputs.seed }}
+        env:
+          APP_ENV: staging
+          TARGET_PROJECT_REF: rporaeagbsfmgbmhyett
+          SUPABASE_URL: https://rporaeagbsfmgbmhyett.supabase.co
+          STAGING_KEY_SOURCE: env
+          STAGING_SECRET_KEY: ${{ secrets.STAGING_SECRET_KEY }}
+        run: node --experimental-strip-types scripts/staging/seed-pilot.ts --confirm-staging --verify-access
+
+      - name: Install Playwright Chromium
+        run: pnpm --filter @stable/web exec playwright install --with-deps chromium
+
+      - name: Run hosted acceptance
+        env:
+          STAGING_SECRET_KEY: ${{ secrets.STAGING_SECRET_KEY }}
+          VERCEL_AUTOMATION_BYPASS_SECRET: ${{ secrets.VERCEL_AUTOMATION_BYPASS_SECRET }}
+        run: pnpm --filter @stable/web exec playwright test --config playwright.hosted.config.ts
+
+      - name: Upload report
+        if: ${{ !cancelled() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: hosted-acceptance-report
+          path: apps/web/playwright-report
+          retention-days: 14

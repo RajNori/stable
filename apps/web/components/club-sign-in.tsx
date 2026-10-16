@@ -10,7 +10,6 @@ import {
   type FormEvent,
 } from "react";
 
-import { formatAustralianMobileInput } from "../lib/format-au-mobile";
 import {
   frozenAuthProviderSettings,
   providerButtonReady,
@@ -22,16 +21,13 @@ const theme = themeFor("mustangs");
 
 type Step =
   | { kind: "welcome" }
-  | { kind: "phone" }
-  | { kind: "phone-otp"; phone: string }
-  | { kind: "email" }
-  | { kind: "email-otp"; email: string };
+  | { kind: "password" }
+  | { kind: "recovery" }
+  | { kind: "recovery-sent" };
 
 export type ClubSignInActions = {
-  requestPhone: (phone: string) => Promise<void>;
-  verifyPhone: (phone: string, token: string) => Promise<void>;
-  requestEmail: (email: string) => Promise<void>;
-  verifyEmail: (email: string, token: string) => Promise<void>;
+  signInPassword: (email: string, password: string) => Promise<void>;
+  requestPasswordRecovery: (email: string) => Promise<void>;
   retry: () => Promise<void>;
 };
 
@@ -39,9 +35,8 @@ type ClubSignInProps = {
   readonly session: AuthSessionSnapshot;
   readonly actions: ClubSignInActions;
   readonly providerSettings?: AuthProviderSettings;
-  readonly onProvider?: (provider: "google" | "apple") => void;
+  readonly onProvider?: (provider: "google" | "facebook") => Promise<void>;
   readonly notice?: string | null;
-  readonly resendCooldownSeconds?: number;
 };
 
 export function ClubSignIn({
@@ -50,15 +45,12 @@ export function ClubSignIn({
   providerSettings = frozenAuthProviderSettings(),
   onProvider,
   notice = null,
-  resendCooldownSeconds = 30,
 }: ClubSignInProps) {
   const [step, setStep] = useState<Step>({ kind: "welcome" });
-  const [phone, setPhone] = useState("");
   const [email, setEmail] = useState("");
-  const [code, setCode] = useState("");
+  const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(notice);
   const [busy, setBusy] = useState(false);
-  const [resendIn, setResendIn] = useState(0);
   const welcomeHeadingRef = useRef<HTMLHeadingElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
@@ -67,19 +59,7 @@ export function ClubSignIn({
   }, [notice]);
 
   useEffect(() => {
-    if (resendIn <= 0) {
-      return;
-    }
-    const timer = setTimeout(() => {
-      setResendIn((value) => value - 1);
-    }, 1000);
-    return () => {
-      clearTimeout(timer);
-    };
-  }, [resendIn]);
-
-  useEffect(() => {
-    if (step.kind === "welcome") {
+    if (step.kind === "welcome" || step.kind === "recovery-sent") {
       welcomeHeadingRef.current?.focus();
     } else {
       inputRef.current?.focus();
@@ -120,7 +100,10 @@ export function ClubSignIn({
   const startGoogle = providerButtonReady(providerSettings.google, onProvider)
     ? onProvider
     : undefined;
-  const startApple = providerButtonReady(providerSettings.apple, onProvider)
+  const startFacebook = providerButtonReady(
+    providerSettings.facebook,
+    onProvider,
+  )
     ? onProvider
     : undefined;
 
@@ -276,22 +259,11 @@ export function ClubSignIn({
                   Sign in
                 </h2>
                 <button
-                  className="club-sign-in-primary"
-                  type="button"
-                  disabled={busy}
-                  onClick={() => {
-                    setStep({ kind: "phone" });
-                    setError(null);
-                  }}
-                >
-                  Continue with mobile
-                </button>
-                <button
                   className="club-sign-in-secondary"
                   type="button"
                   disabled={busy}
                   onClick={() => {
-                    setStep({ kind: "email" });
+                    setStep({ kind: "password" });
                     setError(null);
                   }}
                 >
@@ -303,96 +275,139 @@ export function ClubSignIn({
                     type="button"
                     disabled={busy}
                     onClick={() => {
-                      startGoogle("google");
+                      void run(() => startGoogle("google"));
                     }}
                   >
                     Continue with Google
                   </button>
                 ) : null}
-                {startApple !== undefined ? (
+                {startFacebook !== undefined ? (
                   <button
                     className="club-sign-in-secondary"
                     type="button"
                     disabled={busy}
                     onClick={() => {
-                      startApple("apple");
+                      void run(() => startFacebook("facebook"));
                     }}
                   >
-                    Continue with Apple
+                    Continue with Facebook
                   </button>
                 ) : null}
               </>
             ) : null}
-            {step.kind === "phone" ? (
-              <Field
-                label="Mobile number"
-                inputRef={inputRef}
-                value={phone}
-                inputMode="tel"
-                autoComplete="tel"
-                onChange={(value) => {
-                  setPhone(formatAustralianMobileInput(value));
-                }}
-                submitLabel="Continue"
-                busy={busy}
-                onBack={() => {
-                  setError(null);
-                  setStep({ kind: "welcome" });
-                }}
-              />
+            {step.kind === "password" ? (
+              <>
+                <label>
+                  Email address
+                  <input
+                    ref={inputRef}
+                    type="email"
+                    value={email}
+                    inputMode="email"
+                    autoComplete="username"
+                    onChange={(event) => setEmail(event.target.value)}
+                  />
+                </label>
+                <label>
+                  Password
+                  <input
+                    type="password"
+                    value={password}
+                    autoComplete="current-password"
+                    onChange={(event) => setPassword(event.target.value)}
+                  />
+                </label>
+                <button
+                  className="club-sign-in-primary"
+                  type="submit"
+                  disabled={busy}
+                >
+                  Sign in
+                </button>
+                <button
+                  className="club-sign-in-text"
+                  type="button"
+                  disabled={busy}
+                  onClick={() => {
+                    setError(null);
+                    setStep({ kind: "recovery" });
+                  }}
+                >
+                  Forgot password?
+                </button>
+                <button
+                  className="club-sign-in-text"
+                  type="button"
+                  onClick={() => {
+                    setError(null);
+                    setStep({ kind: "welcome" });
+                  }}
+                >
+                  Back
+                </button>
+              </>
             ) : null}
-            {step.kind === "email" ? (
-              <Field
-                label="Email address"
-                inputRef={inputRef}
-                value={email}
-                inputMode="email"
-                autoComplete="email"
-                onChange={(value) => {
-                  setEmail(value.trimStart());
-                }}
-                submitLabel="Send code"
-                busy={busy}
-                hint="The same email can also sign you in from its link."
-                onBack={() => {
-                  setError(null);
-                  setStep({ kind: "welcome" });
-                }}
-              />
+            {step.kind === "recovery" ? (
+              <>
+                <h2 ref={welcomeHeadingRef} tabIndex={-1}>
+                  Reset your password
+                </h2>
+                <p>
+                  Enter your email address. If an account can sign in with that
+                  address, we&apos;ll send a recovery link.
+                </p>
+                <label>
+                  Email address
+                  <input
+                    ref={inputRef}
+                    type="email"
+                    value={email}
+                    inputMode="email"
+                    autoComplete="email"
+                    required
+                    onChange={(event) => setEmail(event.target.value)}
+                  />
+                </label>
+                <button
+                  className="club-sign-in-primary"
+                  type="submit"
+                  disabled={busy}
+                >
+                  Send recovery link
+                </button>
+                <button
+                  className="club-sign-in-text"
+                  type="button"
+                  disabled={busy}
+                  onClick={() => {
+                    setError(null);
+                    setStep({ kind: "password" });
+                  }}
+                >
+                  Back to sign in
+                </button>
+              </>
             ) : null}
-            {step.kind === "phone-otp" || step.kind === "email-otp" ? (
-              <CodeField
-                sentTo={step.kind === "phone-otp" ? step.phone : step.email}
-                inputRef={inputRef}
-                code={code}
-                busy={busy}
-                resendIn={resendIn}
-                changeLabel={
-                  step.kind === "phone-otp"
-                    ? "Change mobile number"
-                    : "Change email"
-                }
-                onCode={setCode}
-                onChangeTarget={() => {
-                  setCode("");
-                  setError(null);
-                  setStep(
-                    step.kind === "phone-otp"
-                      ? { kind: "phone" }
-                      : { kind: "email" },
-                  );
-                }}
-                onResend={() => {
-                  void run(async () => {
-                    if (step.kind === "phone-otp") {
-                      await actions.requestPhone(step.phone);
-                    } else {
-                      await actions.requestEmail(step.email);
-                    }
-                    setResendIn(resendCooldownSeconds);
-                  });
-                }}
-              />
+            {step.kind === "recovery-sent" ? (
+              <>
+                <h2 ref={welcomeHeadingRef} tabIndex={-1}>
+                  Check your inbox
+                </h2>
+                <p role="status">
+                  If an account can sign in with that address, we&apos;ll send a
+                  recovery link. Follow it to choose a new password.
+                </p>
+                <button
+                  className="club-sign-in-secondary"
+                  type="button"
+                  onClick={() => {
+                    setError(null);
+                    setStep({ kind: "password" });
+                  }}
+                >
+                  Back to sign in
+                </button>
+              </>
             ) : null}
             {error === null ? null : (
               <p className="club-sign-in-error" role="alert">
@@ -407,148 +422,17 @@ export function ClubSignIn({
 
   function submitStep(event: FormEvent<HTMLFormElement>): void {
     event.preventDefault();
-    if (step.kind === "phone") {
-      void run(async () => {
-        await actions.requestPhone(phone);
-        setStep({ kind: "phone-otp", phone });
-        setCode("");
-        setResendIn(resendCooldownSeconds);
-      });
-      return;
-    }
-    if (step.kind === "email") {
-      const trimmed = email.trim();
-      void run(async () => {
-        await actions.requestEmail(trimmed);
-        setEmail(trimmed);
-        setStep({ kind: "email-otp", email: trimmed });
-        setCode("");
-        setResendIn(resendCooldownSeconds);
-      });
-      return;
-    }
-    if (step.kind === "phone-otp") {
-      void run(async () => {
-        await actions.verifyPhone(step.phone, code);
-        setCode("");
-      });
-      return;
-    }
-    if (step.kind === "email-otp") {
-      void run(async () => {
-        await actions.verifyEmail(step.email, code);
-        setCode("");
-      });
-    }
+    void run(async () => {
+      if (step.kind === "recovery") {
+        await actions.requestPasswordRecovery(email.trim());
+        setPassword("");
+        setStep({ kind: "recovery-sent" });
+        return;
+      }
+      if (step.kind === "password") {
+        await actions.signInPassword(email.trim(), password);
+        setPassword("");
+      }
+    });
   }
-}
-
-function Field({
-  label,
-  inputRef,
-  value,
-  inputMode,
-  autoComplete,
-  onChange,
-  submitLabel,
-  busy,
-  hint,
-  onBack,
-}: {
-  label: string;
-  inputRef: React.RefObject<HTMLInputElement | null>;
-  value: string;
-  inputMode: "tel" | "email";
-  autoComplete: string;
-  onChange: (value: string) => void;
-  submitLabel: string;
-  busy: boolean;
-  hint?: string;
-  onBack: () => void;
-}) {
-  return (
-    <>
-      <label>
-        {label}
-        <input
-          ref={inputRef}
-          value={value}
-          inputMode={inputMode}
-          autoComplete={autoComplete}
-          onChange={(event) => {
-            onChange(event.target.value);
-          }}
-        />
-      </label>
-      {hint === undefined ? null : <p>{hint}</p>}
-      <button className="club-sign-in-primary" type="submit" disabled={busy}>
-        {submitLabel}
-      </button>
-      <button className="club-sign-in-text" type="button" onClick={onBack}>
-        Back
-      </button>
-    </>
-  );
-}
-
-function CodeField({
-  sentTo,
-  inputRef,
-  code,
-  busy,
-  resendIn,
-  changeLabel,
-  onCode,
-  onChangeTarget,
-  onResend,
-}: {
-  sentTo: string;
-  inputRef: React.RefObject<HTMLInputElement | null>;
-  code: string;
-  busy: boolean;
-  resendIn: number;
-  changeLabel: string;
-  onCode: (value: string) => void;
-  onChangeTarget: () => void;
-  onResend: () => void;
-}) {
-  const resendLabel =
-    resendIn > 0 ? `Resend code in ${resendIn}s` : "Resend code";
-  return (
-    <>
-      <p>Sent to {sentTo}</p>
-      <label>
-        6-digit code
-        <input
-          ref={inputRef}
-          className="club-sign-in-code"
-          value={code}
-          inputMode="numeric"
-          autoComplete="one-time-code"
-          maxLength={6}
-          onChange={(event) => {
-            onCode(event.target.value.replace(/\D/g, "").slice(0, 6));
-          }}
-        />
-      </label>
-      <button className="club-sign-in-primary" type="submit" disabled={busy}>
-        Continue
-      </button>
-      <button
-        className="club-sign-in-text"
-        type="button"
-        disabled={busy || resendIn > 0}
-        onClick={onResend}
-      >
-        {resendLabel}
-      </button>
-      <button
-        className="club-sign-in-text"
-        type="button"
-        onClick={onChangeTarget}
-      >
-        {changeLabel}
-      </button>
-    </>
-  );
 }

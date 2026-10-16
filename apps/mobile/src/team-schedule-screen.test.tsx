@@ -1,6 +1,11 @@
 import React from "react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { render, screen } from "@testing-library/react-native";
+import {
+  fireEvent,
+  render,
+  screen,
+  userEvent,
+} from "@testing-library/react-native";
 import { ApplicationError } from "@stable/contracts";
 import { scheduleMessages } from "@stable/schedule";
 import type { CurrentClubContext } from "@stable/contracts";
@@ -30,6 +35,7 @@ const context: CurrentClubContext = {
 function entry(
   eventType: ScheduleEntry["eventType"],
   startsAt: string,
+  overrides: Partial<ScheduleEntry> = {},
 ): ScheduleEntry {
   return {
     eventId:
@@ -45,6 +51,7 @@ function entry(
     eventStatus: "SCHEDULED",
     opponentName: eventType === "GAME" ? "Visitors" : null,
     roundLabel: eventType === "GAME" ? "Round 1" : null,
+    ...overrides,
   };
 }
 
@@ -70,12 +77,48 @@ describe("team schedule screen", () => {
     );
 
     expect(
-      await screen.findByText("Round 1: Visitors at 2026-10-10T07:30:00.000Z"),
+      await screen.findByText(
+        "Round 1: Visitors at Saturday 10 October at 6:30 pm",
+      ),
     ).toBeTruthy();
     expect(
-      screen.getByText("Training at 2026-10-12T07:00:00.000Z"),
+      screen.getByText("Training at Monday 12 October at 6:00 pm"),
     ).toBeTruthy();
     expect(calls).toEqual([teamId]);
+  });
+
+  it("opens safe training details with club-local time and session facts", async () => {
+    const queryClient = new QueryClient({
+      defaultOptions: { queries: { retry: false, gcTime: 0 } },
+    });
+    await render(
+      <QueryClientProvider client={queryClient}>
+        <TeamScheduleScreen
+          loadContext={() => Promise.resolve(context)}
+          loadSchedule={() =>
+            Promise.resolve([
+              entry("TRAINING", "2026-10-12T07:00:00.000Z", {
+                endsAt: "2026-10-12T08:30:00.000Z",
+                courtLabel: "Court 2",
+              }),
+            ])
+          }
+        />
+      </QueryClientProvider>,
+    );
+
+    fireEvent.press(
+      await screen.findByRole("button", {
+        name: "Training at Monday 12 October at 6:00 pm",
+      }),
+    );
+
+    expect(
+      await screen.findByRole("header", { name: "Training details" }),
+    ).toBeTruthy();
+    expect(screen.getByText("Status: scheduled")).toBeTruthy();
+    expect(screen.getAllByText("Court: Court 2").length).toBe(2);
+    expect(screen.getByText("Duration: 1 hr 30 min")).toBeTruthy();
   });
 
   it("shows an empty range", async () => {
@@ -171,6 +214,31 @@ describe("team schedule screen", () => {
     expect(screen.queryByText(/private data/)).toBeNull();
   });
 
+  it("allows a failed schedule read to be retried", async () => {
+    let attempts = 0;
+    const queryClient = new QueryClient({
+      defaultOptions: { queries: { retry: false, gcTime: 0 } },
+    });
+    await render(
+      <QueryClientProvider client={queryClient}>
+        <TeamScheduleScreen
+          loadContext={() => Promise.resolve(context)}
+          loadSchedule={() => {
+            attempts += 1;
+            return attempts === 1
+              ? Promise.reject(new Error("temporary transport failure"))
+              : Promise.resolve([]);
+          }}
+        />
+      </QueryClientProvider>,
+    );
+
+    expect(await screen.findByText(scheduleMessages.readFailed)).toBeTruthy();
+    await userEvent.press(screen.getByRole("button", { name: "Try again" }));
+    expect(await screen.findByText("No events in this range.")).toBeTruthy();
+    expect(attempts).toBe(2);
+  });
+
   it("requires one active team before loading its schedule", async () => {
     const queryClient = new QueryClient({
       defaultOptions: { queries: { retry: false, gcTime: 0 } },
@@ -222,7 +290,9 @@ describe("team schedule screen", () => {
     );
 
     expect(
-      await screen.findByText("Game: Opponent at 2026-10-10T07:30:00.000Z"),
+      await screen.findByText(
+        "Game: Opponent at Saturday 10 October at 6:30 pm",
+      ),
     ).toBeTruthy();
   });
 });

@@ -24,7 +24,7 @@ import {
 import { loadClubContext } from "../../lib/load-club-context";
 import { loadLiveClubContext } from "../../lib/load-live-club-context";
 import { playerPageError } from "../../lib/player-page-error";
-import { createRuntimeClubContextReader } from "../../lib/runtime-club-context-reader";
+import { createClubContextReader } from "../../lib/reader";
 import { createSupabaseServerClient } from "../../lib/supabase/server";
 import { principalFromSupabase } from "../../lib/principal";
 import {
@@ -95,10 +95,22 @@ export default async function PlayersPage({ searchParams }: PlayersPageProps) {
   try {
     const supabase = await createSupabaseServerClient();
     const principal = await principalFromSupabase(supabase);
-    const reader = await createRuntimeClubContextReader(supabase);
+    const reader = await createClubContextReader(supabase);
     const context = await getCurrentClubContext({ principal, reader });
     if (context.club === null) {
       return <ClubAdminShell presentation={presentation} />;
+    }
+    if (!context.capabilities.includes("people.manage")) {
+      return (
+        <ClubAdminShell presentation={presentation}>
+          <p role="alert">
+            Player administration is available to club staff with
+            people-management access. Open your team Home to view your
+            authorized family and team context.
+          </p>
+          <a href="/">Open Home</a>
+        </ClubAdminShell>
+      );
     }
 
     const gateway = createSupabasePlayerGateway(supabase);

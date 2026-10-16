@@ -17,13 +17,20 @@ const nonce = "0123456789abcdef";
 const code = "abcdefghijklmnop";
 
 describe("supabase oauth sign-in gateway", () => {
-  it("starts Google and Apple browser sign-in without returning session tokens", async () => {
+  it("starts Google, Facebook and Apple browser sign-in without returning session tokens", async () => {
     const google = fakeApi();
     const apple = fakeApi();
+    const facebook = fakeApi();
 
     await expect(
       createSupabaseOAuthSignInGateway(google.api).startBrowserSignIn({
         provider: "google",
+        redirectTo,
+      }),
+    ).resolves.toEqual({ authorizationUrl: authorizeUrl });
+    await expect(
+      createSupabaseOAuthSignInGateway(facebook.api).startBrowserSignIn({
+        provider: "facebook",
         redirectTo,
       }),
     ).resolves.toEqual({ authorizationUrl: authorizeUrl });
@@ -42,6 +49,12 @@ describe("supabase oauth sign-in gateway", () => {
     expect(apple.oauth).toEqual([
       {
         provider: "apple",
+        options: { redirectTo, skipBrowserRedirect: true },
+      },
+    ]);
+    expect(facebook.oauth).toEqual([
+      {
+        provider: "facebook",
         options: { redirectTo, skipBrowserRedirect: true },
       },
     ]);
@@ -140,18 +153,18 @@ function fakeApi(input?: {
 }): {
   api: OAuthSignInApi;
   oauth: Array<{
-    provider: "google" | "apple";
+    provider: "google" | "apple" | "facebook";
     options: { redirectTo: string; skipBrowserRedirect: true };
   }>;
   idTokens: Array<{
-    provider: "google" | "apple";
+    provider: "google" | "apple" | "facebook";
     token: string;
     nonce: string;
   }>;
   oauthError: unknown;
 } {
   const oauth: Array<{
-    provider: "google" | "apple";
+    provider: "google" | "apple" | "facebook";
     options: { redirectTo: string; skipBrowserRedirect: true };
   }> = [];
   const idTokens: Array<{

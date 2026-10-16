@@ -27,11 +27,91 @@ test("guardian accepts a player invitation and records a Game Day RSVP", async (
   const player = admin.getByRole("listitem").filter({ hasText: playerName });
   await expect(player).toContainText(`${playerName} Synthetic`);
   await player.getByRole("button", { name: "Register team" }).click();
+  await expect(
+    player.getByRole("button", { name: "Unregister team" }),
+  ).toBeVisible();
   await player.getByLabel("Invitation email").fill(GUARDIAN_EMAIL);
+  const invitationRequestFailures: string[] = [];
+  const invitationPostEvents: string[] = [];
+  const invitationPageErrors: string[] = [];
+  const invitationStartedAt = new Map<object, number>();
+  admin.on("request", (request) => {
+    if (request.method() !== "POST") {
+      return;
+    }
+    const path = new URL(request.url()).pathname;
+    invitationStartedAt.set(request, Date.now());
+    invitationPostEvents.push(`POST ${path} started`);
+  });
+  admin.on("requestfinished", (request) => {
+    const startedAt = invitationStartedAt.get(request);
+    if (startedAt === undefined) {
+      return;
+    }
+    invitationPostEvents.push(
+      `POST ${new URL(request.url()).pathname} finished in ${Date.now() - startedAt}ms`,
+    );
+    invitationStartedAt.delete(request);
+  });
+  admin.on("requestfailed", (request) => {
+    if (request.method() === "POST") {
+      invitationStartedAt.delete(request);
+      invitationRequestFailures.push(
+        `${new URL(request.url()).pathname}: ${request.failure()?.errorText ?? "failed"}`,
+      );
+    }
+  });
+  admin.on("response", (response) => {
+    if (response.request().method() === "POST" && response.status() >= 400) {
+      invitationRequestFailures.push(
+        `${new URL(response.url()).pathname}: HTTP ${response.status()}`,
+      );
+    }
+  });
+  admin.on("pageerror", (error) => {
+    invitationPageErrors.push(`${error.name}: ${error.message.slice(0, 160)}`);
+  });
+  const invitationNavigations: string[] = [];
+  admin.on("framenavigated", (frame) => {
+    if (frame === admin.mainFrame()) {
+      invitationNavigations.push(new URL(frame.url()).pathname);
+    }
+  });
   await player.getByRole("button", { name: "Create invitation" }).click();
-  const invitationLink = await player
-    .getByLabel("Invitation link")
-    .inputValue();
+  const invitationLinkField = player.getByLabel("Invitation link");
+  const invitationActionError = player.getByRole("alert");
+  try {
+    await expect(invitationLinkField).toBeVisible({ timeout: 15_000 });
+  } catch (error: unknown) {
+    const pageState = await Promise.race([
+      admin.evaluate(() => ({
+        path: window.location.pathname,
+        invitationLinkVisible:
+          document.querySelector('[aria-label="Invitation link"]') !== null,
+        alerts: Array.from(document.querySelectorAll('[role="alert"]')).map(
+          (alert) => alert.textContent?.slice(0, 160) ?? "",
+        ),
+      })),
+      new Promise<{ diagnosticReadTimedOut: true }>((resolve) => {
+        setTimeout(() => resolve({ diagnosticReadTimedOut: true }), 1_000);
+      }),
+    ]).catch(() => ({ diagnosticReadFailed: true }));
+    throw new Error(
+      `Invitation action produced no visible result: ${JSON.stringify({
+        pageState,
+        invitationNavigations,
+        invitationPostEvents,
+        requestFailures: invitationRequestFailures,
+        pageErrors: invitationPageErrors,
+      })}`,
+      { cause: error },
+    );
+  }
+  await expect(invitationActionError).toHaveCount(0);
+  const invitationLink = await invitationLinkField.evaluate((field) =>
+    field instanceof HTMLInputElement ? field.value : "",
+  );
+  expect(invitationLink).toMatch(/\/invitations\/accept#\S+$/u);
 
   await admin.goto(`/teams/${TEAM_ID}/fixtures`);
   const fixtureForm = admin.locator("form").filter({
@@ -62,6 +142,30 @@ test("guardian accepts a player invitation and records a Game Day RSVP", async (
   ).toContainText("Invitation accepted.");
   await expect(guardian).toHaveURL(/\/invitations\/accept\?result=/);
   await guardian.waitForLoadState("networkidle");
+
+  // Guardians use the authorized Home/team journey, not the club-staff player
+  // administration route. Keep this route fail-closed and direct the user back
+  // to the role-specific context chooser instead of exposing roster records.
+  await guardian.goto("/players");
+  await expect(guardian.getByRole("alert")).toContainText(
+    "Player administration is available to club staff with people-management access.",
+  );
+  await expect(
+    guardian.getByRole("button", { name: "Add player" }),
+  ).toHaveCount(0);
+  await expect(
+    guardian.getByRole("region", { name: "Players", exact: true }),
+  ).toHaveCount(0);
+  await guardian.getByRole("link", { name: "Open Home" }).last().click();
+  const teamChooser = guardian.getByRole("region", {
+    name: "Choose your team",
+  });
+  const guardianHome = guardian.getByText("Guardian home", { exact: true });
+  await expect(teamChooser.or(guardianHome)).toBeVisible();
+  if (await teamChooser.isVisible()) {
+    await guardian.getByRole("link", { name: "U14 Boys", exact: true }).click();
+  }
+  await expect(guardianHome).toBeVisible();
 
   await guardian.goto(gameHref);
   const gameDay = guardian.getByRole("region", { name: "Game day" });

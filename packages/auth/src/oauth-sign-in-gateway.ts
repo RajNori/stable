@@ -1,8 +1,9 @@
 import type { OAuthSignInAdult, OAuthSignInGateway } from "./oauth-sign-in.js";
+import type { OAuthSignInProvider } from "@stable/contracts";
 
 export type OAuthSignInApi = {
   signInWithOAuth(credentials: {
-    readonly provider: "google" | "apple";
+    readonly provider: OAuthSignInProvider;
     readonly options: {
       readonly redirectTo: string;
       readonly skipBrowserRedirect: true;

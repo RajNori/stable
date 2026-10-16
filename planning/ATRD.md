@@ -97,11 +97,21 @@ A single User may be Guardian + Coach + Manager at the same time. Authorization 
 - invitation flows.
 
 ### Authentication
-- Australian phone OTP;
-- email OTP/magic link;
-- Sign in with Apple;
-- Sign in with Google;
-- account linking/identity collision behaviour defined before implementation.
+- Use the approved M5B platform-specific authentication contract below. It supersedes this earlier shared provider list for dashboard/mobile V1.
+- Account linking/identity collision behaviour is defined before implementation and must never merge identities by name or child relationship.
+
+### M5B approved authentication contract
+
+The M5B journey-completion contract is authoritative for the first pilot:
+
+- Web dashboard normal sign-in: Google, Facebook, and email/password. Web magic links are for password recovery, not routine passwordless sign-in. Social-only accounts are not shown a meaningless password reset flow.
+- Mobile normal sign-in: Australian SMS OTP through Supabase Auth/Twilio; email is an alternative magic-link flow through Supabase Auth/SendGrid and `stable://auth/callback`.
+- Do not add password login or automatic Google/Facebook sign-in to mobile. Apple sign-in is not part of this M5B target.
+- Supabase Auth remains the only identity authority. Authentication grants no club/team authorization; current membership/guardian relationships and RLS/capabilities remain authoritative.
+- Players do not authenticate in V1. Existing session restore, refresh, callback race guards, SecureStore persistence, account-switch cleanup and fail-closed behavior remain required.
+- Invitation acceptance requires verified intended identity and current target membership context. Never auto-match by name or child; never silently merge adult identities.
+
+See `AUTH.md` and ADR 0014 for implementation details and acceptance criteria.
 
 ### Team operations
 - roster;

@@ -95,6 +95,16 @@ export type TrainingOccurrenceEdit = z.infer<typeof trainingOccurrenceSchema>;
 export type TrainingFollowingEdit = z.infer<typeof trainingFollowingSchema>;
 export type TrainingSeriesEdit = z.infer<typeof trainingSeriesEditSchema>;
 
+export type TrainingEditMetadata = {
+  eventId: string;
+  recurrenceSeriesId: string | null;
+  weekday: number | null;
+  localTime: string | null;
+  timezone: string | null;
+  endsOn: string | null;
+  leadCoachUserId: string | null;
+};
+
 export type TrainingAccess = {
   principal: Principal | null;
   clubMemberships: readonly MembershipFact[];
@@ -105,6 +115,10 @@ export type TrainingAccess = {
 };
 
 export type TrainingWriter = {
+  listTrainingEditMetadata(
+    teamId: string,
+    eventIds: string[],
+  ): Promise<TrainingEditMetadata[]>;
   createTrainingSession(command: TrainingSession): Promise<{ eventId: string }>;
   createTrainingSeries(command: TrainingSeries): Promise<{ seriesId: string }>;
   editTrainingOccurrence(

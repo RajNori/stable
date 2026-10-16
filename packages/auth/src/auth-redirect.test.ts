@@ -10,6 +10,8 @@ import {
 
 const webCallback = "http://127.0.0.1:3000/auth/callback";
 const mobileCallback = "stable://auth/callback";
+const stagingOrigin = "https://staging.stable.example";
+const stagingCallback = `${stagingOrigin}/auth/callback`;
 const code = "abcdefghijklmnop";
 
 describe("sign-in redirects", () => {
@@ -40,12 +42,25 @@ describe("sign-in redirects", () => {
     }
   });
 
-  it("rejects every redirect outside local", () => {
+  it("allows the fixed mobile callback and exact configured web origin outside local", () => {
+    expect(assertAllowedSignInRedirect(mobileCallback, "staging")).toBe(
+      mobileCallback,
+    );
+    expect(
+      assertAllowedSignInRedirect(stagingCallback, "staging", stagingOrigin),
+    ).toBe(stagingCallback);
     expect(() => assertAllowedSignInRedirect(webCallback, "staging")).toThrow(
       ApplicationError,
     );
     expect(() =>
-      assertAllowedSignInRedirect(webCallback, "production"),
+      assertAllowedSignInRedirect(stagingCallback, "production"),
+    ).toThrow(ApplicationError);
+    expect(() =>
+      assertAllowedSignInRedirect(
+        "https://evil.example/auth/callback",
+        "staging",
+        stagingOrigin,
+      ),
     ).toThrow(ApplicationError);
   });
 
@@ -87,6 +102,33 @@ describe("sign-in redirects", () => {
     expect(
       authCodeFromCallback(`${mobileCallback}?code=${code}`, "local"),
     ).toBe(code);
+  });
+
+  it("reads only the exact configured hosted callback and the fixed mobile callback", () => {
+    expect(
+      authCodeFromCallback(
+        `${stagingCallback}?code=${code}`,
+        "staging",
+        stagingOrigin,
+      ),
+    ).toBe(code);
+    expect(
+      authCodeFromCallback(`${mobileCallback}?code=${code}`, "staging"),
+    ).toBe(code);
+    expect(() =>
+      authCodeFromCallback(
+        `${webCallback}?code=${code}`,
+        "staging",
+        stagingOrigin,
+      ),
+    ).toThrow(ApplicationError);
+    expect(() =>
+      authCodeFromCallback(
+        `https://evil.example/auth/callback?code=${code}`,
+        "staging",
+        stagingOrigin,
+      ),
+    ).toThrow(ApplicationError);
   });
 
   it.each([

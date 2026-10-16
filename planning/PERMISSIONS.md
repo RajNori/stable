@@ -73,16 +73,16 @@ UI may hide unavailable actions, but authoritative enforcement must exist in app
 | roster.manage | yes | no | no | yes | no |
 | fixture.read | yes | yes | yes | yes | yes |
 | fixture.manage_manual | yes | optional head coach | no | yes | no |
-| fixture.overlay_manage | yes | yes | optional | yes | no |
+| fixture.overlay_manage | yes | yes | no by default | yes | no |
 | attendance.read_team | yes | yes | yes | yes | no |
 | attendance.manage_managed_player | no unless guardian | no unless guardian | no unless guardian | no unless guardian | yes |
-| training.manage | yes | yes | optional | yes | no |
+| training.manage | yes | yes | no by default | yes | no |
 | coach_checkin | no unless coach | yes | yes | no unless coach | no |
-| announcement.publish | yes | yes | optional | yes | no |
+| announcement.publish | yes | yes | no by default | yes | no |
 | announcement.ack | yes if targeted | yes | yes | yes | yes |
 | duty.manage | yes | optional | no | yes | no |
 | duty.respond | yes if assigned | yes if assigned | yes if assigned | yes if assigned | yes if assigned |
-| fillin.manage | yes | yes | optional | yes | no |
+| fillin.manage | yes | yes | no by default | yes | no |
 | coaching_stats.read | no M4 | yes | yes | no M4 | no M4 |
 | coaching_stats.write | no M4 | yes | yes | no M4 | no M4 |
 | post_game_review.read | no M4 | yes | yes | no M4 | no M4 |
@@ -94,6 +94,17 @@ UI may hide unavailable actions, but authoritative enforcement must exist in app
 | practice_plan.manage | no M4 | yes | yes | no M4 | no M4 |
 
 Any change to this table is a product/security change and should be reviewed.
+
+### M5B Team Manager / Assistant Coach boundary
+
+For the M5B pilot, resolve the previous “optional Assistant Coach” wording
+narrowly: an Assistant Coach receives common assigned-team reads, coach
+check-in, and the frozen M4 coaching capability set. Assistant Coach does not
+receive `fixture.manage_manual`, `fixture.overlay_manage`, `training.manage`,
+`announcement.publish`, `duty.manage`, or `fillin.manage` by default. Do not
+expand these capabilities to complete a UI journey. Team Manager remains the
+operational owner. Any later expansion requires an explicit product/security
+decision and tests.
 
 ### Frozen Milestone 4 authorization rules
 

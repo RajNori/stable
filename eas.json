@@ -15,7 +15,8 @@
       "distribution": "internal",
       "environment": "preview",
       "env": {
-        "EXPO_PUBLIC_APP_ENV": "staging"
+        "EXPO_PUBLIC_APP_ENV": "staging",
+        "EXPO_PUBLIC_SUPABASE_URL": "https://rporaeagbsfmgbmhyett.supabase.co"
       }
     },
     "production": {
@@ -28,7 +29,8 @@
       "distribution": "store",
       "environment": "preview",
       "env": {
-        "EXPO_PUBLIC_APP_ENV": "staging"
+        "EXPO_PUBLIC_APP_ENV": "staging",
+        "EXPO_PUBLIC_SUPABASE_URL": "https://rporaeagbsfmgbmhyett.supabase.co"
       }
     },
     "play-internal": {
@@ -36,7 +38,8 @@
       "distribution": "store",
       "environment": "preview",
       "env": {
-        "EXPO_PUBLIC_APP_ENV": "staging"
+        "EXPO_PUBLIC_APP_ENV": "staging",
+        "EXPO_PUBLIC_SUPABASE_URL": "https://rporaeagbsfmgbmhyett.supabase.co"
       },
       "android": {
         "buildType": "app-bundle"

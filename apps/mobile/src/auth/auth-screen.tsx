@@ -30,7 +30,6 @@ export type AuthActions = {
   requestPhone: (phone: string) => Promise<void>;
   verifyPhone: (phone: string, token: string) => Promise<void>;
   requestEmail: (email: string) => Promise<void>;
-  verifyEmail: (email: string, token: string) => Promise<void>;
   retry: () => Promise<void>;
 };
 
@@ -39,7 +38,7 @@ type Step =
   | { readonly kind: "phone" }
   | { readonly kind: "phone-otp"; readonly phone: string }
   | { readonly kind: "email" }
-  | { readonly kind: "email-otp"; readonly email: string };
+  | { readonly kind: "email-link"; readonly email: string };
 
 type AuthScreenProps = {
   readonly session: AuthSessionSnapshot;
@@ -77,7 +76,9 @@ export function AuthScreen({
             ? "Your mobile"
             : step.kind === "email"
               ? "Your email"
-              : `Enter the code. Sent to ${step.kind === "phone-otp" ? step.phone : step.email}`;
+              : step.kind === "email-link"
+                ? `Sign-in link sent to ${step.email}`
+                : `Enter the code. Sent to ${step.phone}`;
 
   useEffect(() => {
     if (announcement !== null) {
@@ -271,7 +272,7 @@ export function AuthScreen({
           <Entry
             headingRef={headingRef}
             title="Your email"
-            hint="We'll send a 6-digit code. The same email can also sign you in from its link."
+            hint="We'll email a secure sign-in link. Open it on this device to continue."
             label="Email address"
             value={email}
             keyboard="email-address"
@@ -279,7 +280,7 @@ export function AuthScreen({
             textContentType="emailAddress"
             busy={busy}
             error={error}
-            submitLabel="Send code"
+            submitLabel="Send sign-in link"
             onChange={(value) => {
               setEmail(value.trimStart());
             }}
@@ -292,43 +293,51 @@ export function AuthScreen({
                 const trimmed = email.trim();
                 await actions.requestEmail(trimmed);
                 setEmail(trimmed);
-                setCode("");
                 beginCooldown();
-                setStep({ kind: "email-otp", email: trimmed });
+                setStep({ kind: "email-link", email: trimmed });
               });
             }}
           />
         ) : null}
-        {step.kind === "email-otp" ? (
-          <CodeEntry
-            headingRef={headingRef}
-            title="Enter the code"
-            sentTo={step.email}
-            changeLabel="Change email"
-            code={code}
-            busy={busy}
-            error={error}
-            resendIn={resendIn}
-            autoComplete="one-time-code"
-            onChange={setCode}
-            onBack={() => {
-              setError(null);
-              setCode("");
-              setStep({ kind: "email" });
-            }}
-            onResend={() => {
-              void run(async () => {
-                await actions.requestEmail(step.email);
-                beginCooldown();
-              });
-            }}
-            onSubmit={() => {
-              void run(async () => {
-                await actions.verifyEmail(step.email, code);
-                setCode("");
-              });
-            }}
-          />
+        {step.kind === "email-link" ? (
+          <View style={styles.stack}>
+            <Text
+              ref={headingRef}
+              accessibilityRole="header"
+              style={styles.heading}
+            >
+              Check your email
+            </Text>
+            <Text style={styles.body}>
+              We sent a sign-in link to {step.email}. Open it on this device to
+              continue.
+            </Text>
+            {error === null ? null : (
+              <Text accessibilityRole="alert" style={styles.error}>
+                {error}
+              </Text>
+            )}
+            <PrimaryButton
+              label={
+                resendIn > 0 ? `Resend link in ${resendIn}s` : "Resend link"
+              }
+              disabled={busy || resendIn > 0}
+              onPress={() => {
+                void run(async () => {
+                  await actions.requestEmail(step.email);
+                  beginCooldown();
+                });
+              }}
+            />
+            <SecondaryButton
+              label="Change email"
+              disabled={busy}
+              onPress={() => {
+                setError(null);
+                setStep({ kind: "email" });
+              }}
+            />
+          </View>
         ) : null}
       </ScrollView>
     </KeyboardAvoidingView>

@@ -7,11 +7,13 @@ import {
   RECOGNITION_CATEGORIES,
   REVIEW_FOCUS_CODES,
 } from "@stable/coaching-review";
+import { formatScheduleDateTime } from "@stable/schedule";
 import { themeFor } from "@stable/design-tokens";
 
 type PlayerOption = { playerId: string; label: string };
 type Props = {
   review: PostGameReview;
+  timezone: string;
   players: readonly PlayerOption[];
   privateNotes: ReadonlyMap<string, string>;
   canWrite: boolean;
@@ -59,7 +61,7 @@ export function PostGameReviewPanel(props: Props) {
       <p>
         {props.review.completedAt === null
           ? "Draft"
-          : `Completed ${props.review.completedAt}`}
+          : `Completed ${formatScheduleDateTime(props.review.completedAt, props.timezone)}`}
       </p>
       {props.canWrite ? (
         <form action={props.saveReviewAction}>

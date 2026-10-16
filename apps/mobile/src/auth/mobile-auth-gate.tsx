@@ -28,14 +28,27 @@ type GateActions = {
   requestPhone: (phone: string) => Promise<void>;
   verifyPhone: (phone: string, token: string) => Promise<AuthSessionSnapshot>;
   requestEmail: (email: string) => Promise<void>;
-  verifyEmail: (email: string, token: string) => Promise<AuthSessionSnapshot>;
-  completeCallback: (callbackUrl: string) => Promise<AuthSessionSnapshot>;
+  validateCallback: (callbackUrl: string) => void;
+  completeCallback: (
+    callbackUrl: string,
+    beforeCommit?: (next: AuthSessionSnapshot) => Promise<void>,
+  ) => Promise<AuthSessionSnapshot>;
 };
 
 type MobileAuthGateProps = {
   readonly restore: () => Promise<AuthSessionSnapshot>;
-  readonly signOut: () => Promise<AuthSessionSnapshot>;
+  readonly signOut: (userId: string) => Promise<AuthSessionSnapshot>;
   readonly actions: GateActions;
+  readonly beforeCompleteCallback?:
+    | (() => Promise<
+        ((next: AuthSessionSnapshot) => Promise<void>) | undefined
+      >)
+    | undefined;
+  readonly clearFailedCallbackSession?: (() => Promise<void>) | undefined;
+  readonly afterCallbackRestore?:
+    ((restored: AuthSessionSnapshot) => Promise<void>) | undefined;
+  readonly beforeAcceptAuthenticated?:
+    ((next: AuthSessionSnapshot) => Promise<void>) | undefined;
   readonly linking?: MobileLinking;
   readonly clearPrivateCache?: (
     previousUserId: string | null,
@@ -47,16 +60,31 @@ export function MobileAuthGate({
   restore,
   signOut,
   actions,
+  beforeCompleteCallback,
+  clearFailedCallbackSession,
+  afterCallbackRestore,
+  beforeAcceptAuthenticated,
   linking,
   clearPrivateCache = noopClearPrivateCache,
   authenticated,
 }: MobileAuthGateProps) {
   const [callbackPending, setCallbackPending] = useState(false);
+  const [signOutFailed, setSignOutFailed] = useState(false);
   const [session, setSession] = useState<AuthSessionSnapshot>({
     state: "loading",
   });
+  const callbackQueued = React.useRef(false);
   const sessionUserId = React.useRef<string | null>(null);
   const sessionTransition = React.useRef(0);
+  const sessionOperations = React.useRef<Promise<void>>(Promise.resolve());
+  const enqueueSessionOperation = React.useCallback(
+    (operation: () => Promise<void>) => {
+      const queued = sessionOperations.current.then(operation, operation);
+      sessionOperations.current = queued.catch(() => undefined);
+      return queued;
+    },
+    [],
+  );
   const beginSessionTransition = React.useCallback(() => {
     sessionTransition.current += 1;
     return sessionTransition.current;
@@ -64,7 +92,7 @@ export function MobileAuthGate({
   const updateSession = React.useCallback(
     async (next: AuthSessionSnapshot, transition: number) => {
       if (transition !== sessionTransition.current) {
-        return;
+        return "stale" as const;
       }
       const nextUserId =
         next.state === "authenticated" ? next.principal.userId : null;
@@ -74,15 +102,17 @@ export function MobileAuthGate({
         } catch (error: unknown) {
           if (transition === sessionTransition.current) {
             setSession(recoverySnapshot(error));
+            return "cache-clear-failed" as const;
           }
-          return;
+          return "stale" as const;
         }
         if (transition !== sessionTransition.current) {
-          return;
+          return "stale" as const;
         }
         sessionUserId.current = nextUserId;
       }
       setSession(next);
+      return "applied" as const;
     },
     [clearPrivateCache],
   );
@@ -96,21 +126,26 @@ export function MobileAuthGate({
   useEffect(() => {
     let active = true;
     const transition = beginSessionTransition();
-    restore()
-      .then((next) => {
+    // Startup restoration can enforce the pending push-cleanup fence and
+    // sign out a conflicting identity. Keep it on the same operation queue as
+    // OTP, callback, retry and sign-out transitions so marker admission cannot
+    // race a callback cleanup.
+    void enqueueSessionOperation(async () => {
+      try {
+        const next = await restore();
         if (active) {
-          void updateSession(next, transition);
+          await updateSession(next, transition);
         }
-      })
-      .catch((error: unknown) => {
+      } catch (error: unknown) {
         if (active) {
-          void updateSession(recoverySnapshot(error), transition);
+          await updateSession(recoverySnapshot(error), transition);
         }
-      });
+      }
+    });
     return () => {
       active = false;
     };
-  }, [beginSessionTransition, restore, updateSession]);
+  }, [beginSessionTransition, enqueueSessionOperation, restore, updateSession]);
 
   useEffect(() => {
     if (linking === undefined) {
@@ -121,12 +156,49 @@ export function MobileAuthGate({
       if (!url.includes("auth/callback")) {
         return;
       }
-      const transition = beginSessionTransition();
+      if (callbackQueued.current) {
+        return;
+      }
+      callbackQueued.current = true;
       setCallbackPending(true);
-      void (async () => {
+      void enqueueSessionOperation(async () => {
+        const transition = beginSessionTransition();
+        let callbackExchangeSucceeded = false;
         try {
-          await updateSession(await actions.completeCallback(url), transition);
+          actions.validateCallback(url);
+          const completeTransition = await beforeCompleteCallback?.();
+          let transitionCompletedBeforeCommit = false;
+          const beforeCommit = async (snapshot: AuthSessionSnapshot) => {
+            callbackExchangeSucceeded = true;
+            await completeTransition?.(snapshot);
+            transitionCompletedBeforeCommit = true;
+          };
+          const next =
+            completeTransition === undefined
+              ? await actions.completeCallback(url)
+              : await actions.completeCallback(url, beforeCommit);
+          // Lightweight test adapters and non-Supabase clients may complete
+          // callbacks without deferred persistence. Keep their established
+          // contract, while the production mobile adapter invokes this hook
+          // after exchange and before saving the new session.
+          if (!transitionCompletedBeforeCommit) {
+            callbackExchangeSucceeded = true;
+            await completeTransition?.(next);
+          }
+          await beforeAcceptAuthenticated?.(next);
+          const updateResult = await updateSession(next, transition);
+          if (updateResult === "cache-clear-failed") {
+            await clearFailedCallbackSession?.();
+          }
         } catch (error: unknown) {
+          if (callbackExchangeSucceeded) {
+            // The provider accepted the callback, but account-transition
+            // cleanup failed. Do not restore and accidentally accept the new
+            // account while the previous account's push registration remains.
+            await updateSession(recoverySnapshot(error), transition);
+            await clearFailedCallbackSession?.();
+            return;
+          }
           let restored: AuthSessionSnapshot;
           try {
             restored = await restore();
@@ -136,13 +208,15 @@ export function MobileAuthGate({
           if (restored.state !== "authenticated") {
             restored = recoverySnapshot(error);
           }
+          await afterCallbackRestore?.(restored);
           await updateSession(restored, transition);
         } finally {
           if (active && transition === sessionTransition.current) {
+            callbackQueued.current = false;
             setCallbackPending(false);
           }
         }
-      })();
+      }).catch(() => undefined);
     };
     const transitionAtLinkStart = sessionTransition.current;
     linking
@@ -163,34 +237,56 @@ export function MobileAuthGate({
       active = false;
       unsubscribe();
     };
-  }, [actions, beginSessionTransition, linking, updateSession]);
+  }, [
+    actions,
+    beforeCompleteCallback,
+    beforeAcceptAuthenticated,
+    beginSessionTransition,
+    clearFailedCallbackSession,
+    afterCallbackRestore,
+    enqueueSessionOperation,
+    linking,
+    updateSession,
+  ]);
+
+  if (callbackPending) {
+    return (
+      <View style={styles.app}>
+        <Text accessibilityRole="text">Completing sign-in…</Text>
+      </View>
+    );
+  }
 
   if (session.state === "authenticated") {
-    if (callbackPending) {
-      return (
-        <View style={styles.app}>
-          <Text accessibilityRole="text">Completing sign-in…</Text>
-        </View>
-      );
-    }
     return (
       <View style={styles.app}>
         <Pressable
           accessibilityRole="button"
           accessibilityLabel="Sign out"
           onPress={() => {
+            setSignOutFailed(false);
             setCallbackPending(false);
-            const transition = beginSessionTransition();
-            void signOut()
-              .then((next) => updateSession(next, transition))
-              .catch((error: unknown) => {
-                void updateSession(recoverySnapshot(error), transition);
-              });
+            void enqueueSessionOperation(async () => {
+              const transition = beginSessionTransition();
+              try {
+                const next = await signOut(session.principal.userId);
+                await updateSession(next, transition);
+              } catch {
+                if (transition === sessionTransition.current) {
+                  setSignOutFailed(true);
+                }
+              }
+            });
           }}
           style={styles.signOut}
         >
           <Text style={styles.signOutLabel}>Sign out</Text>
         </Pressable>
+        {signOutFailed ? (
+          <Text accessibilityRole="alert" style={styles.signOutError}>
+            Could not sign out. Your session is still active. Try again.
+          </Text>
+        ) : null}
         {authenticated(session.principal.userId)}
       </View>
     );
@@ -203,26 +299,19 @@ export function MobileAuthGate({
         actions={{
           requestPhone: actions.requestPhone,
           verifyPhone: async (phone, token) => {
-            setCallbackPending(false);
-            const transition = beginSessionTransition();
-            await updateSession(
-              await actions.verifyPhone(phone, token),
-              transition,
-            );
+            await enqueueSessionOperation(async () => {
+              const transition = beginSessionTransition();
+              const next = await actions.verifyPhone(phone, token);
+              await beforeAcceptAuthenticated?.(next);
+              await updateSession(next, transition);
+            });
           },
           requestEmail: actions.requestEmail,
-          verifyEmail: async (email, token) => {
-            setCallbackPending(false);
-            const transition = beginSessionTransition();
-            await updateSession(
-              await actions.verifyEmail(email, token),
-              transition,
-            );
-          },
           retry: async () => {
-            setCallbackPending(false);
-            const transition = beginSessionTransition();
-            await updateSession(await restore(), transition);
+            await enqueueSessionOperation(async () => {
+              const transition = beginSessionTransition();
+              await updateSession(await restore(), transition);
+            });
           },
         }}
       />
@@ -271,5 +360,11 @@ const styles = StyleSheet.create({
     color: theme.color.brand.primary,
     fontSize: theme.typeScale.labelMd.fontSize,
     fontWeight: "700",
+  },
+  signOutError: {
+    color: theme.color.text.primary,
+    fontSize: theme.typeScale.bodyMd.fontSize,
+    lineHeight: theme.typeScale.bodyMd.lineHeight,
+    paddingHorizontal: theme.space[4],
   },
 });

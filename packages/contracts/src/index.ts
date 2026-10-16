@@ -110,6 +110,7 @@ export type { IdentityLinkDecision } from "./identity-link.js";
 export {
   EMAIL_CREDENTIAL_CHANGE_STATUSES,
   OAUTH_LINK_PROVIDERS,
+  OAUTH_SIGN_IN_PROVIDERS,
   LOCAL_SUPABASE_AUTH_ORIGIN,
   emailCredentialChangeSchema,
   isExpectedSupabaseAuthOrigin,
@@ -122,6 +123,7 @@ export type {
   EmailCredentialChange,
   OAuthLinkReceipt,
   OAuthProviderSettings,
+  OAuthSignInProvider,
   OAuthSignInNavigation,
 } from "./credential.js";
 

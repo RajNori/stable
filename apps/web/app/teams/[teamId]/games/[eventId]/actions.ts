@@ -1,5 +1,6 @@
 "use server";
 
+import type { GameDayNotice } from "./notices";
 import { ApplicationError } from "@stable/contracts";
 import {
   attendanceMessages,
@@ -43,7 +44,7 @@ import { redirect } from "next/navigation";
 
 import { fixtureAccessFrom } from "../../../../../lib/fixture-access";
 import { principalFromSupabase } from "../../../../../lib/principal";
-import { createRuntimeClubContextReader } from "../../../../../lib/runtime-club-context-reader";
+import { createClubContextReader } from "../../../../../lib/reader";
 import { createSupabaseServerClient } from "../../../../../lib/supabase/server";
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -63,6 +64,10 @@ function destination(teamId: string, eventId: string): string {
 
 function withError(path: string, message: string): string {
   return `${path}?error=${encodeURIComponent(message)}`;
+}
+
+function withNotice(path: string, notice: GameDayNotice): string {
+  return `${path}?notice=${notice}`;
 }
 
 export async function recordAttendanceAction(
@@ -113,7 +118,7 @@ export async function recordAttendanceAction(
 
   const supabase = await createSupabaseServerClient();
   const principal = await principalFromSupabase(supabase);
-  const reader = await createRuntimeClubContextReader(supabase);
+  const reader = await createClubContextReader(supabase);
   const facts = principal === null ? null : await reader.read(principal.userId);
   if (principal === null || facts === null) {
     redirect(
@@ -266,7 +271,7 @@ async function reviewAccess(formData: FormData) {
     );
   const supabase = await createSupabaseServerClient();
   const principal = await principalFromSupabase(supabase);
-  const reader = await createRuntimeClubContextReader(supabase);
+  const reader = await createClubContextReader(supabase);
   const facts = principal === null ? null : await reader.read(principal.userId);
   if (principal === null || facts === null)
     redirect(withError(destination(teamId, eventId), "UNAUTHENTICATED"));
@@ -453,7 +458,7 @@ async function gameStatsContext(formData: FormData) {
   }
   const supabase = await createSupabaseServerClient();
   const principal = await principalFromSupabase(supabase);
-  const reader = await createRuntimeClubContextReader(supabase);
+  const reader = await createClubContextReader(supabase);
   const facts = principal === null ? null : await reader.read(principal.userId);
   if (principal === null || facts === null) {
     redirect(
@@ -514,7 +519,7 @@ async function dutyAccess(formData: FormData) {
   }
   const supabase = await createSupabaseServerClient();
   const principal = await principalFromSupabase(supabase);
-  const reader = await createRuntimeClubContextReader(supabase);
+  const reader = await createClubContextReader(supabase);
   const facts = principal === null ? null : await reader.read(principal.userId);
   if (principal === null || facts === null) {
     redirect(
@@ -615,7 +620,9 @@ export async function acknowledgeDutyAction(formData: FormData): Promise<void> {
       caught instanceof Error ? caught.message : gameDayMessages.saveFailed;
     redirect(withError(destination(loaded.teamId, loaded.eventId), message));
   }
-  redirect(destination(loaded.teamId, loaded.eventId));
+  redirect(
+    withNotice(destination(loaded.teamId, loaded.eventId), "duty-acknowledged"),
+  );
 }
 
 export async function requestDutySwapAction(formData: FormData): Promise<void> {
@@ -635,7 +642,9 @@ export async function requestDutySwapAction(formData: FormData): Promise<void> {
       caught instanceof Error ? caught.message : gameDayMessages.saveFailed;
     redirect(withError(destination(loaded.teamId, loaded.eventId), message));
   }
-  redirect(destination(loaded.teamId, loaded.eventId));
+  redirect(
+    withNotice(destination(loaded.teamId, loaded.eventId), "duty-swap-offered"),
+  );
 }
 
 export async function acceptDutySwapAction(formData: FormData): Promise<void> {
@@ -662,7 +671,12 @@ export async function acceptDutySwapAction(formData: FormData): Promise<void> {
       caught instanceof Error ? caught.message : gameDayMessages.saveFailed;
     redirect(withError(destination(loaded.teamId, loaded.eventId), message));
   }
-  redirect(destination(loaded.teamId, loaded.eventId));
+  redirect(
+    withNotice(
+      destination(loaded.teamId, loaded.eventId),
+      "duty-swap-accepted",
+    ),
+  );
 }
 
 async function fillInAccess(formData: FormData) {

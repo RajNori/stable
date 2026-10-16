@@ -35,6 +35,7 @@ function writer(): TrainingWriter & { calls: string[] } {
   const calls: string[] = [];
   return {
     calls,
+    listTrainingEditMetadata: () => Promise.resolve([]),
     createTrainingSession: () => {
       calls.push("session");
       return Promise.resolve({ eventId });

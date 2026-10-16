@@ -97,15 +97,22 @@ describe("mobile auth gate", () => {
       void queryClient.cancelQueries();
       queryClient.clear();
     });
+    const accountTransition: string[] = [];
     await render(
       <MobileAuthGate
         restore={async () => authenticated}
         signOut={async () => ({ state: "unauthenticated" })}
         actions={idleActions({
           async completeCallback() {
+            accountTransition.push("callback");
             return secondAuthenticated;
           },
         })}
+        beforeCompleteCallback={async () => {
+          return async () => {
+            accountTransition.push("push-cleanup");
+          };
+        }}
         clearPrivateCache={clearPrivateCache}
         linking={{
           async getInitialUrl() {
@@ -131,6 +138,7 @@ describe("mobile auth gate", () => {
     expect(
       await screen.findByText(`Signed in as ${secondUserId}`),
     ).toBeTruthy();
+    expect(accountTransition).toEqual(["callback", "push-cleanup"]);
     expect(queryClient.getQueryCache().getAll()).toEqual([]);
 
     queryClient.setQueryData(["current-club-context"], {
@@ -207,7 +215,10 @@ describe("mobile auth gate", () => {
     );
 
     expect(await screen.findByText(`Signed in as ${userId}`)).toBeTruthy();
-    receive?.("stable://auth/callback?code=account-switch");
+    await act(async () => {
+      receive?.("stable://auth/callback?code=account-switch");
+      await new Promise<void>((resolve) => setTimeout(resolve, 0));
+    });
     expect(
       await screen.findByText(`Signed in as ${secondUserId}`),
     ).toBeTruthy();
@@ -270,6 +281,145 @@ describe("mobile auth gate", () => {
     receive?.("stable://auth/callback?code=account-switch");
     expect(await screen.findByText(AUTH_ERROR_MESSAGES.INTERNAL)).toBeTruthy();
     expect(screen.queryByText(`Signed in as ${secondUserId}`)).toBeNull();
+  });
+
+  it("fails closed when post-exchange prior-account push cleanup fails", async () => {
+    let receive: ((url: string) => void) | undefined;
+    let restoreCalls = 0;
+    let completeCallbackCalls = 0;
+    const clearFailedCallbackSession = jest.fn(async () => undefined);
+    await render(
+      <MobileAuthGate
+        restore={async () => {
+          restoreCalls += 1;
+          return authenticated;
+        }}
+        signOut={async () => ({ state: "unauthenticated" })}
+        actions={idleActions({
+          async completeCallback() {
+            completeCallbackCalls += 1;
+            return secondAuthenticated;
+          },
+        })}
+        beforeCompleteCallback={async () => async () => {
+          throw new Error("push cleanup failed");
+        }}
+        clearFailedCallbackSession={clearFailedCallbackSession}
+        linking={{
+          async getInitialUrl() {
+            return null;
+          },
+          subscribe(listener) {
+            receive = listener;
+            return () => {
+              receive = undefined;
+            };
+          },
+        }}
+        authenticated={(id) => <Text>Signed in as {id}</Text>}
+      />,
+    );
+
+    expect(await screen.findByText(`Signed in as ${userId}`)).toBeTruthy();
+    receive?.("stable://auth/callback?code=account-switch");
+
+    expect(await screen.findByText(AUTH_ERROR_MESSAGES.INTERNAL)).toBeTruthy();
+    expect(screen.queryByText(`Signed in as ${secondUserId}`)).toBeNull();
+    expect(completeCallbackCalls).toBe(1);
+    expect(restoreCalls).toBe(1);
+    expect(clearFailedCallbackSession.mock.calls.length).toBe(1);
+  });
+
+  it("cleans the callback endpoint when a same-account session commit fails", async () => {
+    let receive: ((url: string) => void) | undefined;
+    const clearFailedCallbackSession = jest.fn(async () => undefined);
+    await render(
+      <MobileAuthGate
+        restore={async () => authenticated}
+        signOut={async () => ({ state: "unauthenticated" })}
+        actions={idleActions({
+          async completeCallback(
+            _url: string,
+            beforeCommit?: (next: AuthSessionSnapshot) => Promise<void>,
+          ) {
+            await beforeCommit?.(authenticated);
+            throw new Error("session commit failed");
+          },
+        })}
+        beforeCompleteCallback={async () => async () => undefined}
+        clearFailedCallbackSession={clearFailedCallbackSession}
+        linking={{
+          async getInitialUrl() {
+            return null;
+          },
+          subscribe(listener) {
+            receive = listener;
+            return () => {
+              receive = undefined;
+            };
+          },
+        }}
+        authenticated={(id) => <Text>Signed in as {id}</Text>}
+      />,
+    );
+
+    expect(await screen.findByText(`Signed in as ${userId}`)).toBeTruthy();
+    receive?.("stable://auth/callback?code=same-account");
+
+    expect(await screen.findByText(AUTH_ERROR_MESSAGES.INTERNAL)).toBeTruthy();
+    expect(screen.queryByText(`Signed in as ${userId}`)).toBeNull();
+    expect(clearFailedCallbackSession.mock.calls.length).toBe(1);
+  });
+
+  it("clears the exchanged account if prior-account private-cache cleanup fails", async () => {
+    let receive: ((url: string) => void) | undefined;
+    let restoreCalls = 0;
+    let clearFailedSessionCalls = 0;
+    await render(
+      <MobileAuthGate
+        restore={async () => {
+          restoreCalls += 1;
+          return authenticated;
+        }}
+        signOut={async () => ({ state: "unauthenticated" })}
+        actions={idleActions({
+          async completeCallback() {
+            return secondAuthenticated;
+          },
+        })}
+        clearPrivateCache={async (previousUserId) => {
+          if (previousUserId === userId) {
+            throw new Error("SecureStore cleanup failed");
+          }
+        }}
+        clearFailedCallbackSession={async () => {
+          clearFailedSessionCalls += 1;
+        }}
+        linking={{
+          async getInitialUrl() {
+            return null;
+          },
+          subscribe(listener) {
+            receive = listener;
+            return () => {
+              receive = undefined;
+            };
+          },
+        }}
+        authenticated={(id) => <Text>Signed in as {id}</Text>}
+      />,
+    );
+
+    expect(await screen.findByText(`Signed in as ${userId}`)).toBeTruthy();
+    await act(async () => {
+      receive?.("stable://auth/callback?code=account-switch");
+      await new Promise<void>((resolve) => setTimeout(resolve, 0));
+    });
+
+    expect(await screen.findByText(AUTH_ERROR_MESSAGES.INTERNAL)).toBeTruthy();
+    expect(screen.queryByText(`Signed in as ${secondUserId}`)).toBeNull();
+    expect(clearFailedSessionCalls).toBe(1);
+    expect(restoreCalls).toBe(1);
   });
 
   it("shows expired and recovery without pretending the adult signed out", async () => {
@@ -340,6 +490,93 @@ describe("mobile auth gate", () => {
     });
   });
 
+  it("validates a callback before removing the current push registration", async () => {
+    let receive: ((url: string) => void) | undefined;
+    const beforeCompleteCallback = jest.fn(async () => undefined);
+    const completeCallback = jest.fn(async () => authenticated);
+    const validateCallback = jest.fn(() => {
+      throw new ApplicationError(
+        "VALIDATION_FAILED",
+        AUTH_ERROR_MESSAGES.VALIDATION_FAILED,
+      );
+    });
+    await render(
+      <MobileAuthGate
+        restore={async () => authenticated}
+        signOut={async () => ({ state: "unauthenticated" })}
+        actions={idleActions({
+          validateCallback,
+          completeCallback,
+        })}
+        beforeCompleteCallback={beforeCompleteCallback}
+        linking={{
+          async getInitialUrl() {
+            return null;
+          },
+          subscribe(listener) {
+            receive = listener;
+            return () => {
+              receive = undefined;
+            };
+          },
+        }}
+        authenticated={() => <Text>Club home</Text>}
+      />,
+    );
+
+    expect(await screen.findByText("Club home")).toBeTruthy();
+    await act(async () => {
+      receive?.("https://attacker.example/auth/callback?code=bad");
+      await new Promise<void>((resolve) => setTimeout(() => resolve(), 0));
+    });
+    expect(validateCallback.mock.calls.length).toBe(1);
+    expect(beforeCompleteCallback.mock.calls.length).toBe(0);
+    expect(completeCallback.mock.calls.length).toBe(0);
+    expect(await screen.findByText("Club home")).toBeTruthy();
+  });
+
+  it("does not finalize account-transition cleanup when callback exchange fails", async () => {
+    let receive: ((url: string) => void) | undefined;
+    const finalize = jest.fn(async () => undefined);
+    const beforeCompleteCallback = jest.fn(async () => finalize);
+    const afterCallbackRestore = jest.fn(async () => undefined);
+    const completeCallback = jest.fn(async () => {
+      throw new Error("expired or invalid code");
+    });
+    await render(
+      <MobileAuthGate
+        restore={async () => authenticated}
+        signOut={async () => ({ state: "unauthenticated" })}
+        actions={idleActions({ completeCallback })}
+        beforeCompleteCallback={beforeCompleteCallback}
+        afterCallbackRestore={afterCallbackRestore}
+        linking={{
+          async getInitialUrl() {
+            return null;
+          },
+          subscribe(listener) {
+            receive = listener;
+            return () => {
+              receive = undefined;
+            };
+          },
+        }}
+        authenticated={() => <Text>Club home</Text>}
+      />,
+    );
+
+    expect(await screen.findByText("Club home")).toBeTruthy();
+    await act(async () => {
+      receive?.("stable://auth/callback?code=syntactically-valid-code");
+      await new Promise<void>((resolve) => setTimeout(resolve, 0));
+    });
+    await waitFor(() => expect(completeCallback.mock.calls.length).toBe(1));
+    expect(beforeCompleteCallback.mock.calls.length).toBe(1);
+    expect(finalize.mock.calls.length).toBe(0);
+    expect(afterCallbackRestore.mock.calls).toEqual([[authenticated]]);
+    expect(await screen.findByText("Club home")).toBeTruthy();
+  });
+
   it("uses a successful initial auth callback to open the app", async () => {
     const complete = jest.fn(async () => authenticated);
     await render(
@@ -365,17 +602,19 @@ describe("mobile auth gate", () => {
     ]);
   });
 
-  it("keeps a callback session when an older restore resolves afterward", async () => {
+  it("serializes callback acceptance after pending startup restoration", async () => {
     let resolveRestore: ((snapshot: AuthSessionSnapshot) => void) | undefined;
     const restore = new Promise<AuthSessionSnapshot>((resolve) => {
       resolveRestore = resolve;
     });
+    let completeCallbackCalls = 0;
     await render(
       <MobileAuthGate
         restore={() => restore}
         signOut={async () => ({ state: "unauthenticated" })}
         actions={idleActions({
           async completeCallback() {
+            completeCallbackCalls += 1;
             return secondAuthenticated;
           },
         })}
@@ -391,16 +630,18 @@ describe("mobile auth gate", () => {
       />,
     );
 
-    expect(
-      await screen.findByText(`Signed in as ${secondUserId}`),
-    ).toBeTruthy();
+    expect(await screen.findByText("Completing sign-in…")).toBeTruthy();
+    expect(completeCallbackCalls).toBe(0);
     await act(async () => {
       resolveRestore?.(authenticated);
       await restore;
       await Promise.resolve();
     });
 
-    expect(screen.getByText(`Signed in as ${secondUserId}`)).toBeTruthy();
+    expect(
+      await screen.findByText(`Signed in as ${secondUserId}`),
+    ).toBeTruthy();
+    expect(completeCallbackCalls).toBe(1);
     expect(screen.queryByText(`Signed in as ${userId}`)).toBeNull();
   });
 
@@ -451,12 +692,19 @@ describe("mobile auth gate", () => {
     announce.mockRestore();
   });
 
-  it("clears stale callback pending state when email OTP completes first", async () => {
+  it("serializes an in-flight phone OTP before a queued auth callback", async () => {
     let receive: ((url: string) => void) | undefined;
     let callbackStarted: (() => void) | undefined;
+    let verifyStarted: (() => void) | undefined;
     let resolveCallback: ((snapshot: AuthSessionSnapshot) => void) | undefined;
+    let resolveOtp: ((snapshot: AuthSessionSnapshot) => void) | undefined;
+    let sharedSupabaseUserId: string | null = null;
+    const authOrder: string[] = [];
     const callback = new Promise<AuthSessionSnapshot>((resolve) => {
       resolveCallback = resolve;
+    });
+    const otp = new Promise<AuthSessionSnapshot>((resolve) => {
+      resolveOtp = resolve;
     });
     await render(
       <MobileAuthGate
@@ -464,11 +712,18 @@ describe("mobile auth gate", () => {
         signOut={async () => ({ state: "unauthenticated" })}
         actions={idleActions({
           completeCallback: () => {
+            authOrder.push("callback");
             callbackStarted?.();
+            sharedSupabaseUserId = secondUserId;
             return callback;
           },
-          async verifyEmail() {
-            return secondAuthenticated;
+          verifyPhone: () => {
+            verifyStarted?.();
+            return otp.then((snapshot) => {
+              authOrder.push("otp");
+              sharedSupabaseUserId = userId;
+              return snapshot;
+            });
           },
         })}
         linking={{
@@ -492,29 +747,36 @@ describe("mobile auth gate", () => {
     const callbackHasStarted = new Promise<void>((resolve) => {
       callbackStarted = resolve;
     });
-    receive?.("stable://auth/callback?code=pending");
-    await callbackHasStarted;
-
-    await userEvent.press(screen.getByLabelText("Continue with email"));
-    fireEvent.changeText(
-      screen.getByLabelText("Email address"),
-      "adult@example.com",
-    );
-    await userEvent.press(screen.getByLabelText("Send code"));
+    const phoneVerificationStarted = new Promise<void>((resolve) => {
+      verifyStarted = resolve;
+    });
+    await userEvent.press(screen.getByLabelText("Continue with mobile"));
+    fireEvent.changeText(screen.getByLabelText("Mobile number"), "0412345678");
+    await userEvent.press(screen.getByLabelText("Continue"));
     fireEvent.changeText(
       await screen.findByLabelText("6-digit code"),
       "123456",
     );
     await userEvent.press(screen.getByLabelText("Continue"));
+    await phoneVerificationStarted;
 
-    expect(
-      await screen.findByText(`Signed in as ${secondUserId}`),
-    ).toBeTruthy();
     await act(async () => {
-      resolveCallback?.(authenticated);
+      receive?.("stable://auth/callback?code=pending");
+      await Promise.resolve();
+    });
+    expect(await screen.findByText("Completing sign-in…")).toBeTruthy();
+    expect(screen.queryByLabelText("6-digit code")).toBeNull();
+
+    await act(async () => {
+      resolveOtp?.(authenticated);
+      await otp;
+      await callbackHasStarted;
+      expect(authOrder).toEqual(["otp", "callback"]);
+      resolveCallback?.(secondAuthenticated);
       await callback;
       await Promise.resolve();
     });
+    expect(sharedSupabaseUserId).toBe(secondUserId);
     expect(screen.getByText(`Signed in as ${secondUserId}`)).toBeTruthy();
     expect(screen.queryByText("Completing sign-in…")).toBeNull();
   });
@@ -607,7 +869,7 @@ describe("mobile auth gate", () => {
     expect(screen.queryByText("provider returned private detail")).toBeNull();
   });
 
-  it("returns to recovery if sign-out cannot reach the provider", async () => {
+  it("keeps the active session visible if sign-out cannot reach the provider", async () => {
     await render(
       <MobileAuthGate
         restore={async () => authenticated}
@@ -620,7 +882,12 @@ describe("mobile auth gate", () => {
     );
 
     await userEvent.press(await screen.findByLabelText("Sign out"));
-    expect(await screen.findByText(AUTH_ERROR_MESSAGES.INTERNAL)).toBeTruthy();
+    expect(
+      await screen.findByText(
+        "Could not sign out. Your session is still active. Try again.",
+      ),
+    ).toBeTruthy();
+    expect(screen.getByText("Club home")).toBeTruthy();
     expect(screen.queryByText("private account")).toBeNull();
   });
 
@@ -723,8 +990,8 @@ function idleActions(overrides: Record<string, unknown> = {}) {
     async requestEmail() {
       return undefined;
     },
-    async verifyEmail(): Promise<AuthSessionSnapshot> {
-      return authenticated;
+    validateCallback() {
+      return undefined;
     },
     async completeCallback(): Promise<AuthSessionSnapshot> {
       return authenticated;

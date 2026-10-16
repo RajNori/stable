@@ -8,6 +8,9 @@ const CALLBACK_FLAGS = {
   unavailable: AUTH_ERROR_MESSAGES.UPSTREAM_UNAVAILABLE,
   limited: AUTH_ERROR_MESSAGES.RATE_LIMITED,
   internal: AUTH_ERROR_MESSAGES.INTERNAL,
+  recovered: "Your password has been updated. Sign in with your new password.",
+  "recovery-expired":
+    "This recovery link is no longer valid. Request a new one.",
 } as const;
 
 export function shouldLoadClubContext(snapshot: AuthSessionSnapshot): boolean {
@@ -29,6 +32,12 @@ export function callbackNotice(
 }
 
 export function authQueryFlag(message: string): keyof typeof CALLBACK_FLAGS {
+  if (message === CALLBACK_FLAGS.recovered) {
+    return "recovered";
+  }
+  if (message === CALLBACK_FLAGS["recovery-expired"]) {
+    return "recovery-expired";
+  }
   if (message === AUTH_ERROR_MESSAGES.VALIDATION_FAILED) {
     return "validation";
   }

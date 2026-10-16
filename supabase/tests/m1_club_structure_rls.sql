@@ -1,8 +1,6 @@
--- Slice 1.1 RLS and audited club-structure commands.
---
--- Same-club wrong-team deny is not expressible yet. Team membership does
--- not exist until a later slice. This file still proves cross-club denial.
--- Policy users here are not login users.
+-- Club Structure RLS and audited commands.
+-- Team-role actors are fixtures proving team membership does not grant
+-- Club Admin structure authority. These users are not login credentials.
 
 begin;
 
@@ -51,7 +49,7 @@ begin
 end;
 $$;
 
-select plan(174);
+select plan(230);
 
 insert into auth.users (
   instance_id, id, aud, role, email, encrypted_password, email_confirmed_at,
@@ -70,6 +68,34 @@ values
     '00000000-0000-0000-0000-000000000000',
     '66666666-6666-4666-8666-666666666666',
     'authenticated', 'authenticated', 'policy-outsider@local.stable.test', '',
+    now(), '{"provider":"email","providers":["email"]}'::jsonb, '{}'::jsonb,
+    now(), now(), '', '', '', ''
+  ),
+  (
+    '00000000-0000-0000-0000-000000000000',
+    'c1000000-0000-4000-8000-000000000001',
+    'authenticated', 'authenticated', 'policy-head-coach@local.stable.test', '',
+    now(), '{"provider":"email","providers":["email"]}'::jsonb, '{}'::jsonb,
+    now(), now(), '', '', '', ''
+  ),
+  (
+    '00000000-0000-0000-0000-000000000000',
+    'c1000000-0000-4000-8000-000000000002',
+    'authenticated', 'authenticated', 'policy-assistant-coach@local.stable.test', '',
+    now(), '{"provider":"email","providers":["email"]}'::jsonb, '{}'::jsonb,
+    now(), now(), '', '', '', ''
+  ),
+  (
+    '00000000-0000-0000-0000-000000000000',
+    'c1000000-0000-4000-8000-000000000003',
+    'authenticated', 'authenticated', 'policy-team-manager@local.stable.test', '',
+    now(), '{"provider":"email","providers":["email"]}'::jsonb, '{}'::jsonb,
+    now(), now(), '', '', '', ''
+  ),
+  (
+    '00000000-0000-0000-0000-000000000000',
+    'c1000000-0000-4000-8000-000000000004',
+    'authenticated', 'authenticated', 'policy-other-team-coach@local.stable.test', '',
     now(), '{"provider":"email","providers":["email"]}'::jsonb, '{}'::jsonb,
     now(), now(), '', '', '', ''
   );
@@ -193,6 +219,30 @@ values
     'bcbcbcbc-bcbc-4bcb-8bcb-bcbcbcbcbcbc',
     'CLUB_ADMIN',
     true
+  );
+
+insert into public.team_memberships (id, club_id, team_id, user_id, role, active)
+values
+  (
+    'c2000000-0000-4000-8000-000000000001',
+    '11111111-1111-4111-8111-111111111111',
+    '99999999-9999-4999-8999-999999999999',
+    'c1000000-0000-4000-8000-000000000001',
+    'HEAD_COACH', true
+  ),
+  (
+    'c2000000-0000-4000-8000-000000000002',
+    '11111111-1111-4111-8111-111111111111',
+    '99999999-9999-4999-8999-999999999999',
+    'c1000000-0000-4000-8000-000000000002',
+    'ASSISTANT_COACH', true
+  ),
+  (
+    'c2000000-0000-4000-8000-000000000003',
+    '11111111-1111-4111-8111-111111111111',
+    '99999999-9999-4999-8999-999999999999',
+    'c1000000-0000-4000-8000-000000000003',
+    'TEAM_MANAGER', true
   );
 
 select has_table('public', 'seasons', 'seasons table exists');
@@ -365,6 +415,21 @@ select lives_ok(
   )$$,
   'club admin can create a season and team together'
 );
+reset role;
+insert into public.team_memberships (id, club_id, team_id, user_id, role, active)
+select
+  'c2000000-0000-4000-8000-000000000004',
+  '11111111-1111-4111-8111-111111111111',
+  team.id,
+  'c1000000-0000-4000-8000-000000000004',
+  'HEAD_COACH',
+  true
+from public.teams as team
+where team.name = 'U12 Girls';
+do $$ begin
+  perform pg_temp.assume_user('55555555-5555-4555-8555-555555555555');
+end $$;
+set local role authenticated;
 select is(
   (
     select count(*)
@@ -1157,6 +1222,100 @@ from (
     ('update public.audit_events set action = action', 'anon cannot update audit events'),
     ('delete from public.audit_events', 'anon cannot delete audit events')
 ) as anon_writes(statement, description);
+
+reset role;
+do $$ begin
+  perform pg_temp.assume_user('c1000000-0000-4000-8000-000000000001');
+end $$;
+set local role authenticated;
+select is_empty(
+  $$select id from public.audit_events where id = '1b1b1b1b-1b1b-41b1-81b1-1b1b1b1b1b1b'$$,
+  'Head Coach without Club Admin membership cannot read operational audit'
+);
+select throws_ok($$select public.create_club_season_and_team('11111111-1111-4111-8111-111111111111', 'Denied', 'Denied')$$, '42501', 'FORBIDDEN', 'Head Coach cannot create a season and team');
+select throws_ok($$select public.create_club_season('11111111-1111-4111-8111-111111111111', 'Denied')$$, '42501', 'FORBIDDEN', 'Head Coach cannot create a season');
+select throws_ok($$select public.update_club_season('88888888-8888-4888-8888-888888888888', 'Denied', true)$$, 'P0002', 'NOT_FOUND', 'Head Coach cannot update a season');
+select throws_ok($$select public.create_club_competition('11111111-1111-4111-8111-111111111111', '88888888-8888-4888-8888-888888888888', 'Denied')$$, '42501', 'FORBIDDEN', 'Head Coach cannot create a competition');
+select throws_ok($$select public.update_club_competition('19191919-1919-4191-8191-191919191919', 'Denied', true)$$, 'P0002', 'NOT_FOUND', 'Head Coach cannot update a competition');
+select throws_ok($$select public.create_club_venue('11111111-1111-4111-8111-111111111111', 'Denied')$$, '42501', 'FORBIDDEN', 'Head Coach cannot create a venue');
+select throws_ok($$select public.update_club_venue('1a1a1a1a-1a1a-41a1-81a1-1a1a1a1a1a1a', 'Denied', true)$$, 'P0002', 'NOT_FOUND', 'Head Coach cannot update a venue');
+select throws_ok($$select public.create_club_team('11111111-1111-4111-8111-111111111111', '88888888-8888-4888-8888-888888888888', null, null, 'Denied')$$, '42501', 'FORBIDDEN', 'Head Coach cannot create a team');
+select throws_ok($$select public.update_club_team('99999999-9999-4999-8999-999999999999', 'Denied', true)$$, 'P0002', 'NOT_FOUND', 'Head Coach cannot update a team');
+select throws_ok($$select public.update_club_season('88888888-8888-4888-8888-888888888888', 'Denied', false)$$, 'P0002', 'NOT_FOUND', 'Head Coach cannot deactivate a season');
+select throws_ok($$select public.update_club_competition('19191919-1919-4191-8191-191919191919', 'Denied', false)$$, 'P0002', 'NOT_FOUND', 'Head Coach cannot deactivate a competition');
+select throws_ok($$select public.update_club_venue('1a1a1a1a-1a1a-41a1-81a1-1a1a1a1a1a1a', 'Denied', false)$$, 'P0002', 'NOT_FOUND', 'Head Coach cannot deactivate a venue');
+select throws_ok($$select public.update_club_team('99999999-9999-4999-8999-999999999999', 'Denied', false)$$, 'P0002', 'NOT_FOUND', 'Head Coach cannot deactivate a team');
+
+reset role;
+do $$ begin
+  perform pg_temp.assume_user('c1000000-0000-4000-8000-000000000002');
+end $$;
+set local role authenticated;
+select is_empty(
+  $$select id from public.audit_events where id = '1b1b1b1b-1b1b-41b1-81b1-1b1b1b1b1b1b'$$,
+  'Assistant Coach without Club Admin membership cannot read operational audit'
+);
+select throws_ok($$select public.create_club_season_and_team('11111111-1111-4111-8111-111111111111', 'Denied', 'Denied')$$, '42501', 'FORBIDDEN', 'Assistant Coach cannot create a season and team');
+select throws_ok($$select public.create_club_season('11111111-1111-4111-8111-111111111111', 'Denied')$$, '42501', 'FORBIDDEN', 'Assistant Coach cannot create a season');
+select throws_ok($$select public.update_club_season('88888888-8888-4888-8888-888888888888', 'Denied', true)$$, 'P0002', 'NOT_FOUND', 'Assistant Coach cannot update a season');
+select throws_ok($$select public.create_club_competition('11111111-1111-4111-8111-111111111111', '88888888-8888-4888-8888-888888888888', 'Denied')$$, '42501', 'FORBIDDEN', 'Assistant Coach cannot create a competition');
+select throws_ok($$select public.update_club_competition('19191919-1919-4191-8191-191919191919', 'Denied', true)$$, 'P0002', 'NOT_FOUND', 'Assistant Coach cannot update a competition');
+select throws_ok($$select public.create_club_venue('11111111-1111-4111-8111-111111111111', 'Denied')$$, '42501', 'FORBIDDEN', 'Assistant Coach cannot create a venue');
+select throws_ok($$select public.update_club_venue('1a1a1a1a-1a1a-41a1-81a1-1a1a1a1a1a1a', 'Denied', true)$$, 'P0002', 'NOT_FOUND', 'Assistant Coach cannot update a venue');
+select throws_ok($$select public.create_club_team('11111111-1111-4111-8111-111111111111', '88888888-8888-4888-8888-888888888888', null, null, 'Denied')$$, '42501', 'FORBIDDEN', 'Assistant Coach cannot create a team');
+select throws_ok($$select public.update_club_team('99999999-9999-4999-8999-999999999999', 'Denied', true)$$, 'P0002', 'NOT_FOUND', 'Assistant Coach cannot update a team');
+select throws_ok($$select public.update_club_season('88888888-8888-4888-8888-888888888888', 'Denied', false)$$, 'P0002', 'NOT_FOUND', 'Assistant Coach cannot deactivate a season');
+select throws_ok($$select public.update_club_competition('19191919-1919-4191-8191-191919191919', 'Denied', false)$$, 'P0002', 'NOT_FOUND', 'Assistant Coach cannot deactivate a competition');
+select throws_ok($$select public.update_club_venue('1a1a1a1a-1a1a-41a1-81a1-1a1a1a1a1a1a', 'Denied', false)$$, 'P0002', 'NOT_FOUND', 'Assistant Coach cannot deactivate a venue');
+select throws_ok($$select public.update_club_team('99999999-9999-4999-8999-999999999999', 'Denied', false)$$, 'P0002', 'NOT_FOUND', 'Assistant Coach cannot deactivate a team');
+
+reset role;
+do $$ begin
+  perform pg_temp.assume_user('c1000000-0000-4000-8000-000000000003');
+end $$;
+set local role authenticated;
+select is_empty(
+  $$select id from public.audit_events where id = '1b1b1b1b-1b1b-41b1-81b1-1b1b1b1b1b1b'$$,
+  'Team Manager without Club Admin membership cannot read operational audit'
+);
+select throws_ok($$select public.create_club_season_and_team('11111111-1111-4111-8111-111111111111', 'Denied', 'Denied')$$, '42501', 'FORBIDDEN', 'Team Manager cannot create a season and team');
+select throws_ok($$select public.create_club_season('11111111-1111-4111-8111-111111111111', 'Denied')$$, '42501', 'FORBIDDEN', 'Team Manager cannot create a season');
+select throws_ok($$select public.update_club_season('88888888-8888-4888-8888-888888888888', 'Denied', true)$$, 'P0002', 'NOT_FOUND', 'Team Manager cannot update a season');
+select throws_ok($$select public.create_club_competition('11111111-1111-4111-8111-111111111111', '88888888-8888-4888-8888-888888888888', 'Denied')$$, '42501', 'FORBIDDEN', 'Team Manager cannot create a competition');
+select throws_ok($$select public.update_club_competition('19191919-1919-4191-8191-191919191919', 'Denied', true)$$, 'P0002', 'NOT_FOUND', 'Team Manager cannot update a competition');
+select throws_ok($$select public.create_club_venue('11111111-1111-4111-8111-111111111111', 'Denied')$$, '42501', 'FORBIDDEN', 'Team Manager cannot create a venue');
+select throws_ok($$select public.update_club_venue('1a1a1a1a-1a1a-41a1-81a1-1a1a1a1a1a1a', 'Denied', true)$$, 'P0002', 'NOT_FOUND', 'Team Manager cannot update a venue');
+select throws_ok($$select public.create_club_team('11111111-1111-4111-8111-111111111111', '88888888-8888-4888-8888-888888888888', null, null, 'Denied')$$, '42501', 'FORBIDDEN', 'Team Manager cannot create a team');
+select throws_ok($$select public.update_club_team('99999999-9999-4999-8999-999999999999', 'Denied', true)$$, 'P0002', 'NOT_FOUND', 'Team Manager cannot update a team');
+select throws_ok($$select public.update_club_season('88888888-8888-4888-8888-888888888888', 'Denied', false)$$, 'P0002', 'NOT_FOUND', 'Team Manager cannot deactivate a season');
+select throws_ok($$select public.update_club_competition('19191919-1919-4191-8191-191919191919', 'Denied', false)$$, 'P0002', 'NOT_FOUND', 'Team Manager cannot deactivate a competition');
+select throws_ok($$select public.update_club_venue('1a1a1a1a-1a1a-41a1-81a1-1a1a1a1a1a1a', 'Denied', false)$$, 'P0002', 'NOT_FOUND', 'Team Manager cannot deactivate a venue');
+select throws_ok($$select public.update_club_team('99999999-9999-4999-8999-999999999999', 'Denied', false)$$, 'P0002', 'NOT_FOUND', 'Team Manager cannot deactivate a team');
+
+reset role;
+do $$ begin
+  perform pg_temp.assume_user('c1000000-0000-4000-8000-000000000004');
+end $$;
+set local role authenticated;
+select is_empty(
+  $$select id from public.audit_events where id = '1b1b1b1b-1b1b-41b1-81b1-1b1b1b1b1b1b'$$,
+  'Other-team Coach without Club Admin membership cannot read operational audit'
+);
+select throws_ok($$select public.create_club_season_and_team('11111111-1111-4111-8111-111111111111', 'Denied', 'Denied')$$, '42501', 'FORBIDDEN', 'Other-team Coach cannot create a season and team');
+select throws_ok($$select public.create_club_season('11111111-1111-4111-8111-111111111111', 'Denied')$$, '42501', 'FORBIDDEN', 'Other-team Coach cannot create a season');
+select throws_ok($$select public.update_club_season('88888888-8888-4888-8888-888888888888', 'Denied', true)$$, 'P0002', 'NOT_FOUND', 'Other-team Coach cannot update a season');
+select throws_ok($$select public.create_club_competition('11111111-1111-4111-8111-111111111111', '88888888-8888-4888-8888-888888888888', 'Denied')$$, '42501', 'FORBIDDEN', 'Other-team Coach cannot create a competition');
+select throws_ok($$select public.update_club_competition('19191919-1919-4191-8191-191919191919', 'Denied', true)$$, 'P0002', 'NOT_FOUND', 'Other-team Coach cannot update a competition');
+select throws_ok($$select public.create_club_venue('11111111-1111-4111-8111-111111111111', 'Denied')$$, '42501', 'FORBIDDEN', 'Other-team Coach cannot create a venue');
+select throws_ok($$select public.update_club_venue('1a1a1a1a-1a1a-41a1-81a1-1a1a1a1a1a1a', 'Denied', true)$$, 'P0002', 'NOT_FOUND', 'Other-team Coach cannot update a venue');
+select throws_ok($$select public.create_club_team('11111111-1111-4111-8111-111111111111', '88888888-8888-4888-8888-888888888888', null, null, 'Denied')$$, '42501', 'FORBIDDEN', 'Other-team Coach cannot create a team');
+select throws_ok($$select public.update_club_team('99999999-9999-4999-8999-999999999999', 'Denied', true)$$, 'P0002', 'NOT_FOUND', 'Other-team Coach cannot update a team');
+select throws_ok($$select public.update_club_season('88888888-8888-4888-8888-888888888888', 'Denied', false)$$, 'P0002', 'NOT_FOUND', 'Other-team Coach cannot deactivate a season');
+select throws_ok($$select public.update_club_competition('19191919-1919-4191-8191-191919191919', 'Denied', false)$$, 'P0002', 'NOT_FOUND', 'Other-team Coach cannot deactivate a competition');
+select throws_ok($$select public.update_club_venue('1a1a1a1a-1a1a-41a1-81a1-1a1a1a1a1a1a', 'Denied', false)$$, 'P0002', 'NOT_FOUND', 'Other-team Coach cannot deactivate a venue');
+select throws_ok($$select public.update_club_team('99999999-9999-4999-8999-999999999999', 'Denied', false)$$, 'P0002', 'NOT_FOUND', 'Other-team Coach cannot deactivate a team');
+
+reset role;
 
 select * from finish();
 

@@ -192,9 +192,13 @@ select lives_ok(
 
 reset role;
 select is(
-  (select count(*) from public.attendance_responses),
+  (
+    select count(*)
+    from public.attendance_responses
+    where event_id = (select event_id from issued_event)
+  ),
   2::bigint,
-  'two players keep two attendance rows'
+  'two players keep two attendance rows for this event'
 );
 select is(
   (
@@ -236,6 +240,29 @@ select is(
   '42501',
   'a guardian cannot read team attendance'
 );
+select is(
+  (
+    select string_agg(status, ',' order by player_id)
+    from public.list_managed_attendance((select event_id from issued_event))
+  ),
+  'UNSURE,UNAVAILABLE',
+  'a guardian can read only managed-player response statuses'
+);
+select is(
+  pg_get_function_result('public.list_managed_attendance(uuid)'::regprocedure),
+  'TABLE(player_id uuid, status text)',
+  'managed attendance does not expose absence notes or categories'
+);
+do $$ begin perform pg_temp.assume_user('5f5f5f5f-5f5f-45f5-85f5-5f5f5f5f5f1e'); end $$;
+select is(
+  pg_temp.sqlstate_of(format(
+    'select * from public.list_managed_attendance(%L)',
+    (select event_id from issued_event)
+  )),
+  '42501',
+  'an outsider cannot read managed attendance'
+);
+do $$ begin perform pg_temp.assume_user('5f5f5f5f-5f5f-45f5-85f5-5f5f5f5f5f1d'); end $$;
 select is(
   (select own_rsvp from public.read_game_day((select event_id from issued_event))),
   'UNSURE',
