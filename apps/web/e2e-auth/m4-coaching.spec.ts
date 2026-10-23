@@ -31,6 +31,9 @@ test("active coach records game stats, completes a review, and plans practice", 
   const player = page.locator("li").filter({ hasText: playerName });
   await expect(player.getByText(`${playerName} Synthetic`)).toBeVisible();
   await player.getByRole("button", { name: "Register team" }).click();
+  await expect(
+    player.getByRole("button", { name: "Unregister team" }),
+  ).toBeVisible();
 
   await page.goto(`/teams/${TEAM_ID}/fixtures`);
   const fixtureForm = page.locator("form").filter({

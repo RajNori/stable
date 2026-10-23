@@ -117,6 +117,9 @@ test("a non-admin team manager maintains fixtures and team operations", async ({
   await addPlayer.getByRole("button", { name: "Add player" }).click();
   const player = admin.getByRole("listitem").filter({ hasText: playerName });
   await player.getByRole("button", { name: "Register team" }).click();
+  await expect(
+    player.getByRole("button", { name: "Unregister team" }),
+  ).toBeVisible();
   await player.getByLabel("Invitation email").fill(GUARDIAN_EMAIL);
   const invitationRequestFailures: string[] = [];
   const invitationPostEvents: string[] = [];
