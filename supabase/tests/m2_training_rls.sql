@@ -81,6 +81,7 @@ grant all on table issued to authenticated;
 
 create temp table recurrence_test_dates on commit drop as
 select date_trunc('week', now() at time zone 'Australia/Melbourne')::date as monday;
+grant select on table recurrence_test_dates to authenticated;
 
 create function pg_temp.series_event(series uuid, moment timestamptz)
 returns uuid
