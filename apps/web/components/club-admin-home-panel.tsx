@@ -1,5 +1,5 @@
-import { themeFor } from "@stable/design-tokens";
 import type { ClubAdminInvitationSummary } from "../lib/club-admin-invitation-summary";
+import styles from "./club-admin-home-panel.module.css";
 
 export type ClubAdminHomeSummary = {
   activeTeamCount: number;
@@ -21,106 +21,198 @@ type ClubAdminHomePanelProps = {
 
 export function ClubAdminHomePanel({
   summary,
-  themeKey,
   error,
 }: ClubAdminHomePanelProps) {
-  const theme = themeFor(themeKey);
-  const card: React.CSSProperties = {
-    background: theme.color.background.surface,
-    border: `1px solid ${theme.color.border.default}`,
-    borderRadius: theme.radius.lg,
-    padding: theme.space[6],
-    color: theme.color.text.primary,
-  };
+  const attention: {
+    key: string;
+    text: string;
+    href: string;
+    action: string;
+  }[] = [];
+  const unavailable: string[] = [];
+
+  if (summary !== null) {
+    if (summary.activeTeamCount === 0) {
+      attention.push({
+        key: "teams",
+        text: "Your club has no active teams yet.",
+        href: "/club-structure",
+        action: "Set up a team",
+      });
+    }
+    if (summary.activeSeasonCount === 0) {
+      attention.push({
+        key: "season",
+        text: "There isn’t an active season.",
+        href: "/club-structure",
+        action: "Set up a season",
+      });
+    }
+    for (const team of summary.teamsNeedingLeadership) {
+      attention.push({
+        key: team.id,
+        text: `${team.name} needs a ${team.missingRoles.join(" and ")}.`,
+        href: `/teams/${team.id}/staff`,
+        action: "Review staff",
+      });
+    }
+    if (summary.invitations?.pendingCount) {
+      const expiry = summary.invitations.expiringWithinSevenDaysCount;
+      attention.push({
+        key: "invitations",
+        text: `${summary.invitations.pendingCount} invitation${summary.invitations.pendingCount === 1 ? " is" : "s are"} waiting${expiry > 0 ? ` · ${expiry} expire within seven days` : ""}.`,
+        href: "/players",
+        action: "Review invitations",
+      });
+    } else if (summary.invitations === null) {
+      unavailable.push("Invitation status could not be loaded.");
+    }
+    if (
+      summary.playersMissingGuardianCount !== null &&
+      summary.playersMissingGuardianCount > 0
+    ) {
+      attention.push({
+        key: "guardians",
+        text: `${summary.playersMissingGuardianCount} active player${summary.playersMissingGuardianCount === 1 ? " needs" : "s need"} an active guardian link.`,
+        href: "/players",
+        action: "Review player links",
+      });
+    } else if (summary.playersMissingGuardianCount === null) {
+      unavailable.push("Guardian-link coverage could not be loaded.");
+    }
+  }
 
   return (
-    <section
-      aria-labelledby="club-admin-home-title"
-      style={{ display: "grid", gap: theme.space[4] }}
-    >
-      <header style={card}>
-        <h1 id="club-admin-home-title">Club overview</h1>
-        {error ? <p role="alert">{error}</p> : null}
-        {summary ? (
-          <dl>
-            <div>
-              <dt>Active teams</dt>
-              <dd>{summary.activeTeamCount}</dd>
-            </div>
-            <div>
-              <dt>Active seasons</dt>
-              <dd>{summary.activeSeasonCount}</dd>
-            </div>
-          </dl>
-        ) : null}
-        <a href="/club-structure">Review club structure</a>
+    <section className={styles.panel} aria-labelledby="club-admin-home-title">
+      <header className={styles.header}>
+        <div>
+          <p className={styles.kicker}>Club operations</p>
+          <h1 id="club-admin-home-title">Overview</h1>
+          <p className={styles.summaryText}>
+            A clear view of your club’s setup and what needs attention.
+          </p>
+        </div>
+        <a
+          className="stable-button stable-button--secondary"
+          href="/club-structure"
+        >
+          <span>Manage club structure</span>
+          <span aria-hidden="true">↗</span>
+        </a>
       </header>
 
-      <article style={card}>
-        <h2>Needs attention</h2>
+      {error ? (
+        <p className={styles.error} role="alert">
+          {error}
+        </p>
+      ) : null}
+
+      {summary ? (
+        <dl className={styles.metrics} aria-label="Club overview metrics">
+          <Metric
+            label="Active teams"
+            value={summary.activeTeamCount}
+            detail="In your club"
+          />
+          <Metric
+            label="Active seasons"
+            value={summary.activeSeasonCount}
+            detail="Currently running"
+          />
+          <Metric
+            label="Pending invitations"
+            value={summary.invitations?.pendingCount ?? null}
+            detail={
+              summary.invitations === null
+                ? "Status unavailable"
+                : "Staff and guardians"
+            }
+          />
+          <Metric
+            label="Guardian links needed"
+            value={summary.playersMissingGuardianCount}
+            detail={
+              summary.playersMissingGuardianCount === null
+                ? "Status unavailable"
+                : "Active players"
+            }
+          />
+        </dl>
+      ) : null}
+
+      <section
+        className={styles.attention}
+        aria-labelledby="club-attention-title"
+      >
+        <div className={styles.sectionHeading}>
+          <div>
+            <h2 id="club-attention-title">Needs attention</h2>
+            <p>Follow up on the items that keep teams ready.</p>
+          </div>
+          {attention.length > 0 ? (
+            <span
+              className={styles.attentionCount}
+              aria-label={`${attention.length} items need attention`}
+            >
+              {attention.length}
+            </span>
+          ) : null}
+        </div>
         {summary === null ? (
-          <p>Club setup status could not be loaded.</p>
+          <div className={styles.empty} role="status">
+            <strong>Club setup status is unavailable.</strong>
+            <span>Try again in a moment.</span>
+          </div>
+        ) : attention.length === 0 && unavailable.length === 0 ? (
+          <div className={styles.healthy} role="status">
+            <span className={styles.healthyMark} aria-hidden="true">
+              ✓
+            </span>
+            <span>
+              <strong>You’re in good shape.</strong> No setup or staffing issues
+              need action right now.
+            </span>
+          </div>
         ) : (
-          <ul>
-            {summary.activeTeamCount === 0 ? (
-              <li>
-                No active teams yet.{" "}
-                <a href="/club-structure">Start in club structure</a>.
-              </li>
-            ) : null}
-            {summary.activeSeasonCount === 0 ? (
-              <li>
-                No active season.{" "}
-                <a href="/club-structure">Set up an active season</a>.
-              </li>
-            ) : null}
-            {summary.teamsNeedingLeadership.map((team) => (
-              <li key={team.id}>
-                <strong>{team.name}</strong> needs{" "}
-                {team.missingRoles.join(" and ")}.{" "}
-                <a href={`/teams/${team.id}/staff`}>Review team staff</a>
+          <ul className={styles.attentionList}>
+            {attention.map((item) => (
+              <li key={item.key} className={styles.attentionItem}>
+                <span className={styles.attentionMark} aria-hidden="true">
+                  !
+                </span>
+                <span className={styles.attentionText}>{item.text}</span>
+                <a href={item.href}>
+                  {item.action}
+                  <span aria-hidden="true"> →</span>
+                </a>
               </li>
             ))}
-            {summary.invitations === null ? (
-              <li role="status">Invitation status could not be loaded.</li>
-            ) : summary.invitations.pendingCount > 0 ? (
-              <li>
-                {summary.invitations.pendingCount} pending staff or guardian{" "}
-                invitation{summary.invitations.pendingCount === 1 ? "" : "s"}.{" "}
-                {summary.invitations.expiringWithinSevenDaysCount > 0 ? (
-                  <>
-                    {summary.invitations.expiringWithinSevenDaysCount} expire
-                    within seven days.{" "}
-                  </>
-                ) : null}
-                <a href="/players">Review invitations</a>
+            {unavailable.map((message) => (
+              <li className={styles.quietStatus} role="status" key={message}>
+                {message}
               </li>
-            ) : null}
-            {summary.playersMissingGuardianCount === null ? (
-              <li role="status">
-                Player guardian coverage could not be loaded.
-              </li>
-            ) : summary.playersMissingGuardianCount > 0 ? (
-              <li>
-                {summary.playersMissingGuardianCount} active player
-                {summary.playersMissingGuardianCount === 1 ? "" : "s"} need
-                {summary.playersMissingGuardianCount === 1 ? "s" : ""} an active
-                guardian. <a href="/players">Review player relationships</a>
-              </li>
-            ) : null}
-            {summary.activeTeamCount > 0 &&
-            summary.activeSeasonCount > 0 &&
-            summary.teamsNeedingLeadership.length === 0 &&
-            summary.invitations?.pendingCount === 0 &&
-            summary.playersMissingGuardianCount === 0 ? (
-              <li>
-                No outstanding setup, leadership, invitation, or guardian-link
-                issues found.
-              </li>
-            ) : null}
+            ))}
           </ul>
         )}
-      </article>
+      </section>
     </section>
+  );
+}
+
+function Metric({
+  label,
+  value,
+  detail,
+}: {
+  label: string;
+  value: number | null;
+  detail: string;
+}) {
+  return (
+    <div className={styles.metric}>
+      <dt>{label}</dt>
+      <dd>{value === null ? "—" : value.toLocaleString("en-AU")}</dd>
+      <span>{detail}</span>
+    </div>
   );
 }

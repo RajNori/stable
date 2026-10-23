@@ -1,5 +1,5 @@
-import type { CSSProperties } from "react";
-import { themeFor } from "@stable/design-tokens";
+import { ChevronDown, UsersRound } from "lucide-react";
+import styles from "./players-panel.module.css";
 
 import { InvitationPanel, type InvitationView } from "./invitation-panel";
 import { PlayerImportForm } from "./player-import-form";
@@ -68,222 +68,263 @@ export function PlayersPanel({
   revokeInvitation,
   error,
 }: PlayersPanelProps) {
-  const theme = themeFor("mustangs");
-  const cardStyle: CSSProperties = {
-    background: theme.color.background.surface,
-    color: theme.color.text.primary,
-    border: `1px solid ${theme.color.border.default}`,
-    borderRadius: theme.radius.lg,
-    boxShadow: theme.shadow.sm,
-    padding: theme.space[6],
-  };
-
   return (
-    <section aria-label="Players" style={cardStyle}>
-      <h2
-        style={{
-          margin: 0,
-          fontSize: theme.typeScale.headingSm.fontSize,
-          lineHeight: `${theme.typeScale.headingSm.lineHeight}px`,
-          fontWeight: theme.typeScale.headingSm.fontWeight,
-        }}
-      >
-        Players
-      </h2>
-      {error !== undefined ? <p role="alert">{error}</p> : null}
-      <ul
-        aria-label="Players"
-        style={{
-          margin: `${theme.space[4]}px 0 0`,
-          padding: 0,
-          listStyle: "none",
-          display: "grid",
-          gap: theme.space[4],
-        }}
-      >
+    <section className={styles.panel} aria-label="Players">
+      <header className={styles.pageHeader}>
+        <span className={styles.pageIcon} aria-hidden="true">
+          <UsersRound size={19} />
+        </span>
+        <div>
+          <p className={styles.kicker}>Club operations</p>
+          <h1>Players</h1>
+          <p>Manage player details, team registration and guardian links.</p>
+        </div>
+      </header>
+      {error !== undefined ? (
+        <p className={styles.error} role="alert">
+          {error}
+        </p>
+      ) : null}
+      {players.length === 0 ? (
+        <p className={styles.empty}>No players have been added yet.</p>
+      ) : null}
+      <ul aria-label="Players" className={styles.playerList}>
         {players.map((player) => (
-          <li
-            key={player.id}
-            style={{
-              border: `1px solid ${theme.color.border.default}`,
-              borderRadius: theme.radius.sm,
-              padding: theme.space[4],
-            }}
-          >
-            <p style={{ margin: 0 }}>{player.registeredName}</p>
-            <p
-              style={{
-                margin: `${theme.space[2]}px 0 0`,
-                color: theme.color.text.secondary,
-              }}
-            >
-              Shown to guardians as {player.displayName}
-            </p>
-            <p style={{ margin: `${theme.space[2]}px 0 0` }}>
-              {player.active ? "Active" : "Inactive"}
-            </p>
-            <p style={{ margin: `${theme.space[2]}px 0 0` }}>
-              {player.teamName ?? "No team"}
-            </p>
-            {registerPlayer !== undefined && teams.length > 0 ? (
-              <form action={registerPlayer}>
-                <input type="hidden" name="clubId" value={clubId ?? ""} />
-                <input type="hidden" name="playerId" value={player.id} />
-                <label htmlFor={`team-${player.id}`}>
-                  Team
-                  <select
-                    id={`team-${player.id}`}
-                    name="teamId"
-                    defaultValue={teams[0]?.id}
-                    style={inputStyle(theme)}
-                  >
-                    {teams.map((team) => (
-                      <option key={team.id} value={team.id}>
-                        {team.name}
-                      </option>
-                    ))}
-                  </select>
-                </label>
-                <button type="submit" style={primaryButton(theme)}>
-                  Register team
-                </button>
-              </form>
-            ) : null}
-            {unregisterPlayer !== undefined && player.teamName != null ? (
-              <form action={unregisterPlayer}>
-                <input type="hidden" name="clubId" value={clubId ?? ""} />
-                <input type="hidden" name="playerId" value={player.id} />
-                <button type="submit" style={secondaryButton(theme)}>
-                  Unregister team
-                </button>
-              </form>
-            ) : null}
-            <form action={updatePlayer} style={{ marginTop: theme.space[4] }}>
-              <input type="hidden" name="playerId" value={player.id} />
-              <label htmlFor={`given-${player.id}`}>
-                Given name
-                <input
-                  id={`given-${player.id}`}
-                  name="firstName"
-                  defaultValue={player.firstName}
-                  maxLength={80}
-                  required
-                  style={inputStyle(theme)}
-                />
-              </label>
-              <label htmlFor={`surname-${player.id}`}>
-                Surname
-                <input
-                  id={`surname-${player.id}`}
-                  name="lastName"
-                  defaultValue={player.lastName}
-                  maxLength={80}
-                  required
-                  style={inputStyle(theme)}
-                />
-              </label>
-              <button type="submit" style={primaryButton(theme)}>
-                Save name
-              </button>
-            </form>
-            <form action={player.active ? deactivatePlayer : reactivatePlayer}>
-              <input type="hidden" name="playerId" value={player.id} />
-              <button type="submit" style={secondaryButton(theme)}>
-                {player.active ? "Deactivate" : "Reactivate"}
-              </button>
-            </form>
-            <ul aria-label={`Guardians for ${player.displayName}`}>
-              {player.guardians.map((guardian) => (
-                <li key={guardian.id}>
-                  {guardian.label}
-                  {guardian.active ? "" : " (unlinked)"}
-                  {guardian.active ? (
-                    <form action={unlinkGuardian}>
+          <li key={player.id} className={styles.playerRecord}>
+            <header className={styles.playerHeading}>
+              <span className={styles.playerMark} aria-hidden="true">
+                {player.registeredName.trim().charAt(0).toUpperCase()}
+              </span>
+              <div className={styles.playerIdentity}>
+                <h2>{player.registeredName}</h2>
+                <p>
+                  Guardian display name: <strong>{player.displayName}</strong>
+                </p>
+              </div>
+              <div className={styles.playerStatus}>
+                <span
+                  className={player.active ? styles.active : styles.inactive}
+                >
+                  {player.active ? "Active" : "Inactive"}
+                </span>
+                <span className={styles.teamName}>
+                  {player.teamName ?? "No team"}
+                </span>
+              </div>
+            </header>
+            <details className={styles.playerDetails}>
+              <summary>
+                Manage profile and access
+                <ChevronDown size={16} aria-hidden="true" />
+              </summary>
+              <div className={styles.playerBody}>
+                <section
+                  className={styles.managementGroup}
+                  aria-label={`Player registration for ${player.displayName}`}
+                >
+                  <h3>Team registration</h3>
+                  {registerPlayer !== undefined && teams.length > 0 ? (
+                    <form action={registerPlayer} className={styles.inlineForm}>
+                      <input type="hidden" name="clubId" value={clubId ?? ""} />
                       <input type="hidden" name="playerId" value={player.id} />
-                      <input
-                        type="hidden"
-                        name="guardianUserId"
-                        value={guardian.guardianUserId}
-                      />
-                      <button type="submit" style={secondaryButton(theme)}>
-                        Unlink
+                      <label htmlFor={`team-${player.id}`}>
+                        Team
+                        <select
+                          id={`team-${player.id}`}
+                          name="teamId"
+                          defaultValue={teams[0]?.id}
+                        >
+                          {teams.map((team) => (
+                            <option key={team.id} value={team.id}>
+                              {team.name}
+                            </option>
+                          ))}
+                        </select>
+                      </label>
+                      <button
+                        type="submit"
+                        className="stable-button stable-button--primary"
+                      >
+                        Register team
                       </button>
                     </form>
                   ) : null}
-                </li>
-              ))}
-            </ul>
-            {adults.length === 0 ? (
-              <p>No club adults are available to link.</p>
-            ) : (
-              <LinkGuardianForm
-                playerId={player.id}
-                adults={adults}
-                action={linkGuardian}
-              />
-            )}
-            {createInvitation !== undefined &&
-            revokeInvitation !== undefined &&
-            clubId !== null ? (
-              <InvitationPanel
-                invitations={invitations.filter(
-                  (invitation) => invitation.playerId === player.id,
-                )}
-                hidden={{
-                  clubId,
-                  playerId: player.id,
-                  returnTo: "/players",
-                }}
-                includeRole={false}
-                createInvitation={createInvitation}
-                revokeInvitation={revokeInvitation}
-              />
-            ) : null}
+                  {unregisterPlayer !== undefined && player.teamName != null ? (
+                    <form
+                      action={unregisterPlayer}
+                      className={styles.inlineForm}
+                    >
+                      <input type="hidden" name="clubId" value={clubId ?? ""} />
+                      <input type="hidden" name="playerId" value={player.id} />
+                      <button
+                        type="submit"
+                        className="stable-button stable-button--secondary"
+                      >
+                        Unregister team
+                      </button>
+                    </form>
+                  ) : null}
+                  <form action={updatePlayer} className={styles.nameForm}>
+                    <h3>Player details</h3>
+                    <input type="hidden" name="playerId" value={player.id} />
+                    <label htmlFor={`given-${player.id}`}>
+                      Given name
+                      <input
+                        id={`given-${player.id}`}
+                        name="firstName"
+                        defaultValue={player.firstName}
+                        maxLength={80}
+                        required
+                      />
+                    </label>
+                    <label htmlFor={`surname-${player.id}`}>
+                      Surname
+                      <input
+                        id={`surname-${player.id}`}
+                        name="lastName"
+                        defaultValue={player.lastName}
+                        maxLength={80}
+                        required
+                      />
+                    </label>
+                    <button
+                      type="submit"
+                      className="stable-button stable-button--primary"
+                    >
+                      Save name
+                    </button>
+                  </form>
+                  <form
+                    action={player.active ? deactivatePlayer : reactivatePlayer}
+                    className={styles.statusForm}
+                  >
+                    <input type="hidden" name="playerId" value={player.id} />
+                    <button
+                      type="submit"
+                      className="stable-button stable-button--secondary"
+                    >
+                      {player.active ? "Deactivate" : "Reactivate"}
+                    </button>
+                  </form>
+                </section>
+                <section
+                  className={styles.managementGroup}
+                  aria-label={`Guardians for ${player.displayName}`}
+                >
+                  <h3>Guardian links</h3>
+                  <ul className={styles.guardianList}>
+                    {player.guardians.map((guardian) => (
+                      <li key={guardian.id}>
+                        <span>{guardian.label}</span>
+                        {guardian.active ? (
+                          <span className={styles.active}>Linked</span>
+                        ) : (
+                          <span className={styles.inactive}>Unlinked</span>
+                        )}
+                        {guardian.active ? (
+                          <form
+                            action={unlinkGuardian}
+                            className={styles.compactForm}
+                          >
+                            <input
+                              type="hidden"
+                              name="playerId"
+                              value={player.id}
+                            />
+                            <input
+                              type="hidden"
+                              name="guardianUserId"
+                              value={guardian.guardianUserId}
+                            />
+                            <button
+                              type="submit"
+                              className="stable-button stable-button--secondary"
+                            >
+                              Unlink
+                            </button>
+                          </form>
+                        ) : null}
+                      </li>
+                    ))}
+                  </ul>
+                  {adults.length === 0 ? (
+                    <p>No club adults are available to link.</p>
+                  ) : (
+                    <LinkGuardianForm
+                      playerId={player.id}
+                      adults={adults}
+                      action={linkGuardian}
+                    />
+                  )}
+                  {createInvitation !== undefined &&
+                  revokeInvitation !== undefined &&
+                  clubId !== null ? (
+                    <InvitationPanel
+                      invitations={invitations.filter(
+                        (invitation) => invitation.playerId === player.id,
+                      )}
+                      hidden={{
+                        clubId,
+                        playerId: player.id,
+                        returnTo: "/players",
+                      }}
+                      includeRole={false}
+                      createInvitation={createInvitation}
+                      revokeInvitation={revokeInvitation}
+                    />
+                  ) : null}
+                </section>
+              </div>
+            </details>
           </li>
         ))}
       </ul>
       {clubId === null ? null : (
-        <div
-          style={{
-            marginTop: theme.space[6],
-            display: "grid",
-            gap: theme.space[6],
-          }}
-        >
-          <section aria-label="Add player">
-            <form action={createPlayer}>
-              <h3 style={{ margin: 0 }}>Add player</h3>
-              <input type="hidden" name="clubId" value={clubId} />
-              <label htmlFor="new-given-name">
-                Given name
-                <input
-                  id="new-given-name"
-                  name="firstName"
-                  required
-                  maxLength={80}
-                  style={inputStyle(theme)}
-                />
-              </label>
-              <label htmlFor="new-surname">
-                Surname
-                <input
-                  id="new-surname"
-                  name="lastName"
-                  required
-                  maxLength={80}
-                  style={inputStyle(theme)}
-                />
-              </label>
-              <button type="submit" style={primaryButton(theme)}>
-                Add player
-              </button>
-            </form>
-          </section>
-          <section aria-label="Import players">
-            <h3 style={{ margin: 0 }}>Import players</h3>
-            <PlayerImportForm clubId={clubId} action={importPlayers} />
-          </section>
-        </div>
+        <section className={styles.addSection} aria-label="Player setup">
+          <header className={styles.sectionHeader}>
+            <div>
+              <p className={styles.kicker}>Roster setup</p>
+              <h2>Add or import players</h2>
+            </div>
+            <p>Use an individual entry or import a prepared club roster.</p>
+          </header>
+          <div className={styles.setupGrid}>
+            <section className={styles.setupCard} aria-label="Add player">
+              <form action={createPlayer} className={styles.createForm}>
+                <h3>Add a player</h3>
+                <input type="hidden" name="clubId" value={clubId} />
+                <label htmlFor="new-given-name">
+                  Given name
+                  <input
+                    id="new-given-name"
+                    name="firstName"
+                    required
+                    maxLength={80}
+                  />
+                </label>
+                <label htmlFor="new-surname">
+                  Surname
+                  <input
+                    id="new-surname"
+                    name="lastName"
+                    required
+                    maxLength={80}
+                  />
+                </label>
+                <button
+                  type="submit"
+                  className="stable-button stable-button--primary"
+                >
+                  Add player
+                </button>
+              </form>
+            </section>
+            <section className={styles.setupCard} aria-label="Import players">
+              <h3>Import a roster</h3>
+              <PlayerImportForm clubId={clubId} action={importPlayers} />
+            </section>
+          </div>
+        </section>
       )}
     </section>
   );
@@ -298,14 +339,13 @@ function LinkGuardianForm({
   adults: readonly ClubAdultOption[];
   action: FormAction;
 }) {
-  const theme = themeFor("mustangs");
   const first = adults[0];
   if (first === undefined) {
     return <p>No club adults are available to link.</p>;
   }
 
   return (
-    <form action={action}>
+    <form action={action} className={styles.inlineForm}>
       <input type="hidden" name="playerId" value={playerId} />
       <label htmlFor={`adult-${playerId}`}>
         Club adult
@@ -313,7 +353,6 @@ function LinkGuardianForm({
           id={`adult-${playerId}`}
           name="guardianUserId"
           defaultValue={first.userId}
-          style={inputStyle(theme)}
         >
           {adults.map((adult) => (
             <option key={adult.userId} value={adult.userId}>
@@ -322,48 +361,9 @@ function LinkGuardianForm({
           ))}
         </select>
       </label>
-      <button type="submit" style={primaryButton(theme)}>
+      <button type="submit" className="stable-button stable-button--primary">
         Link guardian
       </button>
     </form>
   );
-}
-
-function inputStyle(theme: ReturnType<typeof themeFor>): CSSProperties {
-  return {
-    display: "block",
-    width: "100%",
-    boxSizing: "border-box",
-    marginTop: theme.space[2],
-    minHeight: 44,
-    padding: `0 ${theme.space[3]}px`,
-    border: `1px solid ${theme.color.border.default}`,
-    borderRadius: theme.radius.sm,
-    background: theme.color.background.canvas,
-    color: theme.color.text.primary,
-  };
-}
-
-function primaryButton(theme: ReturnType<typeof themeFor>): CSSProperties {
-  return {
-    minHeight: 44,
-    marginTop: theme.space[3],
-    padding: `0 ${theme.space[4]}px`,
-    background: theme.color.brand.primary,
-    color: theme.color.text.inverse,
-    border: `1px solid ${theme.color.brand.primary}`,
-    borderRadius: theme.radius.sm,
-  };
-}
-
-function secondaryButton(theme: ReturnType<typeof themeFor>): CSSProperties {
-  return {
-    minHeight: 44,
-    marginTop: theme.space[3],
-    padding: `0 ${theme.space[4]}px`,
-    background: theme.color.background.surface,
-    color: theme.color.text.primary,
-    border: `1px solid ${theme.color.border.default}`,
-    borderRadius: theme.radius.sm,
-  };
 }

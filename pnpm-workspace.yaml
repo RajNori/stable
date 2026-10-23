@@ -20,6 +20,10 @@ allowBuilds:
   "@sentry/cli": false
   core-js: false
 
+overrides:
+  vite: 8.3.3
+  dompurify: 3.4.17
+
 # These current releases are younger than pnpm's release-age window. The lockfile still pins them.
 minimumReleaseAgeExclude:
   - lucide-react-native@1.52.0
@@ -48,3 +52,4 @@ minimumReleaseAgeExclude:
   - "@expo/local-build-cache-provider@57.0.9"
   - expo-modules-jsi@57.1.2
   - jest-expo@57.0.6
+  - expo-notifications@57.0.24

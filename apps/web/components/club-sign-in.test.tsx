@@ -39,6 +39,9 @@ describe("club sign-in", () => {
     expect(
       screen.getByRole("button", { name: "Continue with email" }),
     ).toBeTruthy();
+    expect(document.activeElement).not.toBe(
+      screen.getByRole("heading", { name: "Sign in" }),
+    );
     expect(
       screen.queryByRole("button", { name: "Continue with Google" }),
     ).toBeNull();
@@ -49,6 +52,20 @@ describe("club sign-in", () => {
       google: false,
       facebook: false,
     });
+  });
+
+  it("moves focus to the email field after entering the email sign-in step", async () => {
+    render(<ClubSignIn session={unauthenticated} actions={idleActions()} />);
+
+    fireEvent.click(
+      screen.getByRole("button", { name: "Continue with email" }),
+    );
+
+    await waitFor(() =>
+      expect(document.activeElement).toBe(
+        screen.getByRole("textbox", { name: "Email address" }),
+      ),
+    );
   });
 
   it("hides a provider that is enabled without a client id or handler", () => {
@@ -135,9 +152,12 @@ describe("club sign-in", () => {
 
   it("keeps error text at or above 4.5:1", () => {
     render(<ClubSignIn session={unauthenticated} actions={idleActions()} />);
-    const css = document.querySelector("style")?.textContent ?? "";
+    const css = readFileSync(
+      join(process.cwd(), "components/club-sign-in.module.css"),
+      "utf8",
+    );
     expect(css).toMatch(
-      /\.club-sign-in-error\s*\{[^}]*background:\s*var\(--sign-in-surface\)/u,
+      /\.error\s*\{[^}]*background:\s*var\(--sign-in-surface\)/u,
     );
     expect(css).not.toContain("--sign-in-error-soft");
     const theme = themeFor("mustangs");

@@ -117,11 +117,87 @@ test("a non-admin team manager maintains fixtures and team operations", async ({
   await addPlayer.getByRole("button", { name: "Add player" }).click();
   const player = admin.getByRole("listitem").filter({ hasText: playerName });
   await player.getByRole("button", { name: "Register team" }).click();
+  await expect(
+    player.getByRole("button", { name: "Unregister team" }),
+  ).toBeVisible();
   await player.getByLabel("Invitation email").fill(GUARDIAN_EMAIL);
+  const invitationRequestFailures: string[] = [];
+  const invitationPostEvents: string[] = [];
+  const invitationPageErrors: string[] = [];
+  const invitationStartedAt = new Map<object, number>();
+  admin.on("request", (request) => {
+    if (request.method() !== "POST") {
+      return;
+    }
+    invitationStartedAt.set(request, Date.now());
+    invitationPostEvents.push(
+      `POST ${new URL(request.url()).pathname} started`,
+    );
+  });
+  admin.on("requestfinished", (request) => {
+    const startedAt = invitationStartedAt.get(request);
+    if (startedAt === undefined) {
+      return;
+    }
+    invitationPostEvents.push(
+      `POST ${new URL(request.url()).pathname} finished in ${Date.now() - startedAt}ms`,
+    );
+    invitationStartedAt.delete(request);
+  });
+  admin.on("requestfailed", (request) => {
+    if (request.method() === "POST") {
+      invitationStartedAt.delete(request);
+      invitationRequestFailures.push(
+        `${new URL(request.url()).pathname}: ${request.failure()?.errorText ?? "failed"}`,
+      );
+    }
+  });
+  admin.on("response", (response) => {
+    if (response.request().method() === "POST" && response.status() >= 400) {
+      invitationRequestFailures.push(
+        `${new URL(response.url()).pathname}: HTTP ${response.status()}`,
+      );
+    }
+  });
+  admin.on("pageerror", (error) => {
+    invitationPageErrors.push(`${error.name}: ${error.message.slice(0, 160)}`);
+  });
+  const invitationNavigations: string[] = [];
+  admin.on("framenavigated", (frame) => {
+    if (frame === admin.mainFrame()) {
+      invitationNavigations.push(new URL(frame.url()).pathname);
+    }
+  });
   await player.getByRole("button", { name: "Create invitation" }).click();
-  const guardianInvitation = await player
-    .getByLabel("Invitation link")
-    .inputValue();
+  const invitationLinkField = player.getByLabel("Invitation link");
+  try {
+    await expect(invitationLinkField).toBeVisible({ timeout: 15_000 });
+  } catch (error: unknown) {
+    const pageState = await Promise.race([
+      admin.evaluate(() => ({
+        path: window.location.pathname,
+        invitationLinkVisible:
+          document.querySelector('[aria-label="Invitation link"]') !== null,
+        alerts: Array.from(document.querySelectorAll('[role="alert"]')).map(
+          (alert) => alert.textContent?.slice(0, 160) ?? "",
+        ),
+      })),
+      new Promise<{ diagnosticReadTimedOut: true }>((resolve) => {
+        setTimeout(() => resolve({ diagnosticReadTimedOut: true }), 1_000);
+      }),
+    ]).catch(() => ({ diagnosticReadFailed: true }));
+    throw new Error(
+      `Guardian invitation action produced no visible result: ${JSON.stringify({
+        pageState,
+        invitationNavigations,
+        invitationPostEvents,
+        requestFailures: invitationRequestFailures,
+        pageErrors: invitationPageErrors,
+      })}`,
+      { cause: error },
+    );
+  }
+  const guardianInvitation = await invitationLinkField.inputValue();
 
   const guardianContext = await browser.newContext();
   await applyLocalSession(guardianContext, GUARDIAN_EMAIL);

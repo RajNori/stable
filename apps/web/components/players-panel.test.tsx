@@ -1,4 +1,4 @@
-import { cleanup, render, screen } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it } from "vitest";
 
 import { PlayersPanel, type ManagedPlayer } from "./players-panel";
@@ -64,8 +64,10 @@ describe("players panel", () => {
       />,
     );
 
+    fireEvent.click(screen.getByText("Manage profile and access"));
     expect(screen.getByText("Alexander Robertson")).toBeTruthy();
-    expect(screen.getByText("Shown to guardians as Alexander R.")).toBeTruthy();
+    expect(screen.getByText("Guardian display name:")).toBeTruthy();
+    expect(screen.getByText("Alexander R.")).toBeTruthy();
     expect(screen.getByRole("option", { name: "Local Member" })).toBeTruthy();
     expect(screen.queryByLabelText("Email")).toBeNull();
     expect(screen.queryByLabelText("Phone")).toBeNull();
@@ -99,6 +101,7 @@ describe("players panel", () => {
       />,
     );
 
+    fireEvent.click(screen.getByText("Manage profile and access"));
     expect(screen.getByRole("button", { name: "Register team" })).toBeTruthy();
     expect(
       screen.getByRole("button", { name: "Unregister team" }),
@@ -133,12 +136,14 @@ describe("players panel", () => {
       />,
     );
 
+    fireEvent.click(screen.getByText("Manage profile and access"));
     expect(screen.getByRole("alert").textContent).toBe(
       "Player data could not be refreshed.",
     );
     expect(screen.getByText("Inactive")).toBeTruthy();
     expect(screen.getByText("No team")).toBeTruthy();
-    expect(screen.getByText("Local Member (unlinked)")).toBeTruthy();
+    expect(screen.getByText("Local Member")).toBeTruthy();
+    expect(screen.getByText("Unlinked")).toBeTruthy();
     expect(screen.getByRole("button", { name: "Reactivate" })).toBeTruthy();
     expect(screen.queryByRole("button", { name: "Deactivate" })).toBeNull();
     expect(screen.queryByRole("button", { name: "Unlink" })).toBeNull();
@@ -162,6 +167,7 @@ describe("players panel", () => {
         unlinkGuardian={noop}
       />,
     );
+    fireEvent.click(screen.getByText("Manage profile and access"));
     expect(
       screen.getByText("No club adults are available to link."),
     ).toBeTruthy();

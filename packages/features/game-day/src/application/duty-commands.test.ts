@@ -134,6 +134,9 @@ describe("duty commands", () => {
       eventId,
       writer: calls,
     });
+    expect(preview.duties).toEqual([
+      { dutyId, dutyType: "SCORER", label: "Score" },
+    ]);
     expect(preview.fingerprint).toBe(
       `${dutyId}:00000000-0000-4000-8000-000000000002:0`,
     );

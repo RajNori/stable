@@ -1,5 +1,6 @@
 import type { GameDayProjection } from "@stable/game-day";
 import { formatScheduleDateTime } from "@stable/schedule";
+import styles from "./game-day-panel.module.css";
 
 export function GameDayPanel({
   projection,
@@ -47,32 +48,63 @@ export function GameDayPanel({
   const openFillRequestId =
     typeof fillRequestId === "string" ? fillRequestId : null;
   return (
-    <section aria-label="Game day">
-      <h2 style={{ margin: 0 }}>Game day</h2>
+    <section className={styles.gameDay} aria-label="Game day">
       {error !== undefined ? <p role="alert">{error}</p> : null}
       {notice !== undefined ? <p role="status">{notice}</p> : null}
       {projection === null ? null : (
         <>
-          <p>
-            {projection.roundLabel ?? "Game"}: {projection.opponentName}
-          </p>
-          <p>
-            Official start{" "}
-            {formatScheduleDateTime(projection.officialStartAt, timezone)}
-          </p>
-          <p>
-            Arrival{" "}
-            {projection.arrivalAt === null
-              ? "Not set"
-              : formatScheduleDateTime(projection.arrivalAt, timezone)}
-          </p>
-          <p>Venue {projection.venueText ?? "Not set"}</p>
-          <p>Court {projection.courtLabel ?? "Not set"}</p>
-          <p>Uniform {projection.uniformNote ?? "Not set"}</p>
-          <p>Coach note {projection.coachFocus ?? "Not set"}</p>
-          <p>RSVP {projection.ownRsvp}</p>
-          <p>Duty {projection.ownDutyLabel ?? "None"}</p>
-          <p>Fill-in {projection.fillInLabel ?? "None"}</p>
+          <header className={styles.hero}>
+            <div className={styles.heroTitle}>
+              <p className={styles.kicker}>Game Day</p>
+              <h1>{projection.opponentName}</h1>
+              {projection.roundLabel ? (
+                <p className={styles.round}>{projection.roundLabel}</p>
+              ) : null}
+            </div>
+            <dl className={styles.facts}>
+              <Fact
+                label="Tip-off"
+                value={formatScheduleDateTime(
+                  projection.officialStartAt,
+                  timezone,
+                )}
+              />
+              <Fact
+                label="Arrive"
+                value={
+                  projection.arrivalAt === null
+                    ? "Not set"
+                    : formatScheduleDateTime(projection.arrivalAt, timezone)
+                }
+              />
+              <Fact label="Venue" value={projection.venueText ?? "Not set"} />
+              <Fact label="Court" value={projection.courtLabel ?? "Not set"} />
+            </dl>
+            <dl
+              className={styles.personalFacts}
+              aria-label="Your Game Day details"
+            >
+              <Fact
+                label="Your RSVP"
+                value={projection.ownRsvp.toLowerCase().replaceAll("_", " ")}
+              />
+              <Fact
+                label="Your duty"
+                value={projection.ownDutyLabel ?? "None assigned"}
+              />
+              <Fact label="Fill-in" value={projection.fillInLabel ?? "None"} />
+            </dl>
+          </header>
+          {projection.uniformNote || projection.coachFocus ? (
+            <dl className={styles.prepNotes} aria-label="Game preparation">
+              {projection.uniformNote ? (
+                <Fact label="Uniform" value={projection.uniformNote} />
+              ) : null}
+              {projection.coachFocus ? (
+                <Fact label="Coach note" value={projection.coachFocus} />
+              ) : null}
+            </dl>
+          ) : null}
           {requestFillIn !== undefined && openFillRequestId === null ? (
             <form action={requestFillIn}>
               <input type="hidden" name="clubId" value={projection.clubId} />
@@ -234,11 +266,18 @@ export function GameDayPanel({
             </form>
           ) : null}
           {projection.attendingCount === null ? null : (
-            <p>
-              Attending {projection.attendingCount}, unavailable{" "}
-              {projection.unavailableCount}, unsure {projection.unsureCount},
-              unanswered {projection.unansweredCount}
-            </p>
+            <dl className={styles.teamReadiness} aria-label="Team RSVP summary">
+              <Metric label="Attending" value={projection.attendingCount} />
+              <Metric
+                label="Unavailable"
+                value={projection.unavailableCount ?? 0}
+              />
+              <Metric label="Unsure" value={projection.unsureCount ?? 0} />
+              <Metric
+                label="Unanswered"
+                value={projection.unansweredCount ?? 0}
+              />
+            </dl>
           )}
           {recordAction === undefined
             ? null
@@ -293,5 +332,23 @@ export function GameDayPanel({
         </>
       )}
     </section>
+  );
+}
+
+function Fact({ label, value }: { label: string; value: string }) {
+  return (
+    <div className={styles.fact}>
+      <dt>{label}</dt>
+      <dd>{value}</dd>
+    </div>
+  );
+}
+
+function Metric({ label, value }: { label: string; value: number }) {
+  return (
+    <div className={styles.metric}>
+      <dt>{label}</dt>
+      <dd>{value.toLocaleString("en-AU")}</dd>
+    </div>
   );
 }

@@ -79,6 +79,10 @@ select no_plan();
 create temp table issued (kind text primary key, id uuid);
 grant all on table issued to authenticated;
 
+create temp table recurrence_test_dates on commit drop as
+select date_trunc('week', now() at time zone 'Australia/Melbourne')::date as monday;
+grant select on table recurrence_test_dates to authenticated;
+
 create function pg_temp.series_event(series uuid, moment timestamptz)
 returns uuid
 language sql
@@ -242,7 +246,10 @@ insert into issued (kind, id)
 select 'editable', public.create_training_series(
   '6a6a6a6a-6a6a-46a6-86a6-6a6a6a6a6a6a',
   '6d6d6d6d-6d6d-46d6-86d6-6d6d6d6d6d6d',
-  1::smallint, '18:30'::time, 'Australia/Melbourne', '2026-09-28'::date, '2026-10-19'::date, null, null
+  1::smallint, '18:30'::time, 'Australia/Melbourne',
+  (select monday - 28 from recurrence_test_dates),
+  (select monday + 7 from recurrence_test_dates),
+  null, null
 );
 
 select is(
@@ -250,7 +257,7 @@ select is(
     '6d6d6d6d-6d6d-46d6-86d6-6d6d6d6d6d6d',
     array[pg_temp.series_event(
       (select id from issued where kind = 'editable'),
-      '2026-10-12 18:30:00+11'
+      ((select monday - 7 from recurrence_test_dates) + time '18:30') at time zone 'Australia/Melbourne'
     )]
   )),
   (select id from issued where kind = 'editable'),
@@ -283,9 +290,9 @@ select lives_ok(
     'select public.edit_training_occurrence(%L, %L, null, null, null)',
     pg_temp.series_event(
       (select id from issued where kind = 'editable'),
-      '2026-10-12 18:30:00+11'
+      ((select monday - 7 from recurrence_test_dates) + time '18:30') at time zone 'Australia/Melbourne'
     ),
-    '2026-10-12 17:00:00+11'
+    ((select monday - 7 from recurrence_test_dates) + time '17:00') at time zone 'Australia/Melbourne'
   ),
   'editing one occurrence detaches it'
 );
@@ -296,24 +303,24 @@ select lives_ok(
     (select id from issued where kind = 'editable'),
     '19:00',
     'Australia/Melbourne',
-    '2026-10-19'
+    (select monday + 7 from recurrence_test_dates)
   ),
   'a later series edit locks and updates the same series'
 );
 
 select is(
-  pg_temp.training_start((select id from issued where kind = 'editable'), '2026-09-28'),
-  '2026-09-28 18:30:00+10'::timestamptz,
+  pg_temp.training_start((select id from issued where kind = 'editable'), (select monday - 28 from recurrence_test_dates)),
+  ((select monday - 28 from recurrence_test_dates) + time '18:30') at time zone 'Australia/Melbourne',
   'a past occurrence stays on its original time'
 );
 select is(
-  pg_temp.training_start(null, '2026-10-12'),
-  '2026-10-12 17:00:00+11'::timestamptz,
+  pg_temp.training_start(null, (select monday - 7 from recurrence_test_dates)),
+  ((select monday - 7 from recurrence_test_dates) + time '17:00') at time zone 'Australia/Melbourne',
   'a detached occurrence survives the series edit'
 );
 select is(
-  pg_temp.training_start((select id from issued where kind = 'editable'), '2026-10-19'),
-  '2026-10-19 19:00:00+11'::timestamptz,
+  pg_temp.training_start((select id from issued where kind = 'editable'), (select monday + 7 from recurrence_test_dates)),
+  ((select monday + 7 from recurrence_test_dates) + time '19:00') at time zone 'Australia/Melbourne',
   'a future attached occurrence follows the series edit'
 );
 
