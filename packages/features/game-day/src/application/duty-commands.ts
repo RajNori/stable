@@ -132,7 +132,11 @@ export async function previewDutyAllocation(
     eventId: string;
     writer: DutyAllocationWriter;
   },
-): Promise<{ proposals: DutyProposal[]; fingerprint: string }> {
+): Promise<{
+  proposals: DutyProposal[];
+  fingerprint: string;
+  duties: OpenDuty[];
+}> {
   const clubId = idSchema.safeParse(input.clubId);
   const teamId = idSchema.safeParse(input.teamId);
   const eventId = idSchema.safeParse(input.eventId);
@@ -146,7 +150,7 @@ export async function previewDutyAllocation(
   if (!loaded.success) {
     throw new ApplicationError("INTERNAL", gameDayMessages.readFailed);
   }
-  return proposeDutyAllocation(loaded.data);
+  return { ...proposeDutyAllocation(loaded.data), duties: loaded.data.duties };
 }
 
 export async function commitDutyAllocation(
