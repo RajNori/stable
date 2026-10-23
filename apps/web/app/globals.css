@@ -1,0 +1,186 @@
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+:root {
+  color-scheme: light;
+  --stable-green: #07503e;
+  --stable-green-strong: #04372c;
+  --stable-gold: #ffd91a;
+  --stable-canvas: #f7f8f5;
+  --stable-surface: #fff;
+  --stable-border: #dce4df;
+  --stable-text: #111613;
+  --stable-muted: #515d56;
+  --stable-error: #c53d3d;
+  --stable-error-soft: #fce9e9;
+}
+
+html {
+  min-width: 320px;
+  scroll-behavior: smooth;
+}
+
+body {
+  margin: 0;
+  min-height: 100vh;
+  font-family:
+    -apple-system, BlinkMacSystemFont, "Segoe UI", "Helvetica Neue", Arial,
+    sans-serif;
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+button,
+input,
+select,
+textarea {
+  font: inherit;
+}
+
+a,
+a:visited {
+  color: var(--stable-green);
+  text-underline-offset: 0.18em;
+}
+
+a:hover {
+  color: var(--stable-green-strong);
+}
+
+aside a,
+aside a:visited {
+  color: #fff;
+}
+
+aside a:hover {
+  color: var(--stable-gold);
+}
+
+main {
+  min-width: 0;
+}
+
+main section[aria-label] {
+  padding: clamp(1rem, 2.5vw, 1.5rem);
+  border: 1px solid var(--stable-border);
+  border-radius: 1rem;
+  background: var(--stable-surface);
+  box-shadow: 0 2px 10px rgb(4 55 44 / 5%);
+}
+
+main section[aria-label] + section[aria-label] {
+  margin-top: 1rem;
+}
+
+main form {
+  display: grid;
+  gap: 0.875rem;
+  align-items: start;
+  margin-block: 1rem;
+}
+
+main label {
+  display: grid;
+  gap: 0.375rem;
+  color: var(--stable-muted);
+  font-size: 0.9375rem;
+  font-weight: 600;
+}
+
+main input:not([type="checkbox"]):not([type="radio"]):not([type="hidden"]),
+main select,
+main textarea {
+  width: 100%;
+  min-width: 0;
+  min-height: 2.75rem;
+  padding: 0.625rem 0.75rem;
+  border: 1px solid #b9c2bc;
+  border-radius: 0.625rem;
+  background: #fff;
+  color: var(--stable-text);
+}
+
+main textarea {
+  min-height: 6rem;
+  resize: vertical;
+}
+
+main input:focus-visible,
+main select:focus-visible,
+main textarea:focus-visible,
+main button:focus-visible,
+aside a:focus-visible {
+  outline: 3px solid var(--stable-gold);
+  outline-offset: 2px;
+}
+
+main button,
+aside button {
+  min-height: 2.75rem;
+  padding: 0.625rem 1rem;
+  border: 1px solid var(--stable-green);
+  border-radius: 0.625rem;
+  background: var(--stable-green);
+  color: #fff;
+  font-weight: 650;
+  cursor: pointer;
+}
+
+main button:hover,
+aside button:hover {
+  border-color: var(--stable-green-strong);
+  background: var(--stable-green-strong);
+}
+
+main button:disabled,
+aside button:disabled {
+  cursor: not-allowed;
+  opacity: 0.58;
+}
+
+main [role="alert"] {
+  padding: 0.75rem 1rem;
+  border-radius: 0.75rem;
+  background: var(--stable-error-soft);
+  color: var(--stable-error);
+}
+
+main ul {
+  padding-inline-start: 1.25rem;
+}
+
+main li + li {
+  margin-top: 0.75rem;
+}
+
+@media (max-width: 960px) {
+  .club-admin-frame main {
+    padding: clamp(1rem, 4vw, 2rem) !important;
+  }
+}
+
+@media (max-width: 640px) {
+  .club-admin-frame aside {
+    padding: 1rem !important;
+  }
+
+  .club-admin-frame main dl {
+    grid-template-columns: minmax(0, 1fr) !important;
+    gap: 0.375rem !important;
+  }
+
+  main section[aria-label] {
+    border-radius: 0.875rem;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto;
+  }
+}
