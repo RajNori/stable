@@ -39,6 +39,9 @@ describe("club sign-in", () => {
     expect(
       screen.getByRole("button", { name: "Continue with email" }),
     ).toBeTruthy();
+    expect(document.activeElement).not.toBe(
+      screen.getByRole("heading", { name: "Sign in" }),
+    );
     expect(
       screen.queryByRole("button", { name: "Continue with Google" }),
     ).toBeNull();
@@ -49,6 +52,20 @@ describe("club sign-in", () => {
       google: false,
       facebook: false,
     });
+  });
+
+  it("moves focus to the email field after entering the email sign-in step", async () => {
+    render(<ClubSignIn session={unauthenticated} actions={idleActions()} />);
+
+    fireEvent.click(
+      screen.getByRole("button", { name: "Continue with email" }),
+    );
+
+    await waitFor(() =>
+      expect(document.activeElement).toBe(
+        screen.getByRole("textbox", { name: "Email address" }),
+      ),
+    );
   });
 
   it("hides a provider that is enabled without a client id or handler", () => {

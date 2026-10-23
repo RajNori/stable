@@ -53,12 +53,18 @@ export function ClubSignIn({
   const [busy, setBusy] = useState(false);
   const welcomeHeadingRef = useRef<HTMLHeadingElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+  const hasMountedStepRef = useRef(false);
 
   useEffect(() => {
     setError(notice);
   }, [notice]);
 
   useEffect(() => {
+    if (!hasMountedStepRef.current) {
+      hasMountedStepRef.current = true;
+      return;
+    }
+
     if (step.kind === "welcome" || step.kind === "recovery-sent") {
       welcomeHeadingRef.current?.focus();
     } else {
