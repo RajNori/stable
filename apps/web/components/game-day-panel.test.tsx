@@ -1,4 +1,4 @@
-import { cleanup, render, screen } from "@testing-library/react";
+import { cleanup, render, screen, within } from "@testing-library/react";
 import { afterEach, describe, expect, it } from "vitest";
 import type { GameDayProjection } from "@stable/game-day";
 
@@ -35,14 +35,16 @@ describe("game day panel", () => {
     render(
       <GameDayPanel projection={projection} timezone="Australia/Melbourne" />,
     );
-    expect(screen.getByText("Round 1: Visitors")).toBeTruthy();
+    expect(screen.getByRole("heading", { name: "Visitors" })).toBeTruthy();
+    expect(screen.getByText("Round 1")).toBeTruthy();
+    const gameFacts = screen.getByRole("region", { name: "Game day" });
+    expect(within(gameFacts).getByText("Tip-off")).toBeTruthy();
     expect(
-      screen.getByText("Official start Saturday 10 October at 6:30 pm"),
+      within(gameFacts).getByText("Saturday 10 October at 6:30 pm"),
     ).toBeTruthy();
-    expect(
-      screen.getByText("Arrival Saturday 10 October at 6:00 pm"),
-    ).toBeTruthy();
-    expect(screen.getByText("RSVP UNANSWERED")).toBeTruthy();
+    expect(within(gameFacts).getByText("Arrive")).toBeTruthy();
+    expect(within(gameFacts).getByText("Your RSVP")).toBeTruthy();
+    expect(within(gameFacts).getByText("unanswered")).toBeTruthy();
     expect(screen.queryByText(/Attending/)).toBeNull();
     expect(screen.queryByRole("button", { name: "Save RSVP" })).toBeNull();
   });
@@ -73,7 +75,9 @@ describe("game day panel", () => {
         timezone="Australia/Melbourne"
       />,
     );
-    expect(screen.getByText(/Attending 3/)).toBeTruthy();
+    const summary = screen.getByLabelText("Team RSVP summary");
+    expect(within(summary).getByText("Attending")).toBeTruthy();
+    expect(within(summary).getByText("3")).toBeTruthy();
   });
 
   it("shows the error state without exposing a missing game projection", () => {

@@ -1,4 +1,10 @@
-import { cleanup, render, screen } from "@testing-library/react";
+import {
+  cleanup,
+  fireEvent,
+  render,
+  screen,
+  within,
+} from "@testing-library/react";
 import { afterEach, describe, expect, it } from "vitest";
 
 import { RoleHomePanel } from "./role-home-panel";
@@ -25,9 +31,7 @@ describe("role home panel", () => {
       />,
     );
 
-    expect(
-      screen.getByRole("heading", { name: "Choose your team" }),
-    ).toBeTruthy();
+    expect(screen.getByRole("heading", { name: "Choose a team" })).toBeTruthy();
     expect(
       screen.getByRole("link", { name: "U14 Boys" }).getAttribute("href"),
     ).toBe("/?team=team-a");
@@ -108,11 +112,14 @@ describe("role home panel", () => {
       />,
     );
 
-    expect(
-      screen.getByText(/RSVP: attending · Your duty: Scorer/),
-    ).toBeTruthy();
-    expect(screen.getByText(/Arrive/)).toBeTruthy();
+    expect(screen.getByText("attending")).toBeTruthy();
+    expect(screen.getByText("Scorer")).toBeTruthy();
+    expect(screen.getByText("Arrive", { exact: true })).toBeTruthy();
     expect(screen.getByRole("link", { name: "Team roster" })).toBeTruthy();
+    expect(
+      screen.getByText("View as Guardian").getAttribute("aria-label"),
+    ).toBe("Switch role");
+    fireEvent.click(screen.getByText("View as Guardian"));
     expect(
       screen.getByRole("link", { name: "Head Coach" }).getAttribute("href"),
     ).toBe("/?team=team-a&view=head-coach");
@@ -181,27 +188,26 @@ describe("role home panel", () => {
       />,
     );
 
-    expect(screen.getByText("Attending: 6")).toBeTruthy();
-    expect(screen.getByText("Unavailable: 1")).toBeTruthy();
-    expect(screen.getByText("Unsure: 2")).toBeTruthy();
-    expect(screen.getByText("3 unanswered RSVP(s)")).toBeTruthy();
-    expect(screen.getByText("Your duty: Scorer (ASSIGNED)")).toBeTruthy();
-    expect(screen.getByText("Confirmed fill-in: Player R.")).toBeTruthy();
+    expect(screen.getByText("attending")).toBeTruthy();
+    expect(screen.getByText("unavailable")).toBeTruthy();
+    expect(screen.getByText("unsure")).toBeTruthy();
+    expect(screen.getByText("3")).toBeTruthy();
+    expect(screen.getByText("Scorer · assigned")).toBeTruthy();
+    expect(screen.getByText("Player R.")).toBeTruthy();
     expect(screen.queryByText("Private plan context")).toBeNull();
-    const coachingTools = screen.getByRole("navigation", {
-      name: "Coaching tools",
-    });
     expect(
       screen
-        .getByRole("link", { name: "Training and practice plans" })
+        .getByRole("link", { name: /Training and plans/ })
         .getAttribute("href"),
     ).toBe("/teams/team-a/training");
     expect(
       screen
-        .getByRole("link", { name: "Game Day, stats and review" })
+        .getByRole("link", { name: "Open Game Day and team stats" })
         .getAttribute("href"),
     ).toBe("/teams/team-a/games/11111111-1111-4111-8111-111111111111");
-    expect(coachingTools).toBeTruthy();
+    expect(
+      screen.getByRole("navigation", { name: "Team workspace" }),
+    ).toBeTruthy();
   });
 
   it("keeps role switching explicit when one adult has several team roles", () => {
@@ -225,6 +231,7 @@ describe("role home panel", () => {
       />,
     );
 
+    fireEvent.click(screen.getByText("View as Assistant Coach"));
     expect(
       screen.getByRole("link", { name: "Head Coach" }).getAttribute("href"),
     ).toBe("/?team=team-a&view=head-coach");
@@ -293,18 +300,20 @@ describe("role home panel", () => {
       />,
     );
 
-    expect(screen.getByText("Duties: 2 assigned, 1 unassigned")).toBeTruthy();
-    expect(screen.getByText("2 unanswered RSVP(s)")).toBeTruthy();
-    expect(screen.getByText("Attending: 3")).toBeTruthy();
-    expect(screen.getByText("Unavailable: 1")).toBeTruthy();
+    expect(screen.getByText("Duties assigned")).toBeTruthy();
+    expect(screen.getByText("1 unassigned")).toBeTruthy();
+    const dutyMetric = screen.getByText("Duties assigned").closest("div");
+    if (!(dutyMetric instanceof HTMLElement)) {
+      throw new Error("Duties metric was not rendered.");
+    }
+    expect(within(dutyMetric).getByText("2")).toBeTruthy();
+    expect(screen.getByText("attending")).toBeTruthy();
+    expect(screen.getByText("unavailable")).toBeTruthy();
     expect(screen.queryByText("Private coaching focus")).toBeNull();
-    expect(
-      screen.getByText("Duty acknowledgements: 1 of 2 complete; 1 pending"),
-    ).toBeTruthy();
-    expect(screen.getByText("Open duty swaps: 1")).toBeTruthy();
-    expect(
-      screen.getByText("Fill-in needs: 1 open; 2 responses; 0 confirmed"),
-    ).toBeTruthy();
+    expect(screen.getByText("Acknowledged")).toBeTruthy();
+    expect(screen.getByText("1 pending")).toBeTruthy();
+    expect(screen.getByText("Open swaps")).toBeTruthy();
+    expect(screen.getByText("Fill-ins")).toBeTruthy();
     expect(
       screen.queryByRole("navigation", { name: "Coaching tools" }),
     ).toBeNull();

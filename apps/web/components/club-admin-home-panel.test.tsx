@@ -26,14 +26,14 @@ describe("club admin home panel", () => {
       />,
     );
 
-    expect(screen.getByRole("heading", { name: "Club overview" })).toBeTruthy();
+    expect(screen.getByRole("heading", { name: "Overview" })).toBeTruthy();
     expect(screen.getByText("Active teams")).toBeTruthy();
     expect(screen.getByText("2")).toBeTruthy();
-    expect(screen.getByText(/needs Head Coach and Team Manager/)).toBeTruthy();
     expect(
-      screen
-        .getByRole("link", { name: "Review team staff" })
-        .getAttribute("href"),
+      screen.getByText(/needs a Head Coach and Team Manager/),
+    ).toBeTruthy();
+    expect(
+      screen.getByRole("link", { name: "Review staff" }).getAttribute("href"),
     ).toBe("/teams/team-one/staff");
   });
 
@@ -51,11 +51,7 @@ describe("club admin home panel", () => {
       />,
     );
 
-    expect(
-      screen.getByText(
-        "No outstanding setup, leadership, invitation, or guardian-link issues found.",
-      ),
-    ).toBeTruthy();
+    expect(screen.getByText(/You’re in good shape/)).toBeTruthy();
   });
 
   it("directs the Club Admin to create an active season", () => {
@@ -72,10 +68,10 @@ describe("club admin home panel", () => {
       />,
     );
 
-    expect(screen.getByText(/No active season/)).toBeTruthy();
+    expect(screen.getByText(/There isn’t an active season/)).toBeTruthy();
     expect(
       screen
-        .getByRole("link", { name: "Set up an active season" })
+        .getByRole("link", { name: "Set up a season" })
         .getAttribute("href"),
     ).toBe("/club-structure");
   });
@@ -94,9 +90,7 @@ describe("club admin home panel", () => {
       />,
     );
 
-    expect(
-      screen.getByText(/3 pending staff or guardian invitations/),
-    ).toBeTruthy();
+    expect(screen.getByText(/3 invitations are waiting/)).toBeTruthy();
     expect(screen.getByText(/1 expire within seven days/)).toBeTruthy();
     expect(
       screen
@@ -141,11 +135,11 @@ describe("club admin home panel", () => {
     );
 
     expect(
-      screen.getByText("2 active players need an active guardian."),
+      screen.getByText("2 active players need an active guardian link."),
     ).toBeTruthy();
     expect(
       screen
-        .getByRole("link", { name: "Review player relationships" })
+        .getByRole("link", { name: "Review player links" })
         .getAttribute("href"),
     ).toBe("/players");
     expect(container.textContent).not.toContain("Player One");

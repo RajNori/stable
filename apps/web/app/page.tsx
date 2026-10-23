@@ -270,30 +270,34 @@ export default async function HomePage({ searchParams }: HomePageProps) {
           />
         }
       >
-        {presentation.capabilities.includes("club.manage") ? (
-          <ClubAdminHomePanel
-            summary={adminHomeSummary}
+        <div className="workspace-home-layout">
+          {presentation.capabilities.includes("club.manage") ? (
+            <ClubAdminHomePanel
+              summary={adminHomeSummary}
+              themeKey={context.club.themeKey}
+              {...(adminHomeError === undefined
+                ? {}
+                : { error: adminHomeError })}
+            />
+          ) : null}
+          <RoleHomePanel
+            role={role}
+            availableRoles={availableRoles}
+            teams={teamChoices}
+            selectedTeam={selectedTeam}
+            nextGame={nextGame}
+            nextTraining={nextTraining}
+            gameDay={gameDay}
+            managerOperations={managerOperations}
+            {...(managerOperationsError === undefined
+              ? {}
+              : { managerOperationsError })}
+            latestAnnouncement={latestAnnouncement}
+            timezone={context.club.timezone}
             themeKey={context.club.themeKey}
-            {...(adminHomeError === undefined ? {} : { error: adminHomeError })}
+            {...(homeError === undefined ? {} : { error: homeError })}
           />
-        ) : null}
-        <RoleHomePanel
-          role={role}
-          availableRoles={availableRoles}
-          teams={teamChoices}
-          selectedTeam={selectedTeam}
-          nextGame={nextGame}
-          nextTraining={nextTraining}
-          gameDay={gameDay}
-          managerOperations={managerOperations}
-          {...(managerOperationsError === undefined
-            ? {}
-            : { managerOperationsError })}
-          latestAnnouncement={latestAnnouncement}
-          timezone={context.club.timezone}
-          themeKey={context.club.themeKey}
-          {...(homeError === undefined ? {} : { error: homeError })}
-        />
+        </div>
       </ClubAdminShell>
     );
   }

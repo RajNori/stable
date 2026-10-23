@@ -1,0 +1,459 @@
+.panel {
+  display: grid;
+  gap: 22px;
+  padding: 27px;
+  border: 1px solid var(--stable-border);
+  border-radius: 15px;
+  background: var(--stable-surface);
+  box-shadow: var(--stable-shadow-sm);
+}
+
+.pageHeader {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding-bottom: 18px;
+  border-bottom: 1px solid var(--stable-border);
+}
+
+.pageIcon,
+.playerMark {
+  display: grid;
+  flex: 0 0 auto;
+  place-items: center;
+  background: var(--stable-surface-alt);
+  color: var(--stable-brand);
+}
+
+.pageIcon {
+  width: 46px;
+  height: 46px;
+  border-radius: 12px;
+}
+
+.kicker {
+  margin: 0 0 4px;
+  color: var(--stable-brand);
+  font-size: 11px;
+  font-weight: 750;
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+}
+
+.pageHeader h1,
+.sectionHeader h2 {
+  margin: 0;
+  color: var(--stable-ink);
+  font-size: 24px;
+  line-height: 30px;
+  font-weight: 750;
+  letter-spacing: -0.035em;
+}
+
+.pageHeader p:last-child,
+.sectionHeader > p {
+  margin: 5px 0 0;
+  color: var(--stable-muted);
+  font-size: 13px;
+  line-height: 19px;
+}
+
+.playerList {
+  display: grid;
+  gap: 14px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.playerRecord {
+  min-width: 0;
+  overflow: hidden;
+  border: 1px solid var(--stable-border);
+  border-radius: 12px;
+  background: var(--stable-surface);
+}
+
+.playerHeading {
+  display: grid;
+  grid-template-columns: 42px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 12px;
+  min-height: 80px;
+  padding: 14px 17px;
+  border-bottom: 1px solid var(--stable-border);
+  background: var(--stable-canvas);
+}
+
+.playerDetails {
+  min-width: 0;
+}
+
+.playerDetails > summary {
+  display: flex;
+  min-height: 44px;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 0 17px;
+  color: var(--stable-brand);
+  font-size: 12px;
+  line-height: 17px;
+  font-weight: 700;
+  cursor: pointer;
+  list-style: none;
+}
+
+.playerDetails > summary::-webkit-details-marker {
+  display: none;
+}
+
+.playerDetails > summary svg {
+  transition: transform 160ms ease;
+}
+
+.playerDetails[open] > summary {
+  border-bottom: 1px solid var(--stable-border);
+}
+
+.playerDetails[open] > summary svg {
+  transform: rotate(180deg);
+}
+
+.playerMark {
+  width: 42px;
+  height: 42px;
+  border-radius: 11px;
+  font-size: 15px;
+  font-weight: 750;
+}
+
+.playerIdentity {
+  min-width: 0;
+}
+
+.playerIdentity h2 {
+  margin: 0;
+  font-size: 16px;
+  line-height: 21px;
+  font-weight: 720;
+  letter-spacing: -0.02em;
+}
+
+.playerIdentity p {
+  margin: 4px 0 0;
+  color: var(--stable-muted);
+  font-size: 12px;
+  line-height: 17px;
+}
+
+.playerIdentity strong {
+  color: var(--stable-secondary);
+  font-weight: 650;
+}
+
+.playerStatus {
+  display: grid;
+  justify-items: end;
+  gap: 5px;
+}
+
+.active,
+.inactive,
+.teamName {
+  display: inline-flex;
+  min-height: 23px;
+  align-items: center;
+  padding: 3px 8px;
+  border-radius: 5px;
+  font-size: 10px;
+  line-height: 14px;
+  font-weight: 700;
+}
+
+.active {
+  background: var(--stable-success-soft);
+  color: var(--stable-success);
+}
+
+.inactive {
+  background: var(--stable-surface-alt);
+  color: var(--stable-muted);
+}
+
+.teamName {
+  background: var(--stable-surface);
+  color: var(--stable-secondary);
+  font-size: 11px;
+}
+
+.playerBody {
+  display: grid;
+  grid-template-columns: minmax(0, 1.05fr) minmax(0, 0.95fr);
+  gap: 0;
+}
+
+.managementGroup {
+  display: grid;
+  align-content: start;
+  gap: 12px;
+  min-width: 0;
+  padding: 17px;
+}
+
+.managementGroup + .managementGroup {
+  border-left: 1px solid var(--stable-border);
+}
+
+.managementGroup > h3,
+.nameForm h3,
+.createForm h3,
+.setupCard > h3 {
+  margin: 0;
+  color: var(--stable-ink);
+  font-size: 13px;
+  line-height: 18px;
+  font-weight: 720;
+}
+
+.nameForm {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  align-items: end;
+  gap: 10px;
+  padding-top: 13px;
+  border-top: 1px solid var(--stable-border);
+}
+
+.nameForm h3 {
+  grid-column: 1 / -1;
+}
+
+.nameForm button,
+.statusForm,
+.inlineForm button,
+.compactForm button {
+  justify-self: start;
+}
+
+.statusForm {
+  padding-top: 2px;
+}
+
+.inlineForm {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: end;
+  gap: 9px;
+}
+
+.nameForm label,
+.inlineForm label,
+.createForm label {
+  display: grid;
+  gap: 5px;
+  min-width: 0;
+  color: var(--stable-secondary);
+  font-size: 11px;
+  line-height: 15px;
+  font-weight: 700;
+}
+
+.panel .nameForm input,
+.panel .inlineForm select,
+.panel .createForm input {
+  width: 100%;
+  min-width: 0;
+  min-height: 42px;
+  margin: 0;
+  padding: 0 10px;
+  border: 1px solid var(--stable-border-strong);
+  border-radius: 7px;
+  background-color: var(--stable-canvas);
+  color: var(--stable-ink);
+  font-size: 13px;
+}
+.panel .inlineForm select {
+  padding: 0 38px 0 10px;
+  appearance: none;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 16 16' fill='none'%3E%3Cpath d='m4 6 4 4 4-4' stroke='%232f5e50' stroke-width='1.7' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 10px center;
+  background-size: 16px;
+  text-overflow: ellipsis;
+}
+
+.panel .nameForm button,
+.panel .inlineForm button,
+.panel .statusForm button,
+.panel .compactForm button,
+.panel .createForm button {
+  min-height: 42px;
+  margin: 0;
+  padding: 0 12px;
+  border-radius: 7px;
+  font-size: 12px;
+  white-space: nowrap;
+}
+
+.guardianList {
+  display: grid;
+  gap: 7px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.guardianList > li {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  align-items: center;
+  gap: 8px;
+  min-height: 44px;
+  padding: 6px 8px;
+  border-radius: 7px;
+  background: var(--stable-canvas);
+  color: var(--stable-secondary);
+  font-size: 12px;
+}
+
+.compactForm {
+  margin: 0;
+}
+
+.addSection {
+  display: grid;
+  gap: 14px;
+  padding-top: 22px;
+  border-top: 1px solid var(--stable-border);
+}
+
+.sectionHeader {
+  display: flex;
+  align-items: end;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.sectionHeader h2 {
+  font-size: 20px;
+  line-height: 26px;
+}
+
+.setupGrid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.setupCard {
+  display: grid;
+  align-content: start;
+  gap: 13px;
+  min-width: 0;
+  padding: 17px;
+  border: 1px solid var(--stable-border);
+  border-radius: 10px;
+  background: var(--stable-canvas);
+}
+
+.createForm {
+  display: grid;
+  gap: 12px;
+}
+
+.empty {
+  margin: 0;
+  padding: 22px;
+  border: 1px dashed var(--stable-border-strong);
+  border-radius: 10px;
+  color: var(--stable-muted);
+}
+
+.error {
+  margin: 0;
+  padding: 12px 14px;
+  border-left: 3px solid var(--stable-error);
+  border-radius: 6px;
+  background: var(--stable-error-soft);
+}
+
+@media (max-width: 900px) {
+  .playerBody {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .managementGroup + .managementGroup {
+    border-top: 1px solid var(--stable-border);
+    border-left: 0;
+  }
+}
+
+@media (max-width: 620px) {
+  .panel {
+    gap: 17px;
+    padding: 16px;
+  }
+  .playerHeading {
+    grid-template-columns: 38px minmax(0, 1fr);
+    gap: 10px;
+    padding: 12px;
+  }
+  .playerDetails > summary {
+    padding: 0 12px;
+  }
+  .playerMark {
+    width: 38px;
+    height: 38px;
+  }
+  .playerStatus {
+    grid-column: 2;
+    grid-row: 2;
+    justify-items: start;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+  }
+  .playerIdentity {
+    grid-column: 2;
+    grid-row: 1;
+  }
+  .managementGroup {
+    padding: 13px;
+  }
+  .nameForm {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .nameForm h3 {
+    grid-column: auto;
+  }
+  .nameForm button,
+  .statusForm,
+  .inlineForm button,
+  .compactForm button {
+    justify-self: stretch;
+    width: 100%;
+  }
+  .inlineForm {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .guardianList > li {
+    grid-template-columns: minmax(0, 1fr) auto;
+  }
+  .compactForm {
+    grid-column: 1 / -1;
+  }
+  .setupGrid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .sectionHeader {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 5px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .playerDetails > summary svg {
+    transition: none;
+  }
+}

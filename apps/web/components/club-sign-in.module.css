@@ -1,0 +1,260 @@
+.root {
+  display: grid;
+  grid-template-columns: minmax(290px, 0.82fr) minmax(0, 1.18fr);
+  min-height: 100vh;
+  background: var(--sign-in-canvas);
+  color: var(--sign-in-ink);
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+}
+
+.brand {
+  position: relative;
+  display: flex;
+  min-height: 100vh;
+  flex-direction: column;
+  align-items: flex-start;
+  justify-content: center;
+  gap: 16px;
+  overflow: hidden;
+  padding: clamp(32px, 6vw, 76px);
+  border-top: 4px solid var(--sign-in-gold);
+  background: var(--sign-in-inverse);
+  color: var(--sign-in-inverse-ink);
+}
+
+.brand::after {
+  position: absolute;
+  right: -140px;
+  bottom: -170px;
+  width: 390px;
+  height: 390px;
+  border: 1px solid
+    color-mix(in srgb, var(--sign-in-inverse-ink) 13%, transparent);
+  border-radius: 50%;
+  content: "";
+  pointer-events: none;
+}
+
+.brandMark {
+  display: grid;
+  width: 45px;
+  height: 45px;
+  place-items: center;
+  border-radius: 13px;
+  background: var(--sign-in-gold);
+  color: var(--sign-in-green);
+  font-size: 22px;
+  font-weight: 850;
+  letter-spacing: -0.08em;
+}
+
+.brandName {
+  margin: 14px 0 0;
+  color: var(--sign-in-gold);
+  font-size: 13px;
+  line-height: 18px;
+  font-weight: 750;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
+.brand h1 {
+  max-width: 10ch;
+  margin: 0;
+  color: var(--sign-in-inverse-ink);
+  font-size: clamp(34px, 4.2vw, 54px);
+  line-height: 1.02;
+  font-weight: 760;
+  letter-spacing: -0.055em;
+}
+
+.brandDetail {
+  max-width: 34ch;
+  margin: 0;
+  color: color-mix(in srgb, var(--sign-in-inverse-ink) 73%, transparent);
+  font-size: 15px;
+  line-height: 23px;
+}
+
+.panel {
+  display: grid;
+  align-content: center;
+  justify-items: center;
+  padding: clamp(24px, 7vw, 88px);
+}
+
+.form {
+  display: grid;
+  width: min(100%, 420px);
+  gap: 16px;
+  padding: clamp(23px, 4vw, 38px);
+  border: 1px solid var(--sign-in-border);
+  border-radius: 15px;
+  background: var(--sign-in-surface);
+  box-shadow: 0 1px 2px rgb(17 22 19 / 5%);
+}
+
+.form h2 {
+  margin: 0 0 5px;
+  color: var(--sign-in-ink);
+  font-size: 27px;
+  line-height: 33px;
+  font-weight: 740;
+  letter-spacing: -0.04em;
+}
+
+.form > p:not([role="alert"]):not([role="status"]) {
+  margin: 0;
+  color: var(--sign-in-muted);
+  font-size: 14px;
+  line-height: 21px;
+}
+
+.form label {
+  display: grid;
+  gap: 7px;
+  color: var(--sign-in-muted);
+  font-size: 13px;
+  line-height: 18px;
+  font-weight: 650;
+}
+
+.form input {
+  width: 100%;
+  min-height: 48px;
+  padding: 0 13px;
+  border: 1px solid var(--sign-in-border);
+  border-radius: var(--sign-in-radius);
+  background: var(--sign-in-surface);
+  color: var(--sign-in-ink);
+  font: inherit;
+  font-size: 15px;
+}
+
+.primary,
+.secondary {
+  min-height: 48px;
+  padding: 0 15px;
+  border: 1px solid var(--sign-in-green);
+  border-radius: var(--sign-in-radius);
+  font: inherit;
+  font-size: 14px;
+  font-weight: 720;
+  cursor: pointer;
+}
+
+.primary {
+  background: var(--sign-in-green);
+  color: var(--sign-in-inverse-ink);
+}
+
+.primary:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--sign-in-green) 88%, black);
+}
+
+.secondary {
+  background: var(--sign-in-surface);
+  color: var(--sign-in-green);
+}
+
+.secondary:hover:not(:disabled) {
+  background: var(--sign-in-canvas);
+}
+
+.primary:disabled,
+.secondary:disabled,
+.textButton:disabled {
+  cursor: not-allowed;
+  opacity: 0.62;
+}
+
+.textButton {
+  min-height: 42px;
+  justify-self: start;
+  padding: 0 2px;
+  border: 0;
+  background: transparent;
+  color: var(--sign-in-green);
+  font: inherit;
+  font-size: 13px;
+  font-weight: 700;
+  text-align: left;
+  text-underline-offset: 3px;
+  cursor: pointer;
+}
+
+.textButton:hover:not(:disabled) {
+  text-decoration: underline;
+}
+
+.error {
+  margin: 0;
+  padding: 12px 14px;
+  border-left: 3px solid var(--sign-in-error);
+  border-radius: 6px;
+  background: var(--sign-in-surface);
+  color: var(--sign-in-error);
+  font-size: 13px;
+  line-height: 19px;
+}
+
+.loading {
+  padding: 18px;
+  color: var(--sign-in-muted);
+}
+
+:is(.root, .root *) :focus-visible {
+  outline: 3px solid var(--sign-in-green);
+  outline-offset: 3px;
+}
+
+@media (max-width: 780px) {
+  .root {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .brand {
+    min-height: 0;
+    padding: 26px 24px 28px;
+    gap: 11px;
+  }
+  .brandMark {
+    width: 39px;
+    height: 39px;
+  }
+  .brandName {
+    margin-top: 7px;
+  }
+  .brand h1 {
+    max-width: 20ch;
+    font-size: 34px;
+    line-height: 37px;
+  }
+  .brandDetail {
+    max-width: 44ch;
+    font-size: 13px;
+    line-height: 19px;
+  }
+  .panel {
+    padding: 24px 18px 40px;
+  }
+  .form {
+    gap: 13px;
+  }
+}
+
+@media (max-width: 390px) {
+  .brand h1 {
+    font-size: 30px;
+    line-height: 33px;
+  }
+  .panel {
+    padding: 16px 12px 28px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .root * {
+    scroll-behavior: auto;
+    transition: none;
+  }
+}

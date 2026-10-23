@@ -1,5 +1,7 @@
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
+import type { CSSProperties } from "react";
+import { themeFor } from "@stable/design-tokens";
 
 import {
   RECOVERY_PENDING_COOKIE,
@@ -7,6 +9,7 @@ import {
 } from "../../../lib/password-recovery";
 import { createSupabaseServerClient } from "../../../lib/supabase/server";
 import { completePasswordRecovery } from "./actions";
+import styles from "./page.module.css";
 
 export const dynamic = "force-dynamic";
 
@@ -19,6 +22,8 @@ const recoveryErrors: Readonly<Record<string, string>> = {
   mismatch: "Enter the same new password in both fields.",
   update: "The password could not be updated. Try again.",
 };
+
+const theme = themeFor("mustangs");
 
 export default async function PasswordRecoveryPage({
   searchParams,
@@ -38,33 +43,38 @@ export default async function PasswordRecoveryPage({
   const rawError = params["error"];
   const errorKey = Array.isArray(rawError) ? rawError[0] : rawError;
   const message = errorKey === undefined ? undefined : recoveryErrors[errorKey];
+  const themeStyle = {
+    "--recovery-canvas": theme.color.background.canvas,
+    "--recovery-surface": theme.color.background.surface,
+    "--recovery-ink": theme.color.text.primary,
+    "--recovery-secondary": theme.color.text.secondary,
+    "--recovery-border": theme.color.border.default,
+    "--recovery-brand": theme.color.brand.primary,
+    "--recovery-accent": theme.color.brand.accent,
+    "--recovery-inverse-ink": theme.color.text.inverse,
+    "--recovery-error": theme.color.state.error,
+    "--recovery-error-soft": theme.color.state.errorSoft,
+    "--recovery-radius": `${theme.radius.md}px`,
+  } as CSSProperties;
 
   return (
-    <main className="recovery-page">
-      <style>{`
-        .recovery-page { min-height: 100vh; display: grid; place-items: center; padding: 1.5rem; background: #f5f6f2; color: #19231d; font-family: system-ui, sans-serif; }
-        .recovery-card { width: min(100%, 28rem); display: grid; gap: 1rem; padding: 2rem; border: 1px solid #d8ded8; border-radius: 12px; background: white; }
-        .recovery-card h1, .recovery-card p { margin: 0; }
-        .recovery-form { display: grid; gap: 1rem; }
-        .recovery-form label { display: grid; gap: .4rem; }
-        .recovery-form input, .recovery-form button { min-height: 44px; padding: 0 .75rem; border: 1px solid #65736a; border-radius: 8px; font: inherit; }
-        .recovery-form button { background: #efc95b; border-color: #efc95b; font-weight: 700; cursor: pointer; }
-        .recovery-form :focus-visible { outline: 2px solid #1b6842; outline-offset: 2px; }
-        .recovery-error { color: #8b1d1d; }
-      `}</style>
-      <section className="recovery-card" aria-labelledby="recovery-title">
-        <p>The Stable</p>
+    <main className={styles.page} style={themeStyle}>
+      <section className={styles.card} aria-labelledby="recovery-title">
+        <span className={styles.mark} aria-hidden="true">
+          S
+        </span>
+        <p className={styles.brand}>The Stable · Account security</p>
         <h1 id="recovery-title">Choose a new password</h1>
-        <p>
+        <p className={styles.detail}>
           This recovery session is short-lived. You will sign in again after
           updating your password.
         </p>
         {message === undefined ? null : (
-          <p className="recovery-error" role="alert">
+          <p className={styles.error} role="alert">
             {message}
           </p>
         )}
-        <form action={completePasswordRecovery} className="recovery-form">
+        <form action={completePasswordRecovery} className={styles.form}>
           <label>
             New password
             <input
