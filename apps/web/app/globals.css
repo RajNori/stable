@@ -131,6 +131,10 @@ aside button {
   cursor: pointer;
 }
 
+main form button {
+  justify-self: start;
+}
+
 main button:hover,
 aside button:hover {
   border-color: var(--stable-green-strong);
