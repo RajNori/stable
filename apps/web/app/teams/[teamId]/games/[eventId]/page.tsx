@@ -327,10 +327,14 @@ export default async function GameDayPage({
       });
       dutyProposal = {
         fingerprint: preview.fingerprint,
-        lines: preview.proposals.map(
-          (proposal) =>
-            `${proposal.dutyId} count ${String(proposal.priorCount)}`,
-        ),
+        lines: preview.proposals.map((proposal) => {
+          const duty = preview.duties.find(
+            (item) => item.dutyId === proposal.dutyId,
+          );
+          return duty === undefined
+            ? "Open duty ready for fair allocation"
+            : `${duty.dutyType.toLowerCase()}: ${duty.label}`;
+        }),
       };
     } catch (caught: unknown) {
       error =

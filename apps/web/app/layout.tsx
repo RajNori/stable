@@ -1,5 +1,6 @@
 import type { ReactNode } from "react";
 import { themeFor } from "@stable/design-tokens";
+import "./globals.css";
 
 import { loadWebBootEnv } from "../lib/boot-env.server";
 
